@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { useWorldViewStore, LayerType, INSTABILITY_DATA, MARKET_DATA } from '@/store/worldview';
+import { useWorldViewStore, LayerType, INSTABILITY_DATA, MARKET_DATA, REGION_PRESETS } from '@/store/worldview';
 import { PIZZA_INDEX_DATA } from '@/services/dataServices';
 
 const LAYER_CONFIG: { key: LayerType; label: string; shortcut: string; colorClass: string }[] = [
@@ -18,9 +18,14 @@ const LAYER_CONFIG: { key: LayerType; label: string; shortcut: string; colorClas
 ];
 
 const LeftPanel = memo(() => {
-  const { layers, toggleLayer, leftPanelOpen } = useWorldViewStore();
+  const { layers, toggleLayer, leftPanelOpen, activeRegion, setActiveRegion, setMapCenter } = useWorldViewStore();
 
   if (!leftPanelOpen) return null;
+
+  const handleRegion = (preset: typeof REGION_PRESETS[0]) => {
+    setActiveRegion(preset.label);
+    setMapCenter({ lat: preset.lat, lon: preset.lon, zoom: preset.zoom });
+  };
 
   return (
     <aside className="glass-panel w-[280px] overflow-y-auto border-r border-border flex flex-col z-40">
@@ -57,16 +62,17 @@ const LeftPanel = memo(() => {
       <div className="p-3 border-b border-border">
         <h2 className="text-[10px] font-display tracking-[0.2em] text-muted-foreground mb-2">REGION</h2>
         <div className="flex flex-wrap gap-1">
-          {['🌍 GLOBAL', '🌎 AMERICAS', '🌍 EUROPE', 'MENA', '🌏 ASIA', 'AFRICA'].map((r) => (
+          {REGION_PRESETS.map((preset) => (
             <button
-              key={r}
+              key={preset.label}
+              onClick={() => handleRegion(preset)}
               className={`px-2 py-0.5 text-[9px] font-display tracking-wider rounded border ${
-                r === '🌍 GLOBAL'
+                activeRegion === preset.label
                   ? 'border-primary/30 text-primary bg-primary/10'
                   : 'border-border text-muted-foreground hover:text-foreground hover:border-primary/20'
               } transition-colors`}
             >
-              {r}
+              {preset.emoji} {preset.label}
             </button>
           ))}
         </div>

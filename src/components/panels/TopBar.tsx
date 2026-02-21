@@ -1,8 +1,8 @@
 import { memo } from 'react';
-import { useWorldViewStore, MARKET_DATA } from '@/store/worldview';
+import { useWorldViewStore, MARKET_DATA, MapMode } from '@/store/worldview';
 
 const TopBar = memo(() => {
-  const { aircraft, satellites, earthquakes, lastRefresh, toggleLeftPanel } = useWorldViewStore();
+  const { aircraft, satellites, earthquakes, lastRefresh, toggleLeftPanel, mapMode, setMapMode } = useWorldViewStore();
   const militaryCount = aircraft.filter(a => a.isMilitary).length;
 
   return (
@@ -36,12 +36,18 @@ const TopBar = memo(() => {
         </div>
       </div>
 
-      {/* Center: Live counters */}
+      {/* Center: Live counters + Map toggle */}
       <div className="hidden lg:flex items-center gap-4 font-data text-xs">
         <CounterBadge icon="✈" count={aircraft.length} color="text-signal-aircraft" label="" />
         <CounterBadge icon="⚔" count={militaryCount} color="text-signal-military" label="" />
         <CounterBadge icon="🛰" count={satellites.length} color="text-signal-satellite" label="" />
         <CounterBadge icon="🌍" count={earthquakes.length} color="text-signal-earthquake" label="" />
+
+        {/* 2D/3D Toggle */}
+        <div className="flex items-center border border-border rounded overflow-hidden ml-2">
+          <MapToggleBtn active={mapMode === '2d'} label="2D" onClick={() => setMapMode('2d')} />
+          <MapToggleBtn active={mapMode === '3d'} label="3D" onClick={() => setMapMode('3d')} />
+        </div>
       </div>
 
       {/* Right: Status */}
@@ -57,6 +63,17 @@ const TopBar = memo(() => {
     </header>
   );
 });
+
+const MapToggleBtn = ({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) => (
+  <button
+    onClick={onClick}
+    className={`px-2.5 py-0.5 text-[10px] font-display tracking-wider transition-colors ${
+      active ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:text-foreground'
+    }`}
+  >
+    {label}
+  </button>
+);
 
 const CounterBadge = ({ icon, count, color, label }: { icon: string; count: number; color: string; label: string }) => (
   <div className="flex items-center gap-1">

@@ -66,6 +66,30 @@ export interface CountryInstability {
 }
 
 export type BottomPanelTab = 'news' | 'livestream' | 'pizza';
+export type MapMode = '2d' | '3d';
+
+export interface MapCenter {
+  lat: number;
+  lon: number;
+  zoom: number;
+}
+
+export interface RegionPreset {
+  label: string;
+  emoji: string;
+  lat: number;
+  lon: number;
+  zoom: number;
+}
+
+export const REGION_PRESETS: RegionPreset[] = [
+  { label: 'GLOBAL', emoji: '🌍', lat: 20, lon: 0, zoom: 3 },
+  { label: 'AMERICAS', emoji: '🌎', lat: 15, lon: -80, zoom: 4 },
+  { label: 'EUROPE', emoji: '🌍', lat: 50, lon: 15, zoom: 5 },
+  { label: 'MENA', emoji: '🕌', lat: 28, lon: 40, zoom: 5 },
+  { label: 'ASIA', emoji: '🌏', lat: 30, lon: 105, zoom: 4 },
+  { label: 'AFRICA', emoji: '🌍', lat: 0, lon: 20, zoom: 4 },
+];
 
 export interface WorldViewState {
   layers: Record<LayerType, boolean>;
@@ -101,6 +125,15 @@ export interface WorldViewState {
 
   newsLoading: boolean;
   setNewsLoading: (b: boolean) => void;
+
+  mapMode: MapMode;
+  setMapMode: (mode: MapMode) => void;
+
+  mapCenter: MapCenter | null;
+  setMapCenter: (center: MapCenter) => void;
+
+  activeRegion: string;
+  setActiveRegion: (region: string) => void;
 }
 
 export const useWorldViewStore = create<WorldViewState>((set) => ({
@@ -154,6 +187,15 @@ export const useWorldViewStore = create<WorldViewState>((set) => ({
 
   newsLoading: false,
   setNewsLoading: (newsLoading) => set({ newsLoading }),
+
+  mapMode: '2d',
+  setMapMode: (mapMode) => set({ mapMode }),
+
+  mapCenter: null,
+  setMapCenter: (mapCenter) => set({ mapCenter }),
+
+  activeRegion: 'GLOBAL',
+  setActiveRegion: (activeRegion) => set({ activeRegion }),
 }));
 
 // Keyboard shortcuts
