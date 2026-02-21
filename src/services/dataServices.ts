@@ -1,4 +1,5 @@
-import { Earthquake, NewsItem } from '@/store/worldview';
+import { Aircraft, Earthquake, NewsItem } from '@/store/worldview';
+import { supabase } from '@/integrations/supabase/client';
 
 export const fetchEarthquakes = async (): Promise<Earthquake[]> => {
   try {
@@ -109,6 +110,26 @@ export const generateMockAircraft = () => {
     aircraft[aircraft.length - 1].altitudeFt = Math.round(aircraft[aircraft.length - 1].altitude * 3.28084);
   }
   return aircraft;
+};
+
+// Fetch real aircraft from OpenSky via edge function
+export const fetchLiveAircraft = async (): Promise<Aircraft[]> => {
+  try {
+    const { data, error } = await supabase.functions.invoke('opensky-proxy');
+    if (error) {
+      console.warn('OpenSky proxy error, falling back to mock:', error);
+      return generateMockAircraft();
+    }
+    if (data?.success && data.aircraft?.length > 0) {
+      console.log(`Received ${data.aircraft.length} live aircraft`);
+      return data.aircraft;
+    }
+    console.warn('No live aircraft data, falling back to mock');
+    return generateMockAircraft();
+  } catch (e) {
+    console.warn('Failed to fetch live aircraft, using mock:', e);
+    return generateMockAircraft();
+  }
 };
 
 // Generate simulated satellite data

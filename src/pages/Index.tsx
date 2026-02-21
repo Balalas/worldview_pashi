@@ -5,7 +5,7 @@ import RightPanel from '@/components/panels/RightPanel';
 import BottomFeed from '@/components/panels/BottomFeed';
 import MapContainer from '@/components/map/MapContainer';
 import { useWorldViewStore, LAYER_SHORTCUTS } from '@/store/worldview';
-import { fetchEarthquakes, generateMockAircraft, generateMockSatellites, fetchLiveNews } from '@/services/dataServices';
+import { fetchEarthquakes, generateMockAircraft, generateMockSatellites, fetchLiveNews, fetchLiveAircraft } from '@/services/dataServices';
 
 const GlobeContainer = lazy(() => import('@/components/map/GlobeContainer'));
 
@@ -14,8 +14,12 @@ const Index = () => {
 
   // Load data on mount
   useEffect(() => {
+    // Start with mock aircraft, then try live
     setAircraft(generateMockAircraft());
     setSatellites(generateMockSatellites());
+
+    // Try live aircraft
+    fetchLiveAircraft().then(setAircraft);
 
     setNewsLoading(true);
     fetchLiveNews().then((news) => {
@@ -25,9 +29,12 @@ const Index = () => {
 
     fetchEarthquakes().then(setEarthquakes);
 
+    // Refresh aircraft every 15s (live with fallback to mock)
     const moveInterval = setInterval(() => {
-      setAircraft(generateMockAircraft());
-      setLastRefresh(new Date());
+      fetchLiveAircraft().then((a) => {
+        setAircraft(a);
+        setLastRefresh(new Date());
+      });
     }, 15000);
 
     const eqInterval = setInterval(() => {
