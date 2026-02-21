@@ -4,18 +4,24 @@ import LeftPanel from '@/components/panels/LeftPanel';
 import RightPanel from '@/components/panels/RightPanel';
 import BottomFeed from '@/components/panels/BottomFeed';
 import MapContainer from '@/components/map/MapContainer';
-import { useWorldViewStore, LAYER_SHORTCUTS, MOCK_NEWS } from '@/store/worldview';
-import { fetchEarthquakes, generateMockAircraft, generateMockSatellites } from '@/services/dataServices';
+import { useWorldViewStore, LAYER_SHORTCUTS } from '@/store/worldview';
+import { fetchEarthquakes, generateMockAircraft, generateMockSatellites, fetchLiveNews } from '@/services/dataServices';
 
 const Index = () => {
-  const { setAircraft, setSatellites, setEarthquakes, setNews, setLastRefresh, toggleLayer, closeDetailPanel } = useWorldViewStore();
+  const { setAircraft, setSatellites, setEarthquakes, setNews, setLastRefresh, setNewsLoading, toggleLayer, closeDetailPanel } = useWorldViewStore();
 
   // Load data on mount
   useEffect(() => {
     // Mock aircraft & satellites
     setAircraft(generateMockAircraft());
     setSatellites(generateMockSatellites());
-    setNews(MOCK_NEWS);
+
+    // Live news from RSS
+    setNewsLoading(true);
+    fetchLiveNews().then((news) => {
+      setNews(news);
+      setNewsLoading(false);
+    });
 
     // Real earthquake data
     fetchEarthquakes().then(setEarthquakes);
@@ -31,9 +37,15 @@ const Index = () => {
       fetchEarthquakes().then(setEarthquakes);
     }, 300000);
 
+    // Re-fetch news every 3 min
+    const newsInterval = setInterval(() => {
+      fetchLiveNews().then(setNews);
+    }, 180000);
+
     return () => {
       clearInterval(moveInterval);
       clearInterval(eqInterval);
+      clearInterval(newsInterval);
     };
   }, []);
 
@@ -66,7 +78,7 @@ const Index = () => {
               <div className="w-full h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent animate-scan-line" />
             </div>
           </div>
-          <div className="h-[180px]">
+          <div className="h-[220px]">
             <BottomFeed />
           </div>
         </div>

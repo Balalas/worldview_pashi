@@ -49,6 +49,7 @@ export interface NewsItem {
   severity: 'critical' | 'high' | 'medium' | 'low' | 'info';
   time: Date;
   isStateMedia?: boolean;
+  link?: string;
 }
 
 export interface DetailPanel {
@@ -63,6 +64,8 @@ export interface CountryInstability {
   trend: 'up' | 'down' | 'stable';
   level: 'critical' | 'high' | 'medium' | 'low';
 }
+
+export type BottomPanelTab = 'news' | 'livestream' | 'pizza';
 
 export interface WorldViewState {
   layers: Record<LayerType, boolean>;
@@ -89,6 +92,15 @@ export interface WorldViewState {
 
   leftPanelOpen: boolean;
   toggleLeftPanel: () => void;
+
+  bottomTab: BottomPanelTab;
+  setBottomTab: (tab: BottomPanelTab) => void;
+
+  activeLivestream: string | null;
+  setActiveLivestream: (id: string | null) => void;
+
+  newsLoading: boolean;
+  setNewsLoading: (b: boolean) => void;
 }
 
 export const useWorldViewStore = create<WorldViewState>((set) => ({
@@ -133,6 +145,15 @@ export const useWorldViewStore = create<WorldViewState>((set) => ({
 
   leftPanelOpen: true,
   toggleLeftPanel: () => set((s) => ({ leftPanelOpen: !s.leftPanelOpen })),
+
+  bottomTab: 'news',
+  setBottomTab: (bottomTab) => set({ bottomTab }),
+
+  activeLivestream: null,
+  setActiveLivestream: (activeLivestream) => set({ activeLivestream }),
+
+  newsLoading: false,
+  setNewsLoading: (newsLoading) => set({ newsLoading }),
 }));
 
 // Keyboard shortcuts
@@ -160,18 +181,6 @@ export const INSTABILITY_DATA: CountryInstability[] = [
   { country: 'Myanmar', flag: '🇲🇲', score: 52, trend: 'stable', level: 'medium' },
   { country: 'Somalia', flag: '🇸🇴', score: 64, trend: 'up', level: 'high' },
   { country: 'Libya', flag: '🇱🇾', score: 48, trend: 'down', level: 'medium' },
-];
-
-// Mock news
-export const MOCK_NEWS: NewsItem[] = [
-  { id: '1', title: 'Explosion reported near Damascus suburb — casualties feared', source: 'Al Jazeera', tier: 2, severity: 'critical', time: new Date(Date.now() - 120000) },
-  { id: '2', title: 'USS Gerald Ford carrier group enters Eastern Mediterranean', source: 'Reuters', tier: 1, severity: 'high', time: new Date(Date.now() - 420000) },
-  { id: '3', title: 'Internet disruption reported across Kharkiv region', source: 'BBC', tier: 1, severity: 'high', time: new Date(Date.now() - 900000) },
-  { id: '4', title: 'Taiwan Strait: Chinese military drills enter day 3', source: 'AP News', tier: 1, severity: 'high', time: new Date(Date.now() - 1800000) },
-  { id: '5', title: 'Oil prices surge 2.4% on Middle East escalation fears', source: 'Bloomberg', tier: 2, severity: 'medium', time: new Date(Date.now() - 3600000) },
-  { id: '6', title: 'USGS reports M5.2 earthquake near Istanbul', source: 'USGS', tier: 1, severity: 'medium', time: new Date(Date.now() - 5400000) },
-  { id: '7', title: 'Russian naval vessels detected in Norwegian Sea', source: 'Defense One', tier: 3, severity: 'medium', time: new Date(Date.now() - 7200000) },
-  { id: '8', title: 'Stablecoin USDT briefly depegs to $0.997 — market watches closely', source: 'CoinDesk', tier: 3, severity: 'low', time: new Date(Date.now() - 9000000) },
 ];
 
 // Mock market data

@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import { useWorldViewStore, LayerType, INSTABILITY_DATA, MARKET_DATA } from '@/store/worldview';
+import { PIZZA_INDEX_DATA } from '@/services/dataServices';
 
 const LAYER_CONFIG: { key: LayerType; label: string; shortcut: string; colorClass: string }[] = [
   { key: 'aircraft', label: 'AIRCRAFT', shortcut: 'A', colorClass: 'bg-signal-aircraft' },
@@ -125,7 +126,7 @@ const LeftPanel = memo(() => {
       </div>
 
       {/* Markets */}
-      <div className="p-3 flex-1">
+      <div className="p-3 border-b border-border">
         <h2 className="text-[10px] font-display tracking-[0.2em] text-muted-foreground mb-2">MARKETS</h2>
         <div className="space-y-1">
           {MARKET_DATA.slice(0, 6).map((m) => (
@@ -135,6 +136,29 @@ const LeftPanel = memo(() => {
                 <span className="font-data text-foreground">{m.value}</span>
                 <span className={`font-data text-[10px] ${m.up ? 'text-signal-aircraft' : 'text-alert-critical'}`}>
                   {m.up ? '▲' : '▼'} {m.change}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Pizza Index Mini */}
+      <div className="p-3 flex-1">
+        <h2 className="text-[10px] font-display tracking-[0.2em] text-muted-foreground mb-2">🍕 PIZZA INDEX</h2>
+        <div className="space-y-1">
+          {PIZZA_INDEX_DATA.slice(0, 5).map((entry) => (
+            <div key={entry.country} className="flex items-center justify-between text-[11px]">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs">{entry.flag}</span>
+                <span className="font-display tracking-wide text-muted-foreground">{entry.country}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="font-data text-foreground">${entry.usdPrice.toFixed(2)}</span>
+                <span className={`font-data text-[10px] ${
+                  entry.index > 105 ? 'text-alert-high' : entry.index >= 95 ? 'text-primary' : 'text-alert-info'
+                }`}>
+                  {entry.index}
                 </span>
               </div>
             </div>
