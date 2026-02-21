@@ -2,13 +2,14 @@ import { useEffect, useRef, memo } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useWorldViewStore } from '@/store/worldview';
+import { CONFLICT_ZONES } from '@/components/map/GlobeContainer';
 
 const MapContainer = memo(() => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const layersRef = useRef<Record<string, L.LayerGroup>>({});
 
-  const { layers, aircraft, satellites, earthquakes, setDetailPanel } = useWorldViewStore();
+  const { layers, aircraft, satellites, earthquakes, setDetailPanel, mapCenter } = useWorldViewStore();
 
   // Initialize map
   useEffect(() => {
@@ -28,13 +29,11 @@ const MapContainer = memo(() => {
       maxZoom: 19,
     }).addTo(map);
 
-    // Zoom control bottom-right
     L.control.zoom({ position: 'bottomright' }).addTo(map);
 
     mapInstanceRef.current = map;
 
-    // Initialize layer groups
-    ['aircraft', 'satellites', 'earthquakes'].forEach((key) => {
+    ['aircraft', 'satellites', 'earthquakes', 'conflicts'].forEach((key) => {
       layersRef.current[key] = L.layerGroup().addTo(map);
     });
 
@@ -44,12 +43,18 @@ const MapContainer = memo(() => {
     };
   }, []);
 
+  // Fly to region
+  useEffect(() => {
+    if (mapInstanceRef.current && mapCenter) {
+      mapInstanceRef.current.flyTo([mapCenter.lat, mapCenter.lon], mapCenter.zoom, { duration: 1.5 });
+    }
+  }, [mapCenter]);
+
   // Render aircraft
   useEffect(() => {
     const group = layersRef.current['aircraft'];
     if (!group) return;
     group.clearLayers();
-
     if (!layers.aircraft || aircraft.length === 0) return;
 
     aircraft.forEach((ac) => {
@@ -68,7 +73,6 @@ const MapContainer = memo(() => {
 
       const marker = L.marker([ac.lat, ac.lon], { icon })
         .on('click', () => setDetailPanel({ type: 'aircraft', data: ac }));
-
       group.addLayer(marker);
     });
   }, [aircraft, layers.aircraft, setDetailPanel]);
@@ -78,7 +82,6 @@ const MapContainer = memo(() => {
     const group = layersRef.current['satellites'];
     if (!group) return;
     group.clearLayers();
-
     if (!layers.satellites || satellites.length === 0) return;
 
     satellites.forEach((sat) => {
@@ -118,7 +121,6 @@ const MapContainer = memo(() => {
     const group = layersRef.current['earthquakes'];
     if (!group) return;
     group.clearLayers();
-
     if (!layers.earthquakes || earthquakes.length === 0) return;
 
     earthquakes.forEach((eq) => {
@@ -133,7 +135,6 @@ const MapContainer = memo(() => {
         weight: 1.5,
       }).on('click', () => setDetailPanel({ type: 'earthquake', data: eq }));
 
-      // Add pulsing ring for significant quakes
       if (eq.magnitude >= 4.0) {
         const pulseIcon = L.divIcon({
           className: '',
@@ -147,6 +148,55 @@ const MapContainer = memo(() => {
       group.addLayer(circle);
     });
   }, [earthquakes, layers.earthquakes, setDetailPanel]);
+
+  // Render conflict zones
+  useEffect(() => {
+    const group = layersRef.current['conflicts'];
+    if (!group) return;
+    group.clearLayers();
+    if (!layers.conflicts) return;
+
+    CONFLICT_ZONES.forEach((cz) => {
+      const color = cz.intensity >= 8 ? '#ff0044' : cz.intensity >= 6 ? '#ff6b35' : '#ffb000';
+      const radius = cz.intensity * 3;
+
+      // Outer glow
+      const outerCircle = L.circleMarker([cz.lat, cz.lon], {
+        radius: radius * 2,
+        color,
+        fillColor: color,
+        fillOpacity: 0.08,
+        weight: 0.5,
+        interactive: false,
+      });
+
+      // Inner marker
+      const innerCircle = L.circleMarker([cz.lat, cz.lon], {
+        radius,
+        color,
+        fillColor: color,
+        fillOpacity: 0.25,
+        weight: 1.5,
+      });
+
+      innerCircle.bindTooltip(`⚔ ${cz.name} [${cz.intensity}/10]`, {
+        direction: 'top',
+        offset: [0, -10],
+      });
+
+      // Pulsing ring
+      const pulseIcon = L.divIcon({
+        className: '',
+        html: `<div style="width:${radius * 4}px;height:${radius * 4}px;border:1.5px solid ${color};border-radius:50%;animation:ping-ring 3s ease-out infinite;opacity:0.4;"></div>`,
+        iconSize: [radius * 4, radius * 4],
+        iconAnchor: [radius * 2, radius * 2],
+      });
+
+      group.addLayer(outerCircle);
+      group.addLayer(L.marker([cz.lat, cz.lon], { icon: pulseIcon, interactive: false }));
+      group.addLayer(innerCircle);
+    });
+  }, [layers.conflicts]);
 
   return <div ref={mapRef} className="w-full h-full" />;
 });

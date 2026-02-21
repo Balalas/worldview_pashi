@@ -25,8 +25,8 @@ export const fetchEarthquakes = async (): Promise<Earthquake[]> => {
 const RSS_FEEDS = [
   { url: 'https://feeds.bbci.co.uk/news/world/rss.xml', source: 'BBC', tier: 1 as const },
   { url: 'https://rss.nytimes.com/services/xml/rss/nyt/World.xml', source: 'NY Times', tier: 1 as const },
-  { url: 'https://feeds.reuters.com/Reuters/worldNews', source: 'Reuters', tier: 1 as const },
-  { url: 'https://www.aljazeera.com/xml/rss/all.xml', source: 'Al Jazeera', tier: 2 as const },
+  { url: 'https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRFp1ZEdvU0FtVnVHZ0pWVXlnQVAB?hl=en-US&gl=US&ceid=US:en', source: 'Google News', tier: 1 as const },
+  { url: 'https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml', source: 'NYT Top', tier: 2 as const },
 ];
 
 const SEVERITY_KEYWORDS: Record<string, NewsItem['severity']> = {
