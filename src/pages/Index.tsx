@@ -241,7 +241,7 @@ const Index = () => {
         <LeftPanel />
         <div className="flex flex-col flex-1 overflow-hidden">
           <div className="flex-1 relative">
-            {/* SVG filter for CRT chromatic aberration */}
+            {/* SVG filters for CRT effects */}
             <svg className="absolute w-0 h-0">
               <defs>
                 <filter id="crt-rgb-split">
@@ -256,58 +256,85 @@ const Index = () => {
                 </filter>
               </defs>
             </svg>
-            {/* Map with visual style filter applied */}
+            {/* CRT barrel distortion wrapper — only when CRT active */}
             <div
               className="absolute inset-0"
-              style={{
-                filter: styleConfig.crt
-                  ? `${styleConfig.filter} url(#crt-rgb-split)`
-                  : styleConfig.filter,
-              }}
+              style={styleConfig.crt ? {
+                borderRadius: '18px',
+                overflow: 'hidden',
+                boxShadow: 'inset 0 0 80px 30px rgba(0,0,0,0.7), 0 0 2px 1px rgba(80,80,80,0.3)',
+              } : undefined}
             >
-              {mapMode === '2d' ? (
-                <MapContainer />
-              ) : mapMode === 'google3d' ? (
-                <Suspense fallback={
-                  <div className="w-full h-full flex items-center justify-center bg-background">
-                    <div className="text-center">
-                      <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-                      <span className="text-[11px] font-display tracking-wider text-muted-foreground">LOADING GOOGLE 3D...</span>
+              {/* Map with visual style filter applied */}
+              <div
+                className="absolute inset-0"
+                style={{
+                  filter: styleConfig.crt
+                    ? `${styleConfig.filter} url(#crt-rgb-split)`
+                    : styleConfig.filter,
+                  ...(styleConfig.crt ? {
+                    // Barrel distortion via scale + perspective to simulate CRT curvature
+                    transform: 'scale(1.04)',
+                    transformOrigin: 'center center',
+                  } : {}),
+                }}
+              >
+                {mapMode === '2d' ? (
+                  <MapContainer />
+                ) : mapMode === 'google3d' ? (
+                  <Suspense fallback={
+                    <div className="w-full h-full flex items-center justify-center bg-background">
+                      <div className="text-center">
+                        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                        <span className="text-[11px] font-display tracking-wider text-muted-foreground">LOADING GOOGLE 3D...</span>
+                      </div>
                     </div>
-                  </div>
-                }>
-                  <Google3DGlobe />
-                </Suspense>
-              ) : (
-                <Suspense fallback={
-                  <div className="w-full h-full flex items-center justify-center bg-background">
-                    <div className="text-center">
-                      <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-                      <span className="text-[11px] font-display tracking-wider text-muted-foreground">LOADING GLOBE...</span>
+                  }>
+                    <Google3DGlobe />
+                  </Suspense>
+                ) : (
+                  <Suspense fallback={
+                    <div className="w-full h-full flex items-center justify-center bg-background">
+                      <div className="text-center">
+                        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                        <span className="text-[11px] font-display tracking-wider text-muted-foreground">LOADING GLOBE...</span>
+                      </div>
                     </div>
-                  </div>
-                }>
-                  <GlobeContainer />
-                </Suspense>
-              )}
+                  }>
+                    <GlobeContainer />
+                  </Suspense>
+                )}
+              </div>
             </div>
             {/* Tint overlay */}
             {styleConfig.tint && (
-              <div className="absolute inset-0 pointer-events-none z-10" style={{ backgroundColor: styleConfig.tint, mixBlendMode: visualStyle === 'nvg' ? 'multiply' : 'normal' }} />
+              <div className="absolute inset-0 pointer-events-none z-10" style={{ backgroundColor: styleConfig.tint, mixBlendMode: visualStyle === 'nvg' ? 'multiply' : 'normal', ...(styleConfig.crt ? { borderRadius: '18px' } : {}) }} />
             )}
             {/* CRT-specific overlays */}
             {styleConfig.crt && (
               <>
+                {/* Scanlines */}
                 <div className="absolute inset-0 pointer-events-none z-10"
-                  style={{ opacity: styleConfig.scanlineOpacity ?? 0.12, backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.6) 2px, rgba(0,0,0,0.6) 4px)' }}
+                  style={{ opacity: styleConfig.scanlineOpacity ?? 0.12, backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.6) 2px, rgba(0,0,0,0.6) 4px)', borderRadius: '18px' }}
                 />
+                {/* RGB sub-pixel columns */}
                 <div className="absolute inset-0 pointer-events-none z-10 opacity-[0.04]"
-                  style={{ backgroundImage: 'repeating-linear-gradient(90deg, rgba(255,0,0,0.3) 0px, rgba(0,255,0,0.3) 1px, rgba(0,100,255,0.3) 2px, transparent 3px)' }}
+                  style={{ backgroundImage: 'repeating-linear-gradient(90deg, rgba(255,0,0,0.3) 0px, rgba(0,255,0,0.3) 1px, rgba(0,100,255,0.3) 2px, transparent 3px)', borderRadius: '18px' }}
                 />
+                {/* Heavy vignette for CRT tube edges */}
                 <div className="absolute inset-0 pointer-events-none z-10"
-                  style={{ background: `radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,${styleConfig.vignetteStrength ?? 0.5}) 70%, rgba(0,0,0,0.85) 100%)` }}
+                  style={{ background: `radial-gradient(ellipse at center, transparent 25%, rgba(0,0,0,${(styleConfig.vignetteStrength ?? 0.5) * 0.8}) 65%, rgba(0,0,0,0.92) 100%)`, borderRadius: '18px' }}
                 />
-                <div className="absolute inset-0 pointer-events-none z-10 animate-crt-flicker" />
+                {/* CRT bezel highlight — subtle edge reflection */}
+                <div className="absolute inset-0 pointer-events-none z-10"
+                  style={{
+                    borderRadius: '18px',
+                    boxShadow: 'inset 0 0 60px 20px rgba(0,0,0,0.5), inset 0 2px 0 rgba(255,255,255,0.03)',
+                    border: '2px solid rgba(60,60,60,0.4)',
+                  }}
+                />
+                {/* Flicker */}
+                <div className="absolute inset-0 pointer-events-none z-10 animate-crt-flicker" style={{ borderRadius: '18px' }} />
               </>
             )}
             {/* Scanlines (non-CRT) */}
