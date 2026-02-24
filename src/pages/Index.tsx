@@ -1,4 +1,4 @@
-import { useEffect, lazy, Suspense, memo } from 'react';
+import { useEffect, lazy, Suspense, memo, useState, useCallback } from 'react';
 import TopBar from '@/components/panels/TopBar';
 import LeftPanel from '@/components/panels/LeftPanel';
 import RightPanel from '@/components/panels/RightPanel';
@@ -18,11 +18,72 @@ import { fetchActiveFiresEONET } from '@/services/fireService';
 const GlobeContainer = lazy(() => import('@/components/map/GlobeContainer'));
 const Google3DGlobe = lazy(() => import('@/components/map/Google3DGlobe'));
 
+// Auto-refreshing DOT snapshot image component
+const DotSnapshotImage = memo(({ snapshotUrl, name }: { snapshotUrl: string; name: string }) => {
+  const [imgSrc, setImgSrc] = useState('');
+  const [error, setError] = useState(false);
+
+  const refreshImage = useCallback(() => {
+    // Proxy through edge function to bypass mixed-content
+    const proxyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/dot-camera-proxy`;
+    const url = `${proxyUrl}`;
+    // Use fetch to get blob URL
+    fetch(proxyUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: snapshotUrl }),
+    })
+      .then(r => {
+        if (!r.ok) throw new Error('Failed');
+        return r.blob();
+      })
+      .then(blob => {
+        const objectUrl = URL.createObjectURL(blob);
+        setImgSrc(prev => {
+          if (prev) URL.revokeObjectURL(prev);
+          return objectUrl;
+        });
+        setError(false);
+      })
+      .catch(() => setError(true));
+  }, [snapshotUrl]);
+
+  useEffect(() => {
+    refreshImage();
+    const interval = setInterval(refreshImage, 4000); // refresh every 4s
+    return () => {
+      clearInterval(interval);
+      if (imgSrc) URL.revokeObjectURL(imgSrc);
+    };
+  }, [refreshImage]);
+
+  if (error) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-background/80">
+        <div className="text-center">
+          <span className="text-[10px] font-data text-muted-foreground">FEED OFFLINE</span>
+          <div className="text-[8px] text-muted-foreground/60 mt-1">{name}</div>
+        </div>
+      </div>
+    );
+  }
+
+  return imgSrc ? (
+    <img src={imgSrc} alt={name} className="w-full h-full object-cover" />
+  ) : (
+    <div className="w-full h-full flex items-center justify-center bg-background/80">
+      <div className="w-4 h-4 border border-primary border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+});
+DotSnapshotImage.displayName = 'DotSnapshotImage';
+
 // Holographic CCTV picture-in-picture overlay
 const CctvPip = memo(() => {
   const { activeLivestream, setActiveLivestream, detailPanel } = useWorldViewStore();
   if (!activeLivestream || detailPanel.type !== 'camera') return null;
   const cam = detailPanel.data;
+  const isSnapshot = cam?.feedType === 'snapshot' && cam?.snapshotUrl;
   
   return (
     <div className="absolute bottom-4 left-4 z-40 group">
@@ -32,13 +93,17 @@ const CctvPip = memo(() => {
           backdropFilter: 'blur(8px)',
         }}
       >
-        <iframe
-          src={activeLivestream}
-          className="w-full h-full"
-          allow="autoplay; encrypted-media"
-          allowFullScreen
-          title={cam?.name || 'CCTV'}
-        />
+        {isSnapshot ? (
+          <DotSnapshotImage snapshotUrl={cam.snapshotUrl!} name={cam.name} />
+        ) : (
+          <iframe
+            src={activeLivestream}
+            className="w-full h-full"
+            allow="autoplay; encrypted-media"
+            allowFullScreen
+            title={cam?.name || 'CCTV'}
+          />
+        )}
         {/* Holographic scan lines */}
         <div className="absolute inset-0 pointer-events-none opacity-[0.04]"
           style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, hsl(var(--primary)) 2px, hsl(var(--primary)) 3px)' }}
@@ -48,10 +113,17 @@ const CctvPip = memo(() => {
           <div className="flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-destructive animate-pulse" />
             <span className="text-[8px] font-data text-destructive tracking-wider">● LIVE</span>
-            <span className="text-[8px] font-data text-muted-foreground">{cam?.name || 'CCTV'}</span>
+            {cam?.official && <span className="text-[7px] font-data text-amber-400 bg-amber-400/10 px-1 rounded">DOT</span>}
+            <span className="text-[8px] font-data text-muted-foreground truncate max-w-[140px]">{cam?.name || 'CCTV'}</span>
           </div>
           <button onClick={() => setActiveLivestream(null)} className="text-muted-foreground hover:text-foreground text-[10px] pointer-events-auto">✕</button>
         </div>
+        {/* Source badge */}
+        {cam?.source && (
+          <div className="absolute bottom-0 left-0 right-0 flex items-center px-2 py-0.5 bg-background/60">
+            <span className="text-[7px] font-data text-muted-foreground">SRC: {cam.source}</span>
+          </div>
+        )}
         {/* Corner brackets */}
         <div className="absolute top-0 left-0 w-3 h-3 border-t border-l border-primary/60 pointer-events-none" />
         <div className="absolute top-0 right-0 w-3 h-3 border-t border-r border-primary/60 pointer-events-none" />
