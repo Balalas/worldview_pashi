@@ -12,6 +12,7 @@ import SearchBar from '@/components/hud/SearchBar';
 import StylePresetsBar, { computeStyleConfig } from '@/components/hud/StylePresetsBar';
 import StyleParametersPanel from '@/components/hud/StyleParametersPanel';
 import HolographicTV from '@/components/hud/HolographicTV';
+import WeatherRadarOverlay from '@/components/map/WeatherRadarOverlay';
 import TacticalAlerts from '@/components/hud/TacticalAlerts';
 import MinimapRadar from '@/components/hud/MinimapRadar';
 import ThreatGauge from '@/components/hud/ThreatGauge';
@@ -307,6 +308,8 @@ const Index = () => {
                 )}
               </div>
             </div>
+            {/* Live Weather Radar/Cloud Overlay */}
+            <WeatherRadarOverlay />
             {/* Tint overlay */}
             {styleConfig.tint && (
               <div className="absolute inset-0 pointer-events-none z-10" style={{ backgroundColor: styleConfig.tint, mixBlendMode: visualStyle === 'nvg' ? 'multiply' : 'normal', ...(styleConfig.crt ? { borderRadius: '18px' } : {}) }} />
