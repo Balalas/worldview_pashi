@@ -769,7 +769,12 @@ const Google3DGlobe = memo(() => {
               strokeWidth: 1,
               altitudeMode: 'RELATIVE_TO_GROUND',
             });
-            cone.outerCoordinates = conePoints;
+            // Use 'path' (new API) with fallback to deprecated 'outerCoordinates'
+            if ('path' in cone) {
+              cone.path = conePoints;
+            } else {
+              (cone as any).outerCoordinates = conePoints;
+            }
             map.append(cone);
             markersRef.current.push(cone);
           });
