@@ -212,7 +212,7 @@ const Google3DGlobe = memo(() => {
   const followIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const initRef = useRef(false);
 
-  const { layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, fires, setDetailPanel, setActiveLivestream, mapCenter, followTarget, setFollowTarget } = useWorldViewStore();
+  const { layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, fires, setDetailPanel, setActiveLivestream, mapCenter, followTarget, setFollowTarget, layerSubFilters } = useWorldViewStore();
 
   // Start following a target with cinematic camera
   const startFollow = useCallback((target: FollowTarget) => {
@@ -463,57 +463,49 @@ const Google3DGlobe = memo(() => {
     if (!map) return;
 
     const trafficMarkersRef: any[] = [];
-    let trafficInterval: ReturnType<typeof setInterval> | null = null;
     let lastRange = Infinity;
 
     const spawnTraffic = async () => {
-      // Remove old traffic
       trafficMarkersRef.forEach(m => { try { m.remove(); } catch {} });
       trafficMarkersRef.length = 0;
 
+      const sf = useWorldViewStore.getState().layerSubFilters;
+      if (!sf.showTraffic) return;
+
       const range = map.range;
-      if (!range || range > 5000) return; // Only show when zoomed in close
+      if (!range || range > 5000) return;
 
       const centerLat = map.center?.lat ?? 0;
       const centerLng = map.center?.lng ?? 0;
 
-      // Find nearby cities
-      const nearbyCities = TRAFFIC_CITIES.filter(c => {
-        const dlat = c.lat - centerLat;
-        const dlon = c.lon - centerLng;
-        return Math.sqrt(dlat * dlat + dlon * dlon) < 1.5; // within ~150km
-      });
-
-      if (nearbyCities.length === 0) return;
-
       try {
         const lib = await (google.maps as any).importLibrary('maps3d');
-        const carCount = range < 1000 ? 60 : range < 2500 ? 35 : 15;
+        const densityMult = sf.trafficDensity / 50;
+        const baseCount = range < 1000 ? 60 : range < 2500 ? 35 : 15;
+        const carCount = Math.round(baseCount * densityMult);
         const colors = ['#e8e8e8', '#cccccc', '#ffdd44', '#ff4444', '#4488ff', '#222222', '#888888', '#ffffff'];
 
-        nearbyCities.forEach(city => {
-          const spread = range < 1000 ? 0.008 : range < 2500 ? 0.02 : 0.04;
-          for (let i = 0; i < carCount; i++) {
-            const lat = city.lat + (Math.random() - 0.5) * spread;
-            const lon = city.lon + (Math.random() - 0.5) * spread;
-            const heading = Math.random() * 360;
-            const color = colors[Math.floor(Math.random() * colors.length)];
-            const marker = new lib.Marker3DElement({
-              position: { lat, lng: lon, altitude: 0 },
-              altitudeMode: 'CLAMP_TO_GROUND',
-              sizePreserved: false,
-            });
-            const template = document.createElement('template');
-            template.content.append(carSvg(color, heading));
-            marker.append(template);
-            map.append(marker);
-            trafficMarkersRef.push(marker);
-          }
-        });
+        // Spawn around current camera center (works anywhere, not just cities)
+        const spread = range < 1000 ? 0.008 : range < 2500 ? 0.02 : 0.04;
+        for (let i = 0; i < carCount; i++) {
+          const lat = centerLat + (Math.random() - 0.5) * spread;
+          const lon = centerLng + (Math.random() - 0.5) * spread;
+          const heading = Math.random() * 360;
+          const color = colors[Math.floor(Math.random() * colors.length)];
+          const marker = new lib.Marker3DElement({
+            position: { lat, lng: lon, altitude: 0 },
+            altitudeMode: 'CLAMP_TO_GROUND',
+            sizePreserved: false,
+          });
+          const template = document.createElement('template');
+          template.content.append(carSvg(color, heading));
+          marker.append(template);
+          map.append(marker);
+          trafficMarkersRef.push(marker);
+        }
       } catch {}
     };
 
-    // Animate traffic: reposition cars slightly every 2 seconds
     const animateTraffic = () => {
       trafficMarkersRef.forEach(marker => {
         try {
@@ -529,27 +521,22 @@ const Google3DGlobe = memo(() => {
       });
     };
 
-    // Check range periodically
     const rangeCheck = setInterval(() => {
       const range = map.range ?? Infinity;
       const rangeChanged = (range < 5000 && lastRange >= 5000) || (range >= 5000 && lastRange < 5000) ||
         (range < 1000 && lastRange >= 1000) || (range >= 1000 && lastRange < 1000);
-      if (rangeChanged) {
-        spawnTraffic();
-      }
+      if (rangeChanged) spawnTraffic();
       lastRange = range;
       if (range < 5000) animateTraffic();
     }, 2000);
 
-    // Initial spawn
     setTimeout(spawnTraffic, 2000);
 
     return () => {
       clearInterval(rangeCheck);
-      if (trafficInterval) clearInterval(trafficInterval);
       trafficMarkersRef.forEach(m => { try { m.remove(); } catch {} });
     };
-  }, []);
+  }, [layerSubFilters.showTraffic, layerSubFilters.trafficDensity]);
 
   // ── Render markers ──
   useEffect(() => {
@@ -587,10 +574,20 @@ const Google3DGlobe = memo(() => {
       }
     };
 
-    // Aircraft — big, sizePreserved
+    // Aircraft — filtered by sub-options
     if (layers.aircraft) {
-      aircraft.forEach(ac => {
-        if (!layers.militaryFlights && ac.isMilitary) return;
+      let filteredAircraft = aircraft.filter(ac => {
+        if (!layers.militaryFlights && ac.isMilitary) return false;
+        if (!layerSubFilters.showMilitaryAC && ac.isMilitary) return false;
+        if (!layerSubFilters.showCivilian && !ac.isMilitary) return false;
+        return true;
+      });
+      // Apply density cap
+      if (layerSubFilters.maxAircraft < 100) {
+        const maxCount = Math.round(filteredAircraft.length * (layerSubFilters.maxAircraft / 100));
+        filteredAircraft = filteredAircraft.slice(0, maxCount);
+      }
+      filteredAircraft.forEach(ac => {
         const color = ac.isMilitary ? '#ff6b35' : '#00ff88';
         const alt = Math.max(ac.altitudeFt * 0.3048, 500);
         addMarker(ac.lat, ac.lon,
@@ -609,13 +606,20 @@ const Google3DGlobe = memo(() => {
       });
     }
 
-    // Satellites — ALL visible, sizePreserved, bigger
+    // Satellites — filtered by sub-options
     if (layers.satellites) {
       satellites.forEach(sat => {
         const isISS = sat.name.includes('ISS');
         const isMil = sat.name.includes('COSMOS') || sat.name.includes('USA-') || sat.name.includes('MUOS') || sat.name.includes('NROL') || sat.name.includes('YAOGAN') || sat.name.includes('HAWK');
         const isStarlink = sat.name.includes('STARLINK');
         const isDebris = sat.name.includes('DEBRIS');
+
+        // Apply sub-filters
+        if (isStarlink && !layerSubFilters.showStarlink) return;
+        if (isMil && !layerSubFilters.showMilitarySats) return;
+        if (isDebris && !layerSubFilters.showDebris) return;
+        if (!isISS && !isMil && !isStarlink && !isDebris && !layerSubFilters.showCommSats) return;
+
         const color = isStarlink ? '#a855f7' : isMil ? '#ff6b35' : isISS ? '#ff6600' : isDebris ? '#666666' : '#00d4ff';
         const alt = sat.alt * 1000;
         addMarker(sat.lat, sat.lon,
@@ -634,16 +638,18 @@ const Google3DGlobe = memo(() => {
       });
     }
 
-    // Earthquakes
+    // Earthquakes — filtered by min magnitude
     if (layers.earthquakes) {
-      earthquakes.forEach(eq => {
-        const color = eq.magnitude >= 6 ? '#ff0044' : eq.magnitude >= 4.5 ? '#ff6600' : '#aa44ff';
-        addMarker(eq.lat, eq.lon,
-          quakeSvg(eq.magnitude, color),
-          0, true,
-          () => { stopFollow(); setDetailPanel({ type: 'earthquake', data: eq }); }
-        );
-      });
+      earthquakes
+        .filter(eq => eq.magnitude >= layerSubFilters.minMagnitude)
+        .forEach(eq => {
+          const color = eq.magnitude >= 6 ? '#ff0044' : eq.magnitude >= 4.5 ? '#ff6600' : '#aa44ff';
+          addMarker(eq.lat, eq.lon,
+            quakeSvg(eq.magnitude, color),
+            0, true,
+            () => { stopFollow(); setDetailPanel({ type: 'earthquake', data: eq }); }
+          );
+        });
     }
 
     // Conflict zones
@@ -669,9 +675,15 @@ const Google3DGlobe = memo(() => {
       });
     }
 
-    // Vessels
+    // Vessels — filtered by type
     if (layers.vessels) {
+      const vesselTypeMap: Record<string, keyof typeof layerSubFilters> = {
+        yacht: 'showYachts', cargo: 'showCargo', tanker: 'showTankers',
+        military: 'showMilVessels', fishing: 'showFishing', passenger: 'showPassenger',
+      };
       vessels.forEach(v => {
+        const filterKey = vesselTypeMap[v.type];
+        if (filterKey && !layerSubFilters[filterKey]) return;
         const colors: Record<string, string> = { yacht: '#FFD700', cargo: '#4488ff', tanker: '#ff8800', military: '#ff0044', fishing: '#44ff88', passenger: '#ff44ff', container: '#00aaff' };
         addMarker(v.lat, v.lon,
           vesselSvg(v.heading, colors[v.type] || '#4488ff', v.name, v.type),
@@ -713,21 +725,27 @@ const Google3DGlobe = memo(() => {
       });
     }
 
-    // Weather
+    // Weather — filtered
     if (layers.weather) {
-      weatherAlerts.forEach(w => {
-        const color = w.isExtreme ? '#ff0044' : w.temp > 35 ? '#ff6b35' : w.temp < 0 ? '#00d4ff' : '#ffb000';
-        addMarker(w.lat, w.lon,
-          iconSvg(w.isExtreme ? '⚠️' : '🌡', color, `${Math.round(w.temp)}°C`, w.city),
-          0, false,
-          () => { stopFollow(); setDetailPanel({ type: 'weather', data: w }); }
-        );
-      });
+      weatherAlerts
+        .filter(w => !layerSubFilters.showExtremeOnly || w.isExtreme)
+        .forEach(w => {
+          const color = w.isExtreme ? '#ff0044' : w.temp > 35 ? '#ff6b35' : w.temp < 0 ? '#00d4ff' : '#ffb000';
+          addMarker(w.lat, w.lon,
+            iconSvg(w.isExtreme ? '⚠️' : '🌡', color, `${Math.round(w.temp)}°C`, w.city),
+            0, false,
+            () => { stopFollow(); setDetailPanel({ type: 'weather', data: w }); }
+          );
+        });
     }
 
-    // Nuclear
+    // Nuclear — filtered by type
     if (layers.nuclearSites) {
       NUCLEAR_SITES.forEach(site => {
+        const isWeapon = site.type === 'weapons';
+        const isPower = site.type === 'power' || site.type === 'enrichment' || site.type === 'reprocessing';
+        if (isWeapon && !layerSubFilters.showWeapons) return;
+        if (isPower && !layerSubFilters.showPower) return;
         addMarker(site.lat, site.lon,
           iconSvg('☢️', '#bbff00', site.name),
           0, true
@@ -750,9 +768,13 @@ const Google3DGlobe = memo(() => {
       })();
     }
 
-    // Fires (NASA EONET)
+    // Fires (NASA EONET) — filtered
     if (layers.fires) {
       fires.forEach(f => {
+        const isWildfire = f.category === 'wildfire' || f.category === 'volcano';
+        const isStorm = f.category === 'storm' || f.category === 'flood';
+        if (isWildfire && !layerSubFilters.showWildfires) return;
+        if (isStorm && !layerSubFilters.showStorms) return;
         const icons: Record<string, string> = { wildfire: '🔥', volcano: '🌋', storm: '🌀', flood: '🌊', earthquake: '💥', drought: '☀️', landslide: '⛰️', other: '⚠️' };
         const colors: Record<string, string> = { wildfire: '#ff4400', volcano: '#ff0044', storm: '#00d4ff', flood: '#4488ff', earthquake: '#ff6600', drought: '#ffb000', landslide: '#aa6633', other: '#ff6b35' };
         addMarker(f.lat, f.lon,
@@ -849,7 +871,7 @@ const Google3DGlobe = memo(() => {
       })();
     }
 
-  }, [layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, fires, setDetailPanel, setActiveLivestream, flyToCamera, setFollowTarget, stopFollow]);
+  }, [layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, fires, setDetailPanel, setActiveLivestream, flyToCamera, setFollowTarget, stopFollow, layerSubFilters]);
 
   return (
     <div ref={containerRef} className="w-full h-full bg-background relative">
