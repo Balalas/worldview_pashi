@@ -130,6 +130,7 @@ export interface CountryInstability {
 export type BottomPanelTab = 'news' | 'livestream' | 'pizza' | 'weather' | 'stats';
 export type MapMode = '2d' | '3d' | 'google3d';
 export type DashboardMode = 'WORLD' | 'TECH' | 'FINANCE';
+export type VisualStyle = 'normal' | 'crt' | 'nvg' | 'flir' | 'anime' | 'noir' | 'snow';
 
 export interface MapCenter {
   lat: number;
@@ -223,6 +224,9 @@ export interface WorldViewState {
 
   followTarget: FollowTarget | null;
   setFollowTarget: (target: FollowTarget | null) => void;
+
+  visualStyle: VisualStyle;
+  setVisualStyle: (style: VisualStyle) => void;
 }
 
 export const useWorldViewStore = create<WorldViewState>((set) => ({
@@ -311,6 +315,9 @@ export const useWorldViewStore = create<WorldViewState>((set) => ({
 
   followTarget: null,
   setFollowTarget: (followTarget) => set({ followTarget }),
+
+  visualStyle: 'normal',
+  setVisualStyle: (visualStyle) => set({ visualStyle }),
 }));
 
 // Keyboard shortcuts

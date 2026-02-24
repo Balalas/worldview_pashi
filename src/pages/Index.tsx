@@ -9,6 +9,8 @@ import TrackingHud from '@/components/hud/TrackingHud';
 import StreetViewOverlay from '@/components/map/StreetViewOverlay';
 import GlobeControls from '@/components/hud/GlobeControls';
 import SearchBar from '@/components/hud/SearchBar';
+import StylePresetsBar, { STYLE_FILTERS } from '@/components/hud/StylePresetsBar';
+import StyleParametersPanel from '@/components/hud/StyleParametersPanel';
 import { useWorldViewStore, LAYER_SHORTCUTS } from '@/store/worldview';
 import { fetchEarthquakes, fetchLiveNews, fetchLiveAircraft } from '@/services/dataServices';
 import { generateRealisticSatellites, fetchISSPosition } from '@/services/satelliteService';
@@ -137,7 +139,7 @@ const CctvPip = memo(() => {
 CctvPip.displayName = 'CctvPip';
 
 const Index = () => {
-  const { setAircraft, setSatellites, setEarthquakes, setNews, setLastRefresh, setNewsLoading, setWeatherAlerts, setVolcanoes, setVessels, setProtests, setOutages, setFires, toggleLayer, closeDetailPanel, mapMode, setFollowTarget } = useWorldViewStore();
+  const { setAircraft, setSatellites, setEarthquakes, setNews, setLastRefresh, setNewsLoading, setWeatherAlerts, setVolcanoes, setVessels, setProtests, setOutages, setFires, toggleLayer, closeDetailPanel, mapMode, setFollowTarget, visualStyle } = useWorldViewStore();
 
   useEffect(() => {
     // Initialize satellites
@@ -235,30 +237,43 @@ const Index = () => {
         <LeftPanel />
         <div className="flex flex-col flex-1 overflow-hidden">
           <div className="flex-1 relative">
-            {mapMode === '2d' ? (
-              <MapContainer />
-            ) : mapMode === 'google3d' ? (
-              <Suspense fallback={
-                <div className="w-full h-full flex items-center justify-center bg-background">
-                  <div className="text-center">
-                    <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-                    <span className="text-[11px] font-display tracking-wider text-muted-foreground">LOADING GOOGLE 3D...</span>
+            {/* Map with visual style filter applied */}
+            <div className="absolute inset-0" style={{ filter: STYLE_FILTERS[visualStyle].filter }}>
+              {mapMode === '2d' ? (
+                <MapContainer />
+              ) : mapMode === 'google3d' ? (
+                <Suspense fallback={
+                  <div className="w-full h-full flex items-center justify-center bg-background">
+                    <div className="text-center">
+                      <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                      <span className="text-[11px] font-display tracking-wider text-muted-foreground">LOADING GOOGLE 3D...</span>
+                    </div>
                   </div>
-                </div>
-              }>
-                <Google3DGlobe />
-              </Suspense>
-            ) : (
-              <Suspense fallback={
-                <div className="w-full h-full flex items-center justify-center bg-background">
-                  <div className="text-center">
-                    <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-                    <span className="text-[11px] font-display tracking-wider text-muted-foreground">LOADING GLOBE...</span>
+                }>
+                  <Google3DGlobe />
+                </Suspense>
+              ) : (
+                <Suspense fallback={
+                  <div className="w-full h-full flex items-center justify-center bg-background">
+                    <div className="text-center">
+                      <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                      <span className="text-[11px] font-display tracking-wider text-muted-foreground">LOADING GLOBE...</span>
+                    </div>
                   </div>
-                </div>
-              }>
-                <GlobeContainer />
-              </Suspense>
+                }>
+                  <GlobeContainer />
+                </Suspense>
+              )}
+            </div>
+            {/* Tint overlay for style effects */}
+            {STYLE_FILTERS[visualStyle].tint && (
+              <div className="absolute inset-0 pointer-events-none z-10" style={{ backgroundColor: STYLE_FILTERS[visualStyle].tint }} />
+            )}
+            {/* Scanline overlay for CRT/NVG */}
+            {STYLE_FILTERS[visualStyle].scanlines && (
+              <div className="absolute inset-0 pointer-events-none z-10 opacity-[0.06]"
+                style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, hsl(var(--primary)) 2px, hsl(var(--primary)) 3px)' }}
+              />
             )}
             {/* Street View Overlay — fills main map when camera selected */}
             <StreetViewOverlay />
@@ -270,6 +285,10 @@ const Index = () => {
             <SearchBar />
             {/* Globe Controls */}
             {mapMode === 'google3d' && <GlobeControls />}
+            {/* Style Presets Bar */}
+            <StylePresetsBar />
+            {/* Style Parameters Panel */}
+            <StyleParametersPanel />
             {/* Holographic CCTV PiP */}
             <CctvPip />
           </div>
