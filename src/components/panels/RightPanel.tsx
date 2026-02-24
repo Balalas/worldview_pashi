@@ -2,21 +2,18 @@ import { memo } from 'react';
 import { useWorldViewStore } from '@/store/worldview';
 
 const RightPanel = memo(() => {
-  const { detailPanel, closeDetailPanel, setMapCenter } = useWorldViewStore();
-
+  const { detailPanel, closeDetailPanel } = useWorldViewStore();
   if (detailPanel.type === 'none') return null;
 
   const typeLabels: Record<string, string> = {
     aircraft: detailPanel.data?.isMilitary ? 'MILITARY AIRCRAFT' : 'COMMERCIAL AIRCRAFT',
-    satellite: 'SATELLITE',
-    earthquake: 'EARTHQUAKE',
-    volcano: 'VOLCANO',
-    weather: 'WEATHER',
-    cable: 'SUBMARINE CABLE',
+    satellite: 'SATELLITE', earthquake: 'EARTHQUAKE', volcano: 'VOLCANO', weather: 'WEATHER', cable: 'SUBMARINE CABLE',
+    vessel: detailPanel.data?.type === 'yacht' ? 'SUPERYACHT' : detailPanel.data?.type === 'military' ? 'MILITARY VESSEL' : 'VESSEL',
+    protest: 'PROTEST EVENT', outage: 'CYBER / OUTAGE',
   };
-
   const typeIcons: Record<string, string> = {
     aircraft: '✈', satellite: '🛰', earthquake: '🌍', volcano: '🌋', weather: '🌤', cable: '🔌',
+    vessel: detailPanel.data?.type === 'yacht' ? '🛥' : '🚢', protest: '✊', outage: '🔒',
   };
 
   return (
@@ -34,13 +31,15 @@ const RightPanel = memo(() => {
           <button onClick={closeDetailPanel} className="text-muted-foreground hover:text-foreground text-xs p-1">✕</button>
         </div>
         <div className="border-t border-border" />
-
         {detailPanel.type === 'aircraft' && <AircraftDetail data={detailPanel.data} />}
         {detailPanel.type === 'satellite' && <SatelliteDetail data={detailPanel.data} />}
         {detailPanel.type === 'earthquake' && <EarthquakeDetail data={detailPanel.data} />}
         {detailPanel.type === 'volcano' && <VolcanoDetail data={detailPanel.data} />}
         {detailPanel.type === 'weather' && <WeatherDetail data={detailPanel.data} />}
         {detailPanel.type === 'cable' && <CableDetail data={detailPanel.data} />}
+        {detailPanel.type === 'vessel' && <VesselDetail data={detailPanel.data} />}
+        {detailPanel.type === 'protest' && <ProtestDetail data={detailPanel.data} />}
+        {detailPanel.type === 'outage' && <OutageDetail data={detailPanel.data} />}
       </div>
     </aside>
   );
@@ -56,6 +55,15 @@ const DataRow = ({ label, value, sub }: { label: string; value: string; sub?: st
   </div>
 );
 
+const ActionButton = ({ label, onClick }: { label: string; onClick?: () => void }) => (
+  <button onClick={onClick} className="flex-1 text-[9px] font-display tracking-wider py-1.5 rounded border border-border bg-card-bg text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors">{label}</button>
+);
+
+const getCardinal = (deg: number): string => {
+  const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+  return dirs[Math.round(deg / 45) % 8];
+};
+
 const AircraftDetail = ({ data }: { data: any }) => (
   <div className="mt-3 space-y-0.5">
     <DataRow label="CALLSIGN" value={data.callsign} />
@@ -65,8 +73,7 @@ const AircraftDetail = ({ data }: { data: any }) => (
     <DataRow label="ALT" value={`${data.altitudeFt.toLocaleString()} ft`} sub={`FL${Math.round(data.altitudeFt / 100)}`} />
     <DataRow label="SPEED" value={`${Math.round(data.speedKts)} kts`} sub={`${Math.round(data.speedKts * 1.852)} km/h`} />
     <DataRow label="HEADING" value={`${Math.round(data.heading)}°`} sub={getCardinal(data.heading)} />
-    <DataRow label="V/RATE" value={`${data.verticalRate > 0 ? '+' : ''}${Math.round(data.verticalRate * 196.85)} fpm`}
-      sub={data.verticalRate > 0.5 ? 'CLIMBING' : data.verticalRate < -0.5 ? 'DESCENDING' : 'LEVEL'} />
+    <DataRow label="V/RATE" value={`${data.verticalRate > 0 ? '+' : ''}${Math.round(data.verticalRate * 196.85)} fpm`} sub={data.verticalRate > 0.5 ? 'CLIMBING' : data.verticalRate < -0.5 ? 'DESCENDING' : 'LEVEL'} />
     <div className="border-t border-border my-2" />
     <div className="flex gap-2 mt-3">
       <ActionButton label="📍 TRACK" onClick={() => useWorldViewStore.getState().setMapCenter({ lat: data.lat, lon: data.lon, zoom: 8 })} />
@@ -98,13 +105,10 @@ const EarthquakeDetail = ({ data }: { data: any }) => (
     <DataRow label="DEPTH" value={`${data.depth.toFixed(1)} km`} />
     <DataRow label="LOCATION" value={data.place} />
     <DataRow label="TIME" value={new Date(data.time).toLocaleTimeString('en-US', { hour12: false, timeZone: 'UTC' })} sub="UTC" />
-    <DataRow label="LAT" value={`${data.lat.toFixed(4)}°`} />
-    <DataRow label="LON" value={`${data.lon.toFixed(4)}°`} />
     <div className="border-t border-border my-2" />
     <div className="flex gap-2 mt-3">
       <ActionButton label="📍 LOCATE" onClick={() => useWorldViewStore.getState().setMapCenter({ lat: data.lat, lon: data.lon, zoom: 7 })} />
       <ActionButton label="🔗 USGS" onClick={() => window.open(data.url, '_blank')} />
-      <ActionButton label="📋 COPY" onClick={() => navigator.clipboard.writeText(`M${data.magnitude} | ${data.place}`)} />
     </div>
   </div>
 );
@@ -116,12 +120,9 @@ const VolcanoDetail = ({ data }: { data: any }) => (
     <DataRow label="ELEVATION" value={`${data.elevation} m`} />
     <DataRow label="STATUS" value={data.status.toUpperCase()} />
     <DataRow label="LAST ERUPTION" value={data.lastEruption} />
-    <DataRow label="LAT" value={`${data.lat.toFixed(4)}°`} />
-    <DataRow label="LON" value={`${data.lon.toFixed(4)}°`} />
     <div className="border-t border-border my-2" />
     <div className="flex gap-2 mt-3">
       <ActionButton label="📍 LOCATE" onClick={() => useWorldViewStore.getState().setMapCenter({ lat: data.lat, lon: data.lon, zoom: 8 })} />
-      <ActionButton label="📋 COPY" onClick={() => navigator.clipboard.writeText(`${data.name} | ${data.status} | ${data.country}`)} />
     </div>
   </div>
 );
@@ -150,16 +151,58 @@ const CableDetail = ({ data }: { data: any }) => (
   </div>
 );
 
-const ActionButton = ({ label, onClick }: { label: string; onClick?: () => void }) => (
-  <button onClick={onClick}
-    className="flex-1 text-[9px] font-display tracking-wider py-1.5 rounded border border-border bg-card-bg text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors"
-  >{label}</button>
+const VesselDetail = ({ data }: { data: any }) => (
+  <div className="mt-3 space-y-0.5">
+    <DataRow label="NAME" value={data.name} />
+    <DataRow label="TYPE" value={data.type.toUpperCase()} />
+    <DataRow label="FLAG" value={`${data.flag}`} />
+    <DataRow label="LENGTH" value={`${data.length} m`} />
+    <div className="border-t border-border my-2" />
+    <DataRow label="SPEED" value={`${data.speedKnots} kts`} sub={`${Math.round(data.speedKnots * 1.852)} km/h`} />
+    <DataRow label="HEADING" value={`${Math.round(data.heading)}°`} sub={getCardinal(data.heading)} />
+    {data.destination && <DataRow label="DEST" value={data.destination} />}
+    {data.mmsi && <DataRow label="MMSI" value={data.mmsi} />}
+    <DataRow label="LAT" value={`${data.lat.toFixed(4)}°`} />
+    <DataRow label="LON" value={`${data.lon.toFixed(4)}°`} />
+    <div className="border-t border-border my-2" />
+    <div className="flex gap-2 mt-3">
+      <ActionButton label="📍 TRACK" onClick={() => useWorldViewStore.getState().setMapCenter({ lat: data.lat, lon: data.lon, zoom: 8 })} />
+      <ActionButton label="🔗 MarineTraffic" onClick={() => window.open(`https://www.marinetraffic.com/en/ais/details/ships/mmsi:${data.mmsi || ''}`, '_blank')} />
+      <ActionButton label="📋 COPY" onClick={() => navigator.clipboard.writeText(`${data.name} | ${data.flag} | ${data.lat.toFixed(4)},${data.lon.toFixed(4)}`)} />
+    </div>
+  </div>
 );
 
-const getCardinal = (deg: number): string => {
-  const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
-  return dirs[Math.round(deg / 45) % 8];
-};
+const ProtestDetail = ({ data }: { data: any }) => (
+  <div className="mt-3 space-y-0.5">
+    <DataRow label="COUNTRY" value={data.country} />
+    <DataRow label="INTENSITY" value={data.intensity.toUpperCase()} />
+    <DataRow label="SOURCE" value={data.source} />
+    <DataRow label="TIME" value={new Date(data.time).toLocaleTimeString('en-US', { hour12: false })} />
+    <div className="border-t border-border my-2" />
+    <p className="text-[10px] text-foreground leading-tight mt-2">{data.title}</p>
+    <div className="flex gap-2 mt-3">
+      <ActionButton label="📍 LOCATE" onClick={() => useWorldViewStore.getState().setMapCenter({ lat: data.lat, lon: data.lon, zoom: 8 })} />
+      {data.link && <ActionButton label="🔗 SOURCE" onClick={() => window.open(data.link, '_blank')} />}
+    </div>
+  </div>
+);
+
+const OutageDetail = ({ data }: { data: any }) => (
+  <div className="mt-3 space-y-0.5">
+    <DataRow label="TYPE" value={data.type.toUpperCase()} />
+    <DataRow label="SEVERITY" value={data.severity.toUpperCase()} />
+    <DataRow label="SOURCE" value={data.source} />
+    {data.affected && <DataRow label="AFFECTED" value={data.affected} />}
+    <DataRow label="TIME" value={new Date(data.time).toLocaleTimeString('en-US', { hour12: false })} />
+    <div className="border-t border-border my-2" />
+    <p className="text-[10px] text-foreground leading-tight mt-2">{data.title}</p>
+    <div className="flex gap-2 mt-3">
+      <ActionButton label="📍 LOCATE" onClick={() => useWorldViewStore.getState().setMapCenter({ lat: data.lat, lon: data.lon, zoom: 6 })} />
+      {data.link && <ActionButton label="🔗 SOURCE" onClick={() => window.open(data.link, '_blank')} />}
+    </div>
+  </div>
+);
 
 RightPanel.displayName = 'RightPanel';
 export default RightPanel;

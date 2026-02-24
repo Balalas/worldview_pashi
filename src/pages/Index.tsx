@@ -8,26 +8,36 @@ import { useWorldViewStore, LAYER_SHORTCUTS } from '@/store/worldview';
 import { fetchEarthquakes, fetchLiveNews, fetchLiveAircraft } from '@/services/dataServices';
 import { generateRealisticSatellites, fetchISSPosition } from '@/services/satelliteService';
 import { fetchGlobalWeather, ACTIVE_VOLCANOES } from '@/services/weatherService';
+import { generateVessels, extractProtestsFromNews, extractOutagesFromNews, fetchCyberNews } from '@/services/vesselService';
 
 const GlobeContainer = lazy(() => import('@/components/map/GlobeContainer'));
 
 const Index = () => {
-  const { setAircraft, setSatellites, setEarthquakes, setNews, setLastRefresh, setNewsLoading, setWeatherAlerts, setVolcanoes, toggleLayer, closeDetailPanel, mapMode } = useWorldViewStore();
+  const { setAircraft, setSatellites, setEarthquakes, setNews, setLastRefresh, setNewsLoading, setWeatherAlerts, setVolcanoes, setVessels, setProtests, setOutages, toggleLayer, closeDetailPanel, mapMode } = useWorldViewStore();
 
   useEffect(() => {
-    // Initialize satellites with realistic data
+    // Initialize satellites
     const initSatellites = async () => {
       const issPos = await fetchISSPosition();
       setSatellites(generateRealisticSatellites(issPos));
     };
     initSatellites();
 
+    // Initialize vessels
+    setVessels(generateVessels());
+
     // Fetch live aircraft
     fetchLiveAircraft().then(a => { if (a.length > 0) setAircraft(a); });
 
-    // Fetch news
+    // Fetch news + derive protests/outages
     setNewsLoading(true);
-    fetchLiveNews().then((news) => { setNews(news); setNewsLoading(false); });
+    Promise.all([fetchLiveNews(), fetchCyberNews()]).then(([mainNews, cyberNews]) => {
+      const allNews = [...mainNews, ...cyberNews].sort((a, b) => b.time.getTime() - a.time.getTime());
+      setNews(allNews);
+      setProtests(extractProtestsFromNews(allNews));
+      setOutages(extractOutagesFromNews(allNews));
+      setNewsLoading(false);
+    });
 
     // Fetch earthquakes
     fetchEarthquakes().then(setEarthquakes);
@@ -50,13 +60,25 @@ const Index = () => {
       setSatellites(generateRealisticSatellites(issPos));
     }, 10000);
 
+    const vesselInterval = setInterval(() => setVessels(generateVessels()), 30000);
+
     const eqInterval = setInterval(() => fetchEarthquakes().then(setEarthquakes), 300000);
-    const newsInterval = setInterval(() => fetchLiveNews().then(setNews), 180000);
+
+    const newsInterval = setInterval(() => {
+      Promise.all([fetchLiveNews(), fetchCyberNews()]).then(([mainNews, cyberNews]) => {
+        const allNews = [...mainNews, ...cyberNews].sort((a, b) => b.time.getTime() - a.time.getTime());
+        setNews(allNews);
+        setProtests(extractProtestsFromNews(allNews));
+        setOutages(extractOutagesFromNews(allNews));
+      });
+    }, 180000);
+
     const weatherInterval = setInterval(() => fetchGlobalWeather().then(setWeatherAlerts), 600000);
 
     return () => {
       clearInterval(aircraftInterval);
       clearInterval(satInterval);
+      clearInterval(vesselInterval);
       clearInterval(eqInterval);
       clearInterval(newsInterval);
       clearInterval(weatherInterval);

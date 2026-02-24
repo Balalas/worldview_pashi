@@ -37,6 +37,15 @@ const SEVERITY_KEYWORDS: Record<string, NewsItem['severity']> = {
   trade: 'low', economy: 'low', climate: 'low', summit: 'low',
 };
 
+function classifyCategory(title: string): NewsItem['category'] {
+  const lower = title.toLowerCase();
+  if (/protest|demonstrat|rally|march|riot|unrest|uprising|strike action/i.test(lower)) return 'protest';
+  if (/cyber|hack|breach|ransomware|ddos|malware|outage|data leak/i.test(lower)) return 'cyber';
+  if (/militar|army|navy|troops|missile|weapon|drone|strike|bomb/i.test(lower)) return 'military';
+  if (/war|conflict|invasion|attack|killed|dead/i.test(lower)) return 'conflict';
+  return 'general';
+}
+
 function classifySeverity(title: string): NewsItem['severity'] {
   const lower = title.toLowerCase();
   for (const [keyword, severity] of Object.entries(SEVERITY_KEYWORDS)) {
@@ -65,6 +74,7 @@ export const fetchLiveNews = async (): Promise<NewsItem[]> => {
               severity: classifySeverity(item.title),
               time: new Date(item.pubDate),
               link: item.link,
+              category: classifyCategory(item.title),
             });
           });
         }
@@ -122,7 +132,7 @@ export const PIZZA_INDEX_DATA: PizzaIndexEntry[] = [
   { country: 'Egypt', flag: '🇪🇬', localPrice: 'EGP 99', usdPrice: 2.02, index: 36, overUnder: 'under' },
 ];
 
-// Livestream feeds - expanded with more global cameras
+// Livestream feeds
 export interface LivestreamFeed {
   id: string;
   title: string;
@@ -134,7 +144,6 @@ export interface LivestreamFeed {
 }
 
 export const LIVESTREAM_FEEDS: LivestreamFeed[] = [
-  // News
   { id: 'aje', title: 'Al Jazeera English – LIVE', category: 'news', url: 'https://www.youtube.com/embed/gCNeDWCI0vo?autoplay=1&mute=1', isLive: true, source: 'Al Jazeera', region: 'Global' },
   { id: 'sky', title: 'Sky News – LIVE', category: 'news', url: 'https://www.youtube.com/embed/9Auq9mYxFEE?autoplay=1&mute=1', isLive: true, source: 'Sky News', region: 'UK' },
   { id: 'france24', title: 'France 24 – LIVE', category: 'news', url: 'https://www.youtube.com/embed/h3MuIUNCCzI?autoplay=1&mute=1', isLive: true, source: 'France 24', region: 'Europe' },
@@ -145,7 +154,6 @@ export const LIVESTREAM_FEEDS: LivestreamFeed[] = [
   { id: 'ndtv', title: 'NDTV 24x7 – LIVE', category: 'news', url: 'https://www.youtube.com/embed/MNe8MPlMJGk?autoplay=1&mute=1', isLive: true, source: 'NDTV', region: 'India' },
   { id: 'nhk', title: 'NHK WORLD – LIVE', category: 'news', url: 'https://www.youtube.com/embed/f0lYkdA-Bf0?autoplay=1&mute=1', isLive: true, source: 'NHK', region: 'Japan' },
   { id: 'rt', title: 'RT News – LIVE', category: 'news', url: 'https://www.youtube.com/embed/V5T5tEbOlME?autoplay=1&mute=1', isLive: true, source: 'RT', region: 'Russia' },
-  // Traffic/City Cameras
   { id: 'nyc-ts', title: 'Times Square – NYC', category: 'traffic', url: 'https://www.youtube.com/embed/AdUw5RdyZxI?autoplay=1&mute=1', isLive: true, source: 'EarthCam', region: 'New York' },
   { id: 'tokyo-shibuya', title: 'Shibuya Crossing – Tokyo', category: 'traffic', url: 'https://www.youtube.com/embed/DjdUEyjx8GM?autoplay=1&mute=1', isLive: true, source: 'LIVE Camera', region: 'Tokyo' },
   { id: 'dublin', title: 'Dublin City – Ireland', category: 'traffic', url: 'https://www.youtube.com/embed/ByED80IKdIU?autoplay=1&mute=1', isLive: true, source: 'SkylineWebcams', region: 'Dublin' },
@@ -158,14 +166,11 @@ export const LIVESTREAM_FEEDS: LivestreamFeed[] = [
   { id: 'rome-pantheon', title: 'Pantheon – Rome', category: 'traffic', url: 'https://www.youtube.com/embed/P8tH9UhvJxM?autoplay=1&mute=1', isLive: true, source: 'SkylineWebcams', region: 'Rome' },
   { id: 'bangkok', title: 'Bangkok Skyline', category: 'traffic', url: 'https://www.youtube.com/embed/gFRtAAmiFbE?autoplay=1&mute=1', isLive: true, source: 'Webcam', region: 'Bangkok' },
   { id: 'istanbul', title: 'Istanbul Bosphorus', category: 'traffic', url: 'https://www.youtube.com/embed/LcqDdFQviR0?autoplay=1&mute=1', isLive: true, source: 'Webcam', region: 'Istanbul' },
-  // Space
   { id: 'iss', title: 'ISS – Earth View', category: 'space', url: 'https://www.youtube.com/embed/P9C25Un7xaM?autoplay=1&mute=1', isLive: true, source: 'NASA', region: 'Space' },
   { id: 'nasa-live', title: 'NASA Live', category: 'space', url: 'https://www.youtube.com/embed/21X5lGlDOfg?autoplay=1&mute=1', isLive: true, source: 'NASA', region: 'Space' },
-  // Nature
   { id: 'african-water', title: 'African Waterhole', category: 'nature', url: 'https://www.youtube.com/embed/ydYDqZQpim8?autoplay=1&mute=1', isLive: true, source: 'Explore.org', region: 'Africa' },
   { id: 'jellyfish', title: 'Monterey Bay Jellies', category: 'nature', url: 'https://www.youtube.com/embed/P1NaxJRaBaY?autoplay=1&mute=1', isLive: true, source: 'Monterey Bay Aquarium', region: 'California' },
   { id: 'northern-lights', title: 'Northern Lights – Iceland', category: 'nature', url: 'https://www.youtube.com/embed/PVTMCwlY3cQ?autoplay=1&mute=1', isLive: true, source: 'Webcam', region: 'Iceland' },
-  // Weather
   { id: 'wx-atlantic', title: 'Atlantic Hurricane Tracker', category: 'weather', url: 'https://www.youtube.com/embed/0PZM1MQbLMA?autoplay=1&mute=1', isLive: true, source: 'Weather Channel', region: 'Atlantic' },
   { id: 'wx-storm', title: 'Storm Chaser LIVE', category: 'weather', url: 'https://www.youtube.com/embed/AhDCZYFKIX0?autoplay=1&mute=1', isLive: true, source: 'Reed Timmer', region: 'US' },
 ];

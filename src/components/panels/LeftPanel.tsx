@@ -6,21 +6,22 @@ import { SUBMARINE_CABLES } from '@/data/submarineCables';
 const LAYER_CONFIG: { key: LayerType; label: string; shortcut: string; colorClass: string }[] = [
   { key: 'aircraft', label: 'AIRCRAFT', shortcut: 'A', colorClass: 'bg-signal-aircraft' },
   { key: 'satellites', label: 'SATELLITES', shortcut: 'S', colorClass: 'bg-signal-satellite' },
-  { key: 'cameras', label: 'CAMERAS', shortcut: 'C', colorClass: 'bg-signal-camera' },
-  { key: 'militaryFlights', label: 'MILITARY', shortcut: 'M', colorClass: 'bg-signal-military' },
   { key: 'vessels', label: 'VESSELS', shortcut: 'V', colorClass: 'bg-signal-vessel' },
-  { key: 'nuclearSites', label: 'NUCLEAR', shortcut: 'N', colorClass: 'bg-signal-nuclear' },
+  { key: 'militaryFlights', label: 'MILITARY', shortcut: 'M', colorClass: 'bg-signal-military' },
   { key: 'underseaCables', label: 'CABLES', shortcut: 'U', colorClass: 'bg-signal-cable' },
   { key: 'conflicts', label: 'CONFLICTS', shortcut: 'X', colorClass: 'bg-alert-critical' },
+  { key: 'protests', label: 'PROTESTS', shortcut: 'P', colorClass: 'bg-signal-protest' },
+  { key: 'outages', label: 'OUTAGES/CYBER', shortcut: 'O', colorClass: 'bg-signal-outage' },
   { key: 'volcanoes', label: 'VOLCANOES', shortcut: '', colorClass: 'bg-alert-high' },
   { key: 'weather', label: 'WEATHER', shortcut: 'W', colorClass: 'bg-signal-camera' },
   { key: 'earthquakes', label: 'QUAKES', shortcut: 'E', colorClass: 'bg-signal-earthquake' },
+  { key: 'nuclearSites', label: 'NUCLEAR', shortcut: 'N', colorClass: 'bg-signal-nuclear' },
   { key: 'fires', label: 'FIRES', shortcut: 'F', colorClass: 'bg-signal-fire' },
-  { key: 'outages', label: 'OUTAGES', shortcut: 'O', colorClass: 'bg-signal-outage' },
+  { key: 'cameras', label: 'CAMERAS', shortcut: 'C', colorClass: 'bg-signal-camera' },
 ];
 
 const LeftPanel = memo(() => {
-  const { layers, toggleLayer, leftPanelOpen, activeRegion, setActiveRegion, setMapCenter, satellites, aircraft, earthquakes, volcanoes, weatherAlerts } = useWorldViewStore();
+  const { layers, toggleLayer, leftPanelOpen, activeRegion, setActiveRegion, setMapCenter, satellites, aircraft, earthquakes, volcanoes, vessels, protests, outages } = useWorldViewStore();
 
   if (!leftPanelOpen) return null;
 
@@ -30,6 +31,8 @@ const LeftPanel = memo(() => {
   };
 
   const milSats = satellites.filter(s => s.name.includes('COSMOS') || s.name.includes('USA-') || s.name.includes('MUOS') || s.name.includes('NROL')).length;
+  const yachts = vessels.filter(v => v.type === 'yacht').length;
+  const milVessels = vessels.filter(v => v.type === 'military').length;
 
   return (
     <aside className="glass-panel w-[280px] overflow-y-auto border-r border-border flex flex-col z-40">
@@ -38,11 +41,7 @@ const LeftPanel = memo(() => {
         <h2 className="text-[10px] font-display tracking-[0.2em] text-muted-foreground mb-2">DATA LAYERS</h2>
         <div className="space-y-1">
           {LAYER_CONFIG.map(({ key, label, shortcut, colorClass }) => (
-            <button
-              key={key}
-              onClick={() => toggleLayer(key)}
-              className="w-full flex items-center justify-between px-2 py-1 rounded text-xs hover:bg-card-hover transition-colors group"
-            >
+            <button key={key} onClick={() => toggleLayer(key)} className="w-full flex items-center justify-between px-2 py-1 rounded text-xs hover:bg-card-hover transition-colors group">
               <div className="flex items-center gap-2">
                 <div className={`w-1.5 h-1.5 rounded-full ${layers[key] ? colorClass : 'bg-text-muted-custom'} transition-colors`} />
                 <span className={`font-display tracking-wider text-[11px] ${layers[key] ? 'text-foreground' : 'text-muted-foreground'}`}>{label}</span>
@@ -61,13 +60,8 @@ const LeftPanel = memo(() => {
         <h2 className="text-[10px] font-display tracking-[0.2em] text-muted-foreground mb-2">REGION</h2>
         <div className="flex flex-wrap gap-1">
           {REGION_PRESETS.map((preset) => (
-            <button
-              key={preset.label}
-              onClick={() => handleRegion(preset)}
-              className={`px-2 py-0.5 text-[9px] font-display tracking-wider rounded border ${
-                activeRegion === preset.label ? 'border-primary/30 text-primary bg-primary/10' : 'border-border text-muted-foreground hover:text-foreground hover:border-primary/20'
-              } transition-colors`}
-            >
+            <button key={preset.label} onClick={() => handleRegion(preset)}
+              className={`px-2 py-0.5 text-[9px] font-display tracking-wider rounded border ${activeRegion === preset.label ? 'border-primary/30 text-primary bg-primary/10' : 'border-border text-muted-foreground hover:text-foreground hover:border-primary/20'} transition-colors`}>
               {preset.emoji} {preset.label}
             </button>
           ))}
@@ -82,10 +76,14 @@ const LeftPanel = memo(() => {
           <StatBox label="MIL FLIGHTS" value={aircraft.filter(a => a.isMilitary).length} color="text-signal-military" />
           <StatBox label="SATELLITES" value={satellites.length} color="text-signal-satellite" />
           <StatBox label="MIL SATS" value={milSats} color="text-signal-military" />
+          <StatBox label="VESSELS" value={vessels.length} color="text-signal-vessel" />
+          <StatBox label="YACHTS" value={yachts} color="text-alert-medium" />
+          <StatBox label="MIL SHIPS" value={milVessels} color="text-alert-critical" />
           <StatBox label="QUAKES 24H" value={earthquakes.length} color="text-signal-earthquake" />
-          <StatBox label="VOLCANOES" value={volcanoes.filter(v => v.status === 'erupting').length} color="text-alert-high" />
+          <StatBox label="PROTESTS" value={protests.length} color="text-signal-protest" />
+          <StatBox label="CYBER/OUT" value={outages.length} color="text-signal-outage" />
           <StatBox label="CABLES" value={SUBMARINE_CABLES.length} color="text-signal-cable" />
-          <StatBox label="NUCLEAR" value={NUCLEAR_SITES.length} color="text-signal-nuclear" />
+          <StatBox label="VOLCANOES" value={volcanoes.filter(v => v.status === 'erupting').length} color="text-alert-high" />
         </div>
       </div>
 
@@ -101,37 +99,12 @@ const LeftPanel = memo(() => {
                 <span className="font-display tracking-wide text-[11px]">{item.country}</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className={`font-data text-[11px] font-bold ${
-                  item.level === 'critical' ? 'text-alert-critical' : item.level === 'high' ? 'text-alert-high' : 'text-alert-medium'
-                }`}>{item.score}</span>
+                <span className={`font-data text-[11px] font-bold ${item.level === 'critical' ? 'text-alert-critical' : item.level === 'high' ? 'text-alert-high' : 'text-alert-medium'}`}>{item.score}</span>
                 <span className="text-[9px] text-muted-foreground">/100</span>
                 <span className="text-[10px]">{item.trend === 'up' ? '▲' : item.trend === 'down' ? '▼' : '─'}</span>
               </div>
             </div>
           ))}
-        </div>
-      </div>
-
-      {/* Convergence Alert */}
-      <div className="p-3 border-b border-border">
-        <h2 className="text-[10px] font-display tracking-[0.2em] text-alert-high mb-2">⚡ CONVERGENCE DETECTED</h2>
-        <div className="bg-alert-high/5 border border-alert-high/20 rounded p-2 space-y-1">
-          <p className="text-[11px] font-display tracking-wide text-foreground">Eastern Mediterranean</p>
-          <p className="text-[10px] text-muted-foreground">3 signal types in 1°×1° cell</p>
-          <div className="flex gap-1 flex-wrap">
-            {['Military', 'Protests', 'Outage'].map((t) => (
-              <span key={t} className="text-[8px] font-data px-1.5 py-0.5 rounded bg-card-bg text-text-secondary border border-border">{t}</span>
-            ))}
-          </div>
-          <div className="flex items-center justify-between mt-1">
-            <span className="font-data text-[11px] text-alert-high font-bold">Score: 87/100</span>
-            <button
-              onClick={() => useWorldViewStore.getState().setMapCenter({ lat: 33, lon: 35, zoom: 6 })}
-              className="text-[9px] font-display tracking-wider text-primary hover:underline"
-            >
-              VIEW →
-            </button>
-          </div>
         </div>
       </div>
 
@@ -144,9 +117,7 @@ const LeftPanel = memo(() => {
               <span className="font-display tracking-wide text-muted-foreground">{m.symbol}</span>
               <div className="flex items-center gap-1.5">
                 <span className="font-data text-foreground">{m.value}</span>
-                <span className={`font-data text-[10px] ${m.up ? 'text-signal-aircraft' : 'text-alert-critical'}`}>
-                  {m.up ? '▲' : '▼'} {m.change}
-                </span>
+                <span className={`font-data text-[10px] ${m.up ? 'text-signal-aircraft' : 'text-alert-critical'}`}>{m.up ? '▲' : '▼'} {m.change}</span>
               </div>
             </div>
           ))}
@@ -165,9 +136,7 @@ const LeftPanel = memo(() => {
               </div>
               <div className="flex items-center gap-1.5">
                 <span className="font-data text-foreground">${entry.usdPrice.toFixed(2)}</span>
-                <span className={`font-data text-[10px] ${
-                  entry.index > 105 ? 'text-alert-high' : entry.index >= 95 ? 'text-primary' : 'text-alert-info'
-                }`}>{entry.index}</span>
+                <span className={`font-data text-[10px] ${entry.index > 105 ? 'text-alert-high' : entry.index >= 95 ? 'text-primary' : 'text-alert-info'}`}>{entry.index}</span>
               </div>
             </div>
           ))}
