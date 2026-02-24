@@ -86,19 +86,17 @@ const Google3DGlobe = memo(() => {
 
     const addMarker3D = async (lat: number, lng: number, html: string, altitude: number = 0, onClick?: () => void) => {
       try {
-        const { Marker3DElement } = await (google.maps as any).importLibrary('maps3d');
-        const marker = new Marker3DElement({
+        const { Marker3DInteractiveElement } = await (google.maps as any).importLibrary('maps3d');
+        const marker = new Marker3DInteractiveElement({
           position: { lat, lng, altitude },
           altitudeMode: altitude > 100 ? 'ABSOLUTE' : 'CLAMP_TO_GROUND',
         });
 
-        // Create custom label
+        // Marker3D requires a <template> element as slotted content
         const template = document.createElement('template');
+        template.setAttribute('id', 'default');
         template.innerHTML = html.trim();
-        const el = template.content.firstChild as HTMLElement;
-        if (el) {
-          marker.append(el);
-        }
+        marker.append(template);
 
         if (onClick) {
           marker.addEventListener('gmp-click', (e: any) => {
@@ -283,7 +281,7 @@ const Google3DGlobe = memo(() => {
               strokeWidth: 3,
               altitudeMode: 'CLAMP_TO_GROUND',
             });
-            polyline.coordinates = cable.coordinates.map(([lat, lon]: [number, number]) => ({ lat, lng: lon, altitude: 0 }));
+            polyline.path = cable.coordinates.map(([lat, lon]: [number, number]) => ({ lat, lng: lon, altitude: 0 }));
             map.append(polyline);
             markersRef.current.push(polyline);
           });
