@@ -74,42 +74,8 @@ export const fetchLiveNews = async (): Promise<NewsItem[]> => {
     })
   );
 
-  // Sort by time, newest first
   allNews.sort((a, b) => b.time.getTime() - a.time.getTime());
   return allNews;
-};
-
-// Generate simulated aircraft data
-export const generateMockAircraft = () => {
-  const countries = ['United States', 'United Kingdom', 'Germany', 'France', 'China', 'Russia', 'Japan', 'Australia', 'India', 'Brazil', 'Canada', 'UAE'];
-  const callsigns = ['BAW', 'DLH', 'AAL', 'UAL', 'AFR', 'KLM', 'SIA', 'QFA', 'THY', 'ELY', 'SWR', 'ANA', 'JAL', 'CPA', 'UAE', 'ETH'];
-  const militaryCallsigns = ['RCH', 'EVAC', 'REACH', 'VIPER', 'HAWK', 'MAGIC', 'CONDOR', 'IRON'];
-  const aircraft: any[] = [];
-
-  for (let i = 0; i < 200; i++) {
-    const isMil = Math.random() < 0.12;
-    const prefix = isMil
-      ? militaryCallsigns[Math.floor(Math.random() * militaryCallsigns.length)]
-      : callsigns[Math.floor(Math.random() * callsigns.length)];
-    const num = Math.floor(Math.random() * 9000 + 100);
-
-    aircraft.push({
-      icao24: Math.random().toString(16).slice(2, 8),
-      callsign: `${prefix}${num}`,
-      country: countries[Math.floor(Math.random() * countries.length)],
-      lat: (Math.random() * 140) - 60,
-      lon: (Math.random() * 360) - 180,
-      altitude: isMil ? Math.random() * 12000 + 3000 : Math.random() * 12000 + 8000,
-      altitudeFt: 0,
-      speedKts: Math.random() * 300 + 200,
-      heading: Math.random() * 360,
-      verticalRate: (Math.random() - 0.5) * 10,
-      onGround: false,
-      isMilitary: isMil,
-    });
-    aircraft[aircraft.length - 1].altitudeFt = Math.round(aircraft[aircraft.length - 1].altitude * 3.28084);
-  }
-  return aircraft;
 };
 
 // Fetch real aircraft from OpenSky via edge function
@@ -117,40 +83,27 @@ export const fetchLiveAircraft = async (): Promise<Aircraft[]> => {
   try {
     const { data, error } = await supabase.functions.invoke('opensky-proxy');
     if (error) {
-      console.warn('OpenSky proxy error, falling back to mock:', error);
-      return generateMockAircraft();
+      console.warn('OpenSky proxy error:', error);
+      return [];
     }
     if (data?.success && data.aircraft?.length > 0) {
-      console.log(`Received ${data.aircraft.length} live aircraft`);
+      console.log(`Received ${data.aircraft.length} ${data.fallback ? 'fallback' : 'live'} aircraft`);
       return data.aircraft;
     }
-    console.warn('No live aircraft data, falling back to mock');
-    return generateMockAircraft();
+    return [];
   } catch (e) {
-    console.warn('Failed to fetch live aircraft, using mock:', e);
-    return generateMockAircraft();
+    console.warn('Failed to fetch aircraft:', e);
+    return [];
   }
 };
 
-// Generate simulated satellite data
-export const generateMockSatellites = () => {
-  const names = ['ISS (ZARYA)', 'STARLINK-1234', 'STARLINK-5678', 'COSMOS 2542', 'USA-326', 'NOAA-20', 'SENTINEL-2A', 'TERRA', 'LANDSAT-9', 'GPS IIF-12', 'MUOS-5', 'GOES-17', 'METEOSAT-11', 'ALOS-2', 'TIANGONG', 'STARLINK-2001', 'STARLINK-3042', 'FENGYUN-4A', 'JASON-3', 'CBERS-4A'];
-  return names.map((name, i) => ({
-    name,
-    lat: (Math.random() * 140) - 70,
-    lon: (Math.random() * 360) - 180,
-    alt: name.includes('ISS') || name.includes('TIANGONG') ? 408 : Math.random() * 1200 + 300,
-    velocity: name.includes('ISS') ? 7.66 : Math.random() * 4 + 5,
-  }));
-};
-
-// Pizza / Big Mac Index (based on real 2024 Economist data, USD equivalent)
+// Pizza / Big Mac Index
 export interface PizzaIndexEntry {
   country: string;
   flag: string;
   localPrice: string;
   usdPrice: number;
-  index: number; // vs US baseline (100)
+  index: number;
   overUnder: 'over' | 'under' | 'base';
 }
 
@@ -169,35 +122,50 @@ export const PIZZA_INDEX_DATA: PizzaIndexEntry[] = [
   { country: 'Egypt', flag: '🇪🇬', localPrice: 'EGP 99', usdPrice: 2.02, index: 36, overUnder: 'under' },
 ];
 
-// Livestream feeds
+// Livestream feeds - expanded with more global cameras
 export interface LivestreamFeed {
   id: string;
   title: string;
-  category: 'news' | 'traffic' | 'conflict' | 'weather' | 'space';
-  url: string; // YouTube embed or iframe URL
-  thumbnail?: string;
+  category: 'news' | 'traffic' | 'conflict' | 'weather' | 'space' | 'nature';
+  url: string;
   isLive: boolean;
   source: string;
   region?: string;
 }
 
 export const LIVESTREAM_FEEDS: LivestreamFeed[] = [
-  // News Livestreams
+  // News
   { id: 'aje', title: 'Al Jazeera English – LIVE', category: 'news', url: 'https://www.youtube.com/embed/gCNeDWCI0vo?autoplay=1&mute=1', isLive: true, source: 'Al Jazeera', region: 'Global' },
   { id: 'sky', title: 'Sky News – LIVE', category: 'news', url: 'https://www.youtube.com/embed/9Auq9mYxFEE?autoplay=1&mute=1', isLive: true, source: 'Sky News', region: 'UK' },
   { id: 'france24', title: 'France 24 – LIVE', category: 'news', url: 'https://www.youtube.com/embed/h3MuIUNCCzI?autoplay=1&mute=1', isLive: true, source: 'France 24', region: 'Europe' },
   { id: 'dw', title: 'DW News – LIVE', category: 'news', url: 'https://www.youtube.com/embed/pILCn6VO_RU?autoplay=1&mute=1', isLive: true, source: 'DW', region: 'Germany' },
   { id: 'abc', title: 'ABC News – LIVE', category: 'news', url: 'https://www.youtube.com/embed/w_Ma8oQLmSM?autoplay=1&mute=1', isLive: true, source: 'ABC News', region: 'US' },
   { id: 'nbc', title: 'NBC News NOW – LIVE', category: 'news', url: 'https://www.youtube.com/embed/m0DmfnRfEtc?autoplay=1&mute=1', isLive: true, source: 'NBC', region: 'US' },
-
-  // Traffic Cameras
+  { id: 'cna', title: 'CNA – LIVE', category: 'news', url: 'https://www.youtube.com/embed/XWq5kBlakcQ?autoplay=1&mute=1', isLive: true, source: 'CNA', region: 'Asia' },
+  { id: 'ndtv', title: 'NDTV 24x7 – LIVE', category: 'news', url: 'https://www.youtube.com/embed/MNe8MPlMJGk?autoplay=1&mute=1', isLive: true, source: 'NDTV', region: 'India' },
+  { id: 'nhk', title: 'NHK WORLD – LIVE', category: 'news', url: 'https://www.youtube.com/embed/f0lYkdA-Bf0?autoplay=1&mute=1', isLive: true, source: 'NHK', region: 'Japan' },
+  { id: 'rt', title: 'RT News – LIVE', category: 'news', url: 'https://www.youtube.com/embed/V5T5tEbOlME?autoplay=1&mute=1', isLive: true, source: 'RT', region: 'Russia' },
+  // Traffic/City Cameras
   { id: 'nyc-ts', title: 'Times Square – NYC', category: 'traffic', url: 'https://www.youtube.com/embed/AdUw5RdyZxI?autoplay=1&mute=1', isLive: true, source: 'EarthCam', region: 'New York' },
   { id: 'tokyo-shibuya', title: 'Shibuya Crossing – Tokyo', category: 'traffic', url: 'https://www.youtube.com/embed/DjdUEyjx8GM?autoplay=1&mute=1', isLive: true, source: 'LIVE Camera', region: 'Tokyo' },
   { id: 'dublin', title: 'Dublin City – Ireland', category: 'traffic', url: 'https://www.youtube.com/embed/ByED80IKdIU?autoplay=1&mute=1', isLive: true, source: 'SkylineWebcams', region: 'Dublin' },
-
+  { id: 'paris-eiffel', title: 'Eiffel Tower – Paris', category: 'traffic', url: 'https://www.youtube.com/embed/vLfAtCbE_Jc?autoplay=1&mute=1', isLive: true, source: 'Webcam', region: 'Paris' },
+  { id: 'venice', title: 'Venice Grand Canal', category: 'traffic', url: 'https://www.youtube.com/embed/vPwA4a0Lz8A?autoplay=1&mute=1', isLive: true, source: 'SkylineWebcams', region: 'Venice' },
+  { id: 'miami-beach', title: 'Miami Beach – Florida', category: 'traffic', url: 'https://www.youtube.com/embed/INolBH0x-AM?autoplay=1&mute=1', isLive: true, source: 'EarthCam', region: 'Miami' },
+  { id: 'london-abbey', title: 'Abbey Road – London', category: 'traffic', url: 'https://www.youtube.com/embed/rPQbmaqzE3E?autoplay=1&mute=1', isLive: true, source: 'EarthCam', region: 'London' },
+  { id: 'la-santa-monica', title: 'Santa Monica Pier – LA', category: 'traffic', url: 'https://www.youtube.com/embed/NDhIQsOUamk?autoplay=1&mute=1', isLive: true, source: 'EarthCam', region: 'Los Angeles' },
+  { id: 'amsterdam', title: 'Amsterdam Canals', category: 'traffic', url: 'https://www.youtube.com/embed/t1ym2dcyBvQ?autoplay=1&mute=1', isLive: true, source: 'Webcam', region: 'Amsterdam' },
+  { id: 'rome-pantheon', title: 'Pantheon – Rome', category: 'traffic', url: 'https://www.youtube.com/embed/P8tH9UhvJxM?autoplay=1&mute=1', isLive: true, source: 'SkylineWebcams', region: 'Rome' },
+  { id: 'bangkok', title: 'Bangkok Skyline', category: 'traffic', url: 'https://www.youtube.com/embed/gFRtAAmiFbE?autoplay=1&mute=1', isLive: true, source: 'Webcam', region: 'Bangkok' },
+  { id: 'istanbul', title: 'Istanbul Bosphorus', category: 'traffic', url: 'https://www.youtube.com/embed/LcqDdFQviR0?autoplay=1&mute=1', isLive: true, source: 'Webcam', region: 'Istanbul' },
   // Space
   { id: 'iss', title: 'ISS – Earth View', category: 'space', url: 'https://www.youtube.com/embed/P9C25Un7xaM?autoplay=1&mute=1', isLive: true, source: 'NASA', region: 'Space' },
-
+  { id: 'nasa-live', title: 'NASA Live', category: 'space', url: 'https://www.youtube.com/embed/21X5lGlDOfg?autoplay=1&mute=1', isLive: true, source: 'NASA', region: 'Space' },
+  // Nature
+  { id: 'african-water', title: 'African Waterhole', category: 'nature', url: 'https://www.youtube.com/embed/ydYDqZQpim8?autoplay=1&mute=1', isLive: true, source: 'Explore.org', region: 'Africa' },
+  { id: 'jellyfish', title: 'Monterey Bay Jellies', category: 'nature', url: 'https://www.youtube.com/embed/P1NaxJRaBaY?autoplay=1&mute=1', isLive: true, source: 'Monterey Bay Aquarium', region: 'California' },
+  { id: 'northern-lights', title: 'Northern Lights – Iceland', category: 'nature', url: 'https://www.youtube.com/embed/PVTMCwlY3cQ?autoplay=1&mute=1', isLive: true, source: 'Webcam', region: 'Iceland' },
   // Weather
   { id: 'wx-atlantic', title: 'Atlantic Hurricane Tracker', category: 'weather', url: 'https://www.youtube.com/embed/0PZM1MQbLMA?autoplay=1&mute=1', isLive: true, source: 'Weather Channel', region: 'Atlantic' },
+  { id: 'wx-storm', title: 'Storm Chaser LIVE', category: 'weather', url: 'https://www.youtube.com/embed/AhDCZYFKIX0?autoplay=1&mute=1', isLive: true, source: 'Reed Timmer', region: 'US' },
 ];

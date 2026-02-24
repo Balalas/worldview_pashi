@@ -5,50 +5,61 @@ import RightPanel from '@/components/panels/RightPanel';
 import BottomFeed from '@/components/panels/BottomFeed';
 import MapContainer from '@/components/map/MapContainer';
 import { useWorldViewStore, LAYER_SHORTCUTS } from '@/store/worldview';
-import { fetchEarthquakes, generateMockAircraft, generateMockSatellites, fetchLiveNews, fetchLiveAircraft } from '@/services/dataServices';
+import { fetchEarthquakes, fetchLiveNews, fetchLiveAircraft } from '@/services/dataServices';
+import { generateRealisticSatellites, fetchISSPosition } from '@/services/satelliteService';
+import { fetchGlobalWeather, ACTIVE_VOLCANOES } from '@/services/weatherService';
 
 const GlobeContainer = lazy(() => import('@/components/map/GlobeContainer'));
 
 const Index = () => {
-  const { setAircraft, setSatellites, setEarthquakes, setNews, setLastRefresh, setNewsLoading, toggleLayer, closeDetailPanel, mapMode } = useWorldViewStore();
+  const { setAircraft, setSatellites, setEarthquakes, setNews, setLastRefresh, setNewsLoading, setWeatherAlerts, setVolcanoes, toggleLayer, closeDetailPanel, mapMode } = useWorldViewStore();
 
-  // Load data on mount
   useEffect(() => {
-    // Start with mock aircraft, then try live
-    setAircraft(generateMockAircraft());
-    setSatellites(generateMockSatellites());
+    // Initialize satellites with realistic data
+    const initSatellites = async () => {
+      const issPos = await fetchISSPosition();
+      setSatellites(generateRealisticSatellites(issPos));
+    };
+    initSatellites();
 
-    // Try live aircraft
-    fetchLiveAircraft().then(setAircraft);
+    // Fetch live aircraft
+    fetchLiveAircraft().then(a => { if (a.length > 0) setAircraft(a); });
 
+    // Fetch news
     setNewsLoading(true);
-    fetchLiveNews().then((news) => {
-      setNews(news);
-      setNewsLoading(false);
-    });
+    fetchLiveNews().then((news) => { setNews(news); setNewsLoading(false); });
 
+    // Fetch earthquakes
     fetchEarthquakes().then(setEarthquakes);
 
-    // Refresh aircraft every 15s (live with fallback to mock)
-    const moveInterval = setInterval(() => {
+    // Fetch weather
+    fetchGlobalWeather().then(setWeatherAlerts);
+
+    // Set volcanoes
+    setVolcanoes(ACTIVE_VOLCANOES);
+
+    // Refresh intervals
+    const aircraftInterval = setInterval(() => {
       fetchLiveAircraft().then((a) => {
-        setAircraft(a);
-        setLastRefresh(new Date());
+        if (a.length > 0) { setAircraft(a); setLastRefresh(new Date()); }
       });
     }, 15000);
 
-    const eqInterval = setInterval(() => {
-      fetchEarthquakes().then(setEarthquakes);
-    }, 300000);
+    const satInterval = setInterval(async () => {
+      const issPos = await fetchISSPosition();
+      setSatellites(generateRealisticSatellites(issPos));
+    }, 10000);
 
-    const newsInterval = setInterval(() => {
-      fetchLiveNews().then(setNews);
-    }, 180000);
+    const eqInterval = setInterval(() => fetchEarthquakes().then(setEarthquakes), 300000);
+    const newsInterval = setInterval(() => fetchLiveNews().then(setNews), 180000);
+    const weatherInterval = setInterval(() => fetchGlobalWeather().then(setWeatherAlerts), 600000);
 
     return () => {
-      clearInterval(moveInterval);
+      clearInterval(aircraftInterval);
+      clearInterval(satInterval);
       clearInterval(eqInterval);
       clearInterval(newsInterval);
+      clearInterval(weatherInterval);
     };
   }, []);
 
@@ -57,10 +68,7 @@ const Index = () => {
     const handler = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       const key = e.key.toLowerCase();
-      if (key === 'escape') {
-        closeDetailPanel();
-        return;
-      }
+      if (key === 'escape') { closeDetailPanel(); return; }
       const layer = LAYER_SHORTCUTS[key];
       if (layer) toggleLayer(layer);
     };
@@ -89,7 +97,6 @@ const Index = () => {
                 <GlobeContainer />
               </Suspense>
             )}
-            {/* Scan line overlay */}
             <div className="absolute inset-0 pointer-events-none overflow-hidden z-10">
               <div className="w-full h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent animate-scan-line" />
             </div>

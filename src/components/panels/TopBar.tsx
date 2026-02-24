@@ -1,9 +1,10 @@
 import { memo } from 'react';
-import { useWorldViewStore, MARKET_DATA, MapMode } from '@/store/worldview';
+import { useWorldViewStore, MARKET_DATA, MapMode, DashboardMode } from '@/store/worldview';
 
 const TopBar = memo(() => {
-  const { aircraft, satellites, earthquakes, lastRefresh, toggleLeftPanel, mapMode, setMapMode } = useWorldViewStore();
+  const { aircraft, satellites, earthquakes, volcanoes, weatherAlerts, lastRefresh, toggleLeftPanel, mapMode, setMapMode, dashboardMode, setDashboardMode } = useWorldViewStore();
   const militaryCount = aircraft.filter(a => a.isMilitary).length;
+  const eruptingCount = volcanoes.filter(v => v.status === 'erupting').length;
 
   return (
     <header className="glass-panel flex items-center justify-between px-4 h-12 z-50 border-b border-border">
@@ -16,16 +17,15 @@ const TopBar = memo(() => {
         </button>
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-primary animate-pulse-dot" />
-          <h1 className="text-lg font-bold tracking-widest text-foreground font-display">
-            WORLDVIEW
-          </h1>
+          <h1 className="text-lg font-bold tracking-widest text-foreground font-display">WORLDVIEW</h1>
         </div>
         <div className="hidden md:flex items-center gap-1 ml-2">
-          {['WORLD', 'TECH', 'FINANCE'].map((tab) => (
+          {(['WORLD', 'TECH', 'FINANCE'] as DashboardMode[]).map((tab) => (
             <button
               key={tab}
+              onClick={() => setDashboardMode(tab)}
               className={`px-2 py-0.5 text-[10px] font-display tracking-wider rounded ${
-                tab === 'WORLD'
+                dashboardMode === tab
                   ? 'bg-primary/20 text-primary border border-primary/30'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
@@ -37,11 +37,13 @@ const TopBar = memo(() => {
       </div>
 
       {/* Center: Live counters + Map toggle */}
-      <div className="hidden lg:flex items-center gap-4 font-data text-xs">
-        <CounterBadge icon="✈" count={aircraft.length} color="text-signal-aircraft" label="" />
-        <CounterBadge icon="⚔" count={militaryCount} color="text-signal-military" label="" />
-        <CounterBadge icon="🛰" count={satellites.length} color="text-signal-satellite" label="" />
-        <CounterBadge icon="🌍" count={earthquakes.length} color="text-signal-earthquake" label="" />
+      <div className="hidden lg:flex items-center gap-3 font-data text-xs">
+        <CounterBadge icon="✈" count={aircraft.length} color="text-signal-aircraft" />
+        <CounterBadge icon="⚔" count={militaryCount} color="text-signal-military" />
+        <CounterBadge icon="🛰" count={satellites.length} color="text-signal-satellite" />
+        <CounterBadge icon="🌍" count={earthquakes.length} color="text-signal-earthquake" />
+        <CounterBadge icon="🌋" count={eruptingCount} color="text-alert-high" />
+        <CounterBadge icon="🌤" count={weatherAlerts.length} color="text-signal-camera" />
 
         {/* 2D/3D Toggle */}
         <div className="flex items-center border border-border rounded overflow-hidden ml-2">
@@ -75,11 +77,10 @@ const MapToggleBtn = ({ active, label, onClick }: { active: boolean; label: stri
   </button>
 );
 
-const CounterBadge = ({ icon, count, color, label }: { icon: string; count: number; color: string; label: string }) => (
+const CounterBadge = ({ icon, count, color }: { icon: string; count: number; color: string }) => (
   <div className="flex items-center gap-1">
     <span className="text-xs">{icon}</span>
     <span className={`${color} font-bold`}>{count.toLocaleString()}</span>
-    {label && <span className="text-muted-foreground">{label}</span>}
   </div>
 );
 
