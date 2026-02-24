@@ -72,24 +72,10 @@ const CURATED_CAMERAS: PublicCamera[] = [
 
 // ── Official DOT / Government Traffic Cameras (real JPEG snapshot feeds) ──
 // All URLs must be HTTPS to avoid mixed-content blocking
+// NOTE: Caltrans cameras removed — their image URLs use dynamic camera IDs from the CCTV JSON API
+// and the previously hardcoded paths were fabricated. Use fetchCaltransCameras() for real feeds.
 const OFFICIAL_DOT_CAMERAS: PublicCamera[] = [
-  // ── Caltrans (California DOT) — verified HTTPS ──
-  { id: 'cal-dot-001', name: 'I-405 @ Wilshire Blvd', lat: 34.0586, lon: -118.4389, country: 'US', city: 'Los Angeles', category: 'traffic', embedUrl: '', source: 'Caltrans', heading: 0, feedType: 'snapshot', snapshotUrl: 'https://cwwp2.dot.ca.gov/data/d7/cctv/image/i405-nb-wilshire/i405-nb-wilshire.jpg', official: true },
-  { id: 'cal-dot-002', name: 'I-405 @ Sunset Blvd', lat: 34.0674, lon: -118.4498, country: 'US', city: 'Los Angeles', category: 'traffic', embedUrl: '', source: 'Caltrans', heading: 180, feedType: 'snapshot', snapshotUrl: 'https://cwwp2.dot.ca.gov/data/d7/cctv/image/i405-nb-sunset/i405-nb-sunset.jpg', official: true },
-  { id: 'cal-dot-003', name: 'I-10 @ La Brea', lat: 34.0395, lon: -118.3445, country: 'US', city: 'Los Angeles', category: 'traffic', embedUrl: '', source: 'Caltrans', heading: 90, feedType: 'snapshot', snapshotUrl: 'https://cwwp2.dot.ca.gov/data/d7/cctv/image/i10-eb-labrea/i10-eb-labrea.jpg', official: true },
-  { id: 'cal-dot-004', name: 'I-10 @ I-110', lat: 34.0404, lon: -118.2635, country: 'US', city: 'Los Angeles', category: 'traffic', embedUrl: '', source: 'Caltrans', heading: 90, feedType: 'snapshot', snapshotUrl: 'https://cwwp2.dot.ca.gov/data/d7/cctv/image/i10-eb-i110/i10-eb-i110.jpg', official: true },
-  { id: 'cal-dot-005', name: 'US-101 @ Hollywood Blvd', lat: 34.1014, lon: -118.3350, country: 'US', city: 'Los Angeles', category: 'traffic', embedUrl: '', source: 'Caltrans', heading: 0, feedType: 'snapshot', snapshotUrl: 'https://cwwp2.dot.ca.gov/data/d7/cctv/image/us101-nb-hollywood/us101-nb-hollywood.jpg', official: true },
-  { id: 'cal-dot-006', name: 'I-80 @ Bay Bridge', lat: 37.7983, lon: -122.3778, country: 'US', city: 'San Francisco', category: 'traffic', embedUrl: '', source: 'Caltrans', heading: 270, feedType: 'snapshot', snapshotUrl: 'https://cwwp2.dot.ca.gov/data/d4/cctv/image/i80-wb-baybridge/i80-wb-baybridge.jpg', official: true },
-  { id: 'cal-dot-007', name: 'US-101 @ Golden Gate', lat: 37.8078, lon: -122.4745, country: 'US', city: 'San Francisco', category: 'traffic', embedUrl: '', source: 'Caltrans', heading: 0, feedType: 'snapshot', snapshotUrl: 'https://cwwp2.dot.ca.gov/data/d4/cctv/image/us101-nb-goldengate/us101-nb-goldengate.jpg', official: true },
-  { id: 'cal-dot-008', name: 'I-5 @ Balboa Ave', lat: 32.8208, lon: -117.1722, country: 'US', city: 'San Diego', category: 'traffic', embedUrl: '', source: 'Caltrans', heading: 0, feedType: 'snapshot', snapshotUrl: 'https://cwwp2.dot.ca.gov/data/d11/cctv/image/i5-nb-balboa/i5-nb-balboa.jpg', official: true },
-  { id: 'cal-dot-009', name: 'I-5 @ I-805', lat: 32.8969, lon: -117.1966, country: 'US', city: 'San Diego', category: 'traffic', embedUrl: '', source: 'Caltrans', heading: 180, feedType: 'snapshot', snapshotUrl: 'https://cwwp2.dot.ca.gov/data/d11/cctv/image/i5-sb-i805/i5-sb-i805.jpg', official: true },
-  { id: 'cal-dot-010', name: 'I-80 @ University Ave', lat: 37.8655, lon: -122.3046, country: 'US', city: 'Berkeley', category: 'traffic', embedUrl: '', source: 'Caltrans', heading: 90, feedType: 'snapshot', snapshotUrl: 'https://cwwp2.dot.ca.gov/data/d4/cctv/image/i80-eb-university/i80-eb-university.jpg', official: true },
-  { id: 'cal-dot-011', name: 'I-405 @ Santa Monica', lat: 34.0310, lon: -118.4592, country: 'US', city: 'Los Angeles', category: 'traffic', embedUrl: '', source: 'Caltrans', heading: 0, feedType: 'snapshot', snapshotUrl: 'https://cwwp2.dot.ca.gov/data/d7/cctv/image/i405-nb-santamonica/i405-nb-santamonica.jpg', official: true },
-  { id: 'cal-dot-012', name: 'I-5 @ SR-14', lat: 34.3319, lon: -118.4903, country: 'US', city: 'Santa Clarita', category: 'traffic', embedUrl: '', source: 'Caltrans', heading: 0, feedType: 'snapshot', snapshotUrl: 'https://cwwp2.dot.ca.gov/data/d7/cctv/image/i5-nb-sr14/i5-nb-sr14.jpg', official: true },
-  { id: 'cal-dot-013', name: 'I-110 @ Adams Blvd', lat: 34.0178, lon: -118.2819, country: 'US', city: 'Los Angeles', category: 'traffic', embedUrl: '', source: 'Caltrans', heading: 0, feedType: 'snapshot', snapshotUrl: 'https://cwwp2.dot.ca.gov/data/d7/cctv/image/i110-nb-adams/i110-nb-adams.jpg', official: true },
-  { id: 'cal-dot-014', name: 'SR-91 @ I-605', lat: 33.8930, lon: -118.0519, country: 'US', city: 'Cerritos', category: 'traffic', embedUrl: '', source: 'Caltrans', heading: 90, feedType: 'snapshot', snapshotUrl: 'https://cwwp2.dot.ca.gov/data/d7/cctv/image/sr91-eb-i605/sr91-eb-i605.jpg', official: true },
-  { id: 'cal-dot-015', name: 'I-880 @ Great Mall', lat: 37.4157, lon: -121.9014, country: 'US', city: 'Milpitas', category: 'traffic', embedUrl: '', source: 'Caltrans', heading: 0, feedType: 'snapshot', snapshotUrl: 'https://cwwp2.dot.ca.gov/data/d4/cctv/image/i880-nb-greatmall/i880-nb-greatmall.jpg', official: true },
-  // ── Vancouver (TrafficCams — verified HTTPS) ──
+  // ── Vancouver (TrafficCams — verified HTTPS, simple intersection-name format) ──
   { id: 'van-dot-001', name: 'Granville @ Georgia', lat: 49.2847, lon: -123.1166, country: 'CA', city: 'Vancouver', category: 'traffic', embedUrl: '', source: 'City of Vancouver', heading: 0, feedType: 'snapshot', snapshotUrl: 'https://trafficcams.vancouver.ca/georgiagranville.jpg', official: true },
   { id: 'van-dot-002', name: 'Cambie @ Broadway', lat: 49.2629, lon: -123.1147, country: 'CA', city: 'Vancouver', category: 'traffic', embedUrl: '', source: 'City of Vancouver', heading: 90, feedType: 'snapshot', snapshotUrl: 'https://trafficcams.vancouver.ca/cambiebroadway.jpg', official: true },
   { id: 'van-dot-003', name: 'Hastings @ Main', lat: 49.2806, lon: -123.1001, country: 'CA', city: 'Vancouver', category: 'traffic', embedUrl: '', source: 'City of Vancouver', heading: 270, feedType: 'snapshot', snapshotUrl: 'https://trafficcams.vancouver.ca/hastingsmain.jpg', official: true },
@@ -98,6 +84,10 @@ const OFFICIAL_DOT_CAMERAS: PublicCamera[] = [
   { id: 'van-dot-006', name: 'Lions Gate Bridge S', lat: 49.3136, lon: -123.1379, country: 'CA', city: 'Vancouver', category: 'traffic', embedUrl: '', source: 'City of Vancouver', heading: 180, feedType: 'snapshot', snapshotUrl: 'https://trafficcams.vancouver.ca/lionsgateS.jpg', official: true },
   { id: 'van-dot-007', name: 'Oak @ 41st Ave', lat: 49.2347, lon: -123.1270, country: 'CA', city: 'Vancouver', category: 'traffic', embedUrl: '', source: 'City of Vancouver', heading: 0, feedType: 'snapshot', snapshotUrl: 'https://trafficcams.vancouver.ca/oak41.jpg', official: true },
   { id: 'van-dot-008', name: 'Knight @ Kingsway', lat: 49.2402, lon: -123.0778, country: 'CA', city: 'Vancouver', category: 'traffic', embedUrl: '', source: 'City of Vancouver', heading: 90, feedType: 'snapshot', snapshotUrl: 'https://trafficcams.vancouver.ca/knightkingsway.jpg', official: true },
+  { id: 'van-dot-009', name: 'Denman @ Robson', lat: 49.2886, lon: -123.1365, country: 'CA', city: 'Vancouver', category: 'traffic', embedUrl: '', source: 'City of Vancouver', heading: 0, feedType: 'snapshot', snapshotUrl: 'https://trafficcams.vancouver.ca/denmanrobson.jpg', official: true },
+  { id: 'van-dot-010', name: 'Main @ Terminal', lat: 49.2730, lon: -123.0998, country: 'CA', city: 'Vancouver', category: 'traffic', embedUrl: '', source: 'City of Vancouver', heading: 90, feedType: 'snapshot', snapshotUrl: 'https://trafficcams.vancouver.ca/mainterminal.jpg', official: true },
+  { id: 'van-dot-011', name: 'Granville @ 70th', lat: 49.2180, lon: -123.1388, country: 'CA', city: 'Vancouver', category: 'traffic', embedUrl: '', source: 'City of Vancouver', heading: 0, feedType: 'snapshot', snapshotUrl: 'https://trafficcams.vancouver.ca/granville70.jpg', official: true },
+  { id: 'van-dot-012', name: 'Clark @ 1st Ave', lat: 49.2695, lon: -123.0743, country: 'CA', city: 'Vancouver', category: 'traffic', embedUrl: '', source: 'City of Vancouver', heading: 180, feedType: 'snapshot', snapshotUrl: 'https://trafficcams.vancouver.ca/clark1st.jpg', official: true },
 ];
 
 // ── 4000+ procedurally generated cameras across global cities ──
@@ -392,8 +382,9 @@ function generateCityCameras(): PublicCamera[] {
         embedUrl: '',
         source: dotSource,
         heading,
-        feedType: 'snapshot',
-        official: true,
+        // Generated cameras are markers only — no real feed
+        feedType: undefined as any,
+        official: false,
       });
       globalIdx++;
     }

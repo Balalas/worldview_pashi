@@ -5,11 +5,39 @@ const SearchBar = memo(() => {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isOpen, setIsOpen] = useState(false);
+  const [geoResults, setGeoResults] = useState<SearchResult[]>([]);
+  const geoTimer = useRef<ReturnType<typeof setTimeout>>();
   const inputRef = useRef<HTMLInputElement>(null);
   const { aircraft, satellites, vessels, earthquakes, volcanoes, setMapCenter, setDetailPanel } = useWorldViewStore();
 
+  // Debounced geocoding
+  const geocode = useCallback((q: string) => {
+    if (geoTimer.current) clearTimeout(geoTimer.current);
+    if (q.length < 2) { setGeoResults([]); return; }
+    geoTimer.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5&addressdetails=1`, {
+          headers: { 'User-Agent': 'WorldView/1.0' },
+        });
+        const data = await res.json();
+        const geo: SearchResult[] = data.map((d: any) => ({
+          type: 'location',
+          label: `📍 ${d.display_name.split(',').slice(0, 2).join(',')}`,
+          sub: d.type?.replace(/_/g, ' ') || 'location',
+          lat: parseFloat(d.lat),
+          lon: parseFloat(d.lon),
+          zoom: d.type === 'country' ? 4 : d.type === 'state' ? 6 : d.type === 'city' ? 10 : 12,
+          data: null,
+        }));
+        setGeoResults(geo);
+      } catch {
+        setGeoResults([]);
+      }
+    }, 300);
+  }, []);
+
   const search = useCallback((q: string) => {
-    if (q.length < 2) { setResults([]); return; }
+    if (q.length < 2) { setResults([]); setGeoResults([]); return; }
     const term = q.toLowerCase();
     const found: SearchResult[] = [];
 
@@ -33,31 +61,19 @@ const SearchBar = memo(() => {
     volcanoes.filter(v => v.name.toLowerCase().includes(term) || v.country.toLowerCase().includes(term))
       .slice(0, 3).forEach(v => found.push({ type: 'volcano', label: `🌋 ${v.name}`, sub: `${v.country} | ${v.status}`, lat: v.lat, lon: v.lon, zoom: 8, data: v }));
 
-    // Location geocoding fallback
-    if (found.length === 0) {
-      found.push({ type: 'search', label: `🔍 Search "${q}" on map`, sub: 'Geocode location', lat: 0, lon: 0, zoom: 5, data: null, geocode: q });
-    }
-
     setResults(found);
-  }, [aircraft, satellites, vessels, earthquakes, volcanoes]);
+    // Also trigger geocoding
+    geocode(q);
+  }, [aircraft, satellites, vessels, earthquakes, volcanoes, geocode]);
 
-  const handleSelect = useCallback(async (result: SearchResult) => {
-    if (result.geocode) {
-      try {
-        const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(result.geocode)}&format=json&limit=1`);
-        const data = await res.json();
-        if (data.length > 0) {
-          setMapCenter({ lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon), zoom: 10 });
-        }
-      } catch {}
-    } else {
-      setMapCenter({ lat: result.lat, lon: result.lon, zoom: result.zoom });
-      if (result.data && result.type !== 'search') {
-        setDetailPanel({ type: result.type as any, data: result.data });
-      }
+  const handleSelect = useCallback((result: SearchResult) => {
+    setMapCenter({ lat: result.lat, lon: result.lon, zoom: result.zoom });
+    if (result.data && result.type !== 'search' && result.type !== 'location') {
+      setDetailPanel({ type: result.type as any, data: result.data });
     }
     setQuery('');
     setResults([]);
+    setGeoResults([]);
     setIsOpen(false);
   }, [setMapCenter, setDetailPanel]);
 
@@ -69,11 +85,13 @@ const SearchBar = memo(() => {
         inputRef.current?.focus();
         setIsOpen(true);
       }
-      if (e.key === 'Escape') { setIsOpen(false); setQuery(''); setResults([]); }
+      if (e.key === 'Escape') { setIsOpen(false); setQuery(''); setResults([]); setGeoResults([]); }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, []);
+
+  const allResults = [...results, ...geoResults];
 
   return (
     <div className="absolute top-14 left-1/2 -translate-x-1/2 z-30 pointer-events-auto w-[320px]">
@@ -82,15 +100,30 @@ const SearchBar = memo(() => {
           <span className="text-muted-foreground text-xs pl-2">🔍</span>
           <input ref={inputRef} value={query} onChange={(e) => { setQuery(e.target.value); search(e.target.value); setIsOpen(true); }}
             onFocus={() => setIsOpen(true)}
-            placeholder="Search aircraft, satellites, locations... (/)"
+            placeholder="Search cities, aircraft, satellites... (/)"
             className="flex-1 bg-transparent px-2 py-1.5 text-[11px] font-data text-foreground placeholder:text-muted-foreground outline-none" />
-          {query && <button onClick={() => { setQuery(''); setResults([]); }} className="text-muted-foreground hover:text-foreground px-2 text-xs">✕</button>}
+          {query && <button onClick={() => { setQuery(''); setResults([]); setGeoResults([]); }} className="text-muted-foreground hover:text-foreground px-2 text-xs">✕</button>}
         </div>
 
-        {isOpen && results.length > 0 && (
-          <div className="absolute top-full left-0 right-0 mt-1 bg-background/95 backdrop-blur-sm border border-border rounded overflow-hidden shadow-lg max-h-[200px] overflow-y-auto">
+        {isOpen && allResults.length > 0 && (
+          <div className="absolute top-full left-0 right-0 mt-1 bg-background/95 backdrop-blur-sm border border-border rounded overflow-hidden shadow-lg max-h-[240px] overflow-y-auto">
+            {results.length > 0 && (
+              <div className="px-2 py-1 text-[8px] font-data text-primary/60 tracking-widest border-b border-border/30">INTEL MATCHES</div>
+            )}
             {results.map((r, i) => (
-              <button key={i} onClick={() => handleSelect(r)}
+              <button key={`r-${i}`} onClick={() => handleSelect(r)}
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-primary/10 transition-colors border-b border-border/50 last:border-0">
+                <div>
+                  <div className="text-[10px] font-data text-foreground">{r.label}</div>
+                  <div className="text-[8px] font-data text-muted-foreground">{r.sub}</div>
+                </div>
+              </button>
+            ))}
+            {geoResults.length > 0 && (
+              <div className="px-2 py-1 text-[8px] font-data text-primary/60 tracking-widest border-b border-border/30">LOCATIONS</div>
+            )}
+            {geoResults.map((r, i) => (
+              <button key={`g-${i}`} onClick={() => handleSelect(r)}
                 className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-primary/10 transition-colors border-b border-border/50 last:border-0">
                 <div>
                   <div className="text-[10px] font-data text-foreground">{r.label}</div>
@@ -113,7 +146,6 @@ interface SearchResult {
   lon: number;
   zoom: number;
   data: any;
-  geocode?: string;
 }
 
 SearchBar.displayName = 'SearchBar';

@@ -28,6 +28,8 @@ Deno.serve(async (req) => {
       'tdg-images-cctv',       // misc DOT
       'fl511.com',             // Florida DOT
       'hb.511ia.org',          // Iowa DOT
+      'video.dot.ca.gov',      // Caltrans video
+      'wzmedia.dot.ca.gov',    // Caltrans media
     ];
 
     const urlObj = new URL(url);
