@@ -4,13 +4,19 @@ import 'leaflet/dist/leaflet.css';
 import { useWorldViewStore, NUCLEAR_SITES } from '@/store/worldview';
 import { CONFLICT_ZONES } from '@/components/map/GlobeContainer';
 import { SUBMARINE_CABLES } from '@/data/submarineCables';
+import { PUBLIC_CAMERAS } from '@/data/publicCameras';
+import { COUNTRY_META } from '@/data/countryMeta';
+import * as topojson from 'topojson-client';
+
+const WORLD_TOPO_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/countries-110m.json';
 
 const MapContainer = memo(() => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const layersRef = useRef<Record<string, L.LayerGroup>>({});
+  const geoLayerRef = useRef<L.GeoJSON | null>(null);
 
-  const { layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, setDetailPanel, mapCenter } = useWorldViewStore();
+  const { layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, fires, setDetailPanel, setActiveLivestream, mapCenter } = useWorldViewStore();
 
   // Initialize map
   useEffect(() => {
@@ -28,18 +34,159 @@ const MapContainer = memo(() => {
     L.control.zoom({ position: 'bottomright' }).addTo(map);
     mapInstanceRef.current = map;
 
-    ['aircraft', 'satellites', 'earthquakes', 'conflicts', 'cables', 'weather', 'volcanoes', 'nuclear', 'vessels', 'protests', 'outages'].forEach((key) => {
+    ['aircraft', 'satellites', 'earthquakes', 'conflicts', 'cables', 'weather', 'volcanoes', 'nuclear', 'vessels', 'protests', 'outages', 'cameras', 'fires'].forEach((key) => {
       layersRef.current[key] = L.layerGroup().addTo(map);
     });
 
+    // Load country boundaries
+    fetch(WORLD_TOPO_URL)
+      .then(r => r.json())
+      .then(topo => {
+        const geojson = topojson.feature(topo, topo.objects.countries) as any;
+        const geoLayer = L.geoJSON(geojson, {
+          style: () => ({
+            fillColor: 'transparent',
+            fillOpacity: 0,
+            color: 'hsl(var(--primary))',
+            weight: 0.4,
+            opacity: 0.3,
+          }),
+          onEachFeature: (feature, layer) => {
+            const numericId = String(feature.id || feature.properties?.id);
+            const meta = COUNTRY_META[numericId];
+            const countryName = meta?.name || feature.properties?.name || 'Unknown';
+            const flag = meta?.flag || '🏳';
+            const code = meta?.code || 'XX';
+
+            layer.on({
+              mouseover: (e) => {
+                const l = e.target;
+                l.setStyle({
+                  fillColor: 'hsl(var(--primary))',
+                  fillOpacity: 0.15,
+                  weight: 1.5,
+                  opacity: 0.7,
+                });
+                l.bringToFront();
+              },
+              mouseout: (e) => {
+                geoLayer.resetStyle(e.target);
+              },
+              click: () => {
+                // Gather news for this country
+                const state = useWorldViewStore.getState();
+                const countryNews = state.news.filter(n => {
+                  const t = n.title.toLowerCase();
+                  return t.includes(countryName.toLowerCase()) || t.includes(code.toLowerCase());
+                });
+
+                // Gather cameras for this country
+                const countryCameras = PUBLIC_CAMERAS.filter(c => c.country === code);
+
+                // Gather earthquakes
+                const countryQuakes = state.earthquakes.filter(eq => {
+                  const place = (eq.place || '').toLowerCase();
+                  return place.includes(countryName.toLowerCase());
+                });
+
+                // Gather protests
+                const countryProtests = state.protests.filter(p =>
+                  p.country.toLowerCase().includes(countryName.toLowerCase()) ||
+                  p.country === code
+                );
+
+                setDetailPanel({
+                  type: 'country',
+                  data: {
+                    name: countryName,
+                    flag,
+                    code,
+                    news: countryNews.slice(0, 20),
+                    cameras: countryCameras.slice(0, 10),
+                    earthquakes: countryQuakes.slice(0, 5),
+                    protests: countryProtests.slice(0, 5),
+                    newsCount: countryNews.length,
+                    cameraCount: countryCameras.length,
+                  },
+                });
+              },
+            });
+
+            layer.bindTooltip(`${flag} ${countryName}`, {
+              sticky: true,
+              className: 'country-tooltip',
+              direction: 'top',
+              offset: [0, -10],
+            });
+          },
+        }).addTo(map);
+        geoLayerRef.current = geoLayer;
+      })
+      .catch(err => console.warn('Failed to load country boundaries:', err));
+
     return () => { map.remove(); mapInstanceRef.current = null; };
-  }, []);
+  }, [setDetailPanel]);
 
   useEffect(() => {
     if (mapInstanceRef.current && mapCenter) {
       mapInstanceRef.current.flyTo([mapCenter.lat, mapCenter.lon], mapCenter.zoom, { duration: 1.5 });
     }
   }, [mapCenter]);
+
+  // Render cameras
+  useEffect(() => {
+    const group = layersRef.current['cameras'];
+    if (!group) return;
+    group.clearLayers();
+    if (!layers.cameras) return;
+
+    PUBLIC_CAMERAS.forEach(cam => {
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="position:relative;width:16px;height:16px;">
+          <div style="position:absolute;inset:0;border:1.5px solid #fbbf24;border-radius:50%;background:#fbbf2420;"></div>
+          <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:9px;">📹</div>
+          ${cam.official ? '<div style="position:absolute;top:-6px;right:-8px;font-size:5px;background:#fbbf24;color:#000;padding:0 2px;border-radius:2px;font-weight:bold;">DOT</div>' : ''}
+        </div>`,
+        iconSize: [16, 16],
+        iconAnchor: [8, 8],
+      });
+
+      const marker = L.marker([cam.lat, cam.lon], { icon })
+        .on('click', () => {
+          setDetailPanel({ type: 'camera', data: cam });
+          setActiveLivestream(cam.feedType === 'snapshot' ? (cam.snapshotUrl || 'snapshot') : cam.embedUrl);
+        });
+      marker.bindTooltip(`📹 ${cam.name} | ${cam.city}`, { direction: 'top', offset: [0, -10] });
+      group.addLayer(marker);
+    });
+  }, [layers.cameras, setDetailPanel, setActiveLivestream]);
+
+  // Render fires
+  useEffect(() => {
+    const group = layersRef.current['fires'];
+    if (!group) return;
+    group.clearLayers();
+    if (!layers.fires || fires.length === 0) return;
+
+    fires.forEach(f => {
+      const icons: Record<string, string> = { wildfire: '🔥', volcano: '🌋', storm: '🌀', flood: '🌊', earthquake: '💥', drought: '☀️', landslide: '⛰️', other: '⚠️' };
+      const colors: Record<string, string> = { wildfire: '#ff4400', volcano: '#ff0044', storm: '#00d4ff', flood: '#4488ff', earthquake: '#ff6600', drought: '#ffb000', landslide: '#aa6633', other: '#ff6b35' };
+      const color = colors[f.category] || '#ff4400';
+      const emoji = icons[f.category] || '🔥';
+
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="font-size:12px;filter:drop-shadow(0 0 4px ${color});">${emoji}</div>`,
+        iconSize: [16, 16],
+        iconAnchor: [8, 8],
+      });
+      const marker = L.marker([f.lat, f.lon], { icon })
+        .on('click', () => setDetailPanel({ type: 'fire', data: f }));
+      marker.bindTooltip(`${emoji} ${f.title.substring(0, 40)}`, { direction: 'top' });
+      group.addLayer(marker);
+    });
+  }, [fires, layers.fires, setDetailPanel]);
 
   // Render submarine cables
   useEffect(() => {
