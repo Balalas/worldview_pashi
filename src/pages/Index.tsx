@@ -139,7 +139,7 @@ const CctvPip = memo(() => {
 CctvPip.displayName = 'CctvPip';
 
 const Index = () => {
-  const { setAircraft, setSatellites, setEarthquakes, setNews, setLastRefresh, setNewsLoading, setWeatherAlerts, setVolcanoes, setVessels, setProtests, setOutages, setFires, toggleLayer, closeDetailPanel, mapMode, setFollowTarget, visualStyle, filterParams } = useWorldViewStore();
+  const { setAircraft, setSatellites, setEarthquakes, setNews, setLastRefresh, setNewsLoading, setWeatherAlerts, setVolcanoes, setVessels, setProtests, setOutages, setFires, toggleLayer, closeDetailPanel, mapMode, setFollowTarget, visualStyle, filterParams, bottomPanelCollapsed } = useWorldViewStore();
   const styleConfig = computeStyleConfig(visualStyle, filterParams);
 
   useEffect(() => {
@@ -336,7 +336,7 @@ const Index = () => {
             {/* Holographic CCTV PiP */}
             <CctvPip />
           </div>
-          <div className="h-[220px]">
+          <div className={bottomPanelCollapsed ? 'h-[26px]' : 'h-[220px]'} style={{ transition: 'height 0.3s cubic-bezier(0.16,1,0.3,1)' }}>
             <BottomFeed />
           </div>
         </div>
