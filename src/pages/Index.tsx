@@ -11,6 +11,9 @@ import GlobeControls from '@/components/hud/GlobeControls';
 import SearchBar from '@/components/hud/SearchBar';
 import StylePresetsBar, { computeStyleConfig } from '@/components/hud/StylePresetsBar';
 import StyleParametersPanel from '@/components/hud/StyleParametersPanel';
+import TacticalAlerts from '@/components/hud/TacticalAlerts';
+import MinimapRadar from '@/components/hud/MinimapRadar';
+import ThreatGauge from '@/components/hud/ThreatGauge';
 import { useWorldViewStore, LAYER_SHORTCUTS } from '@/store/worldview';
 import { fetchEarthquakes, fetchLiveNews, fetchLiveAircraft } from '@/services/dataServices';
 import { generateRealisticSatellites, fetchISSPosition } from '@/services/satelliteService';
@@ -335,6 +338,12 @@ const Index = () => {
             <StyleParametersPanel />
             {/* Holographic CCTV PiP */}
             <CctvPip />
+            {/* Tactical Alerts */}
+            <TacticalAlerts />
+            {/* Minimap Radar */}
+            <MinimapRadar />
+            {/* Threat Gauge */}
+            <ThreatGauge />
           </div>
           <div className={bottomPanelCollapsed ? 'h-[26px]' : 'h-[220px]'} style={{ transition: 'height 0.3s cubic-bezier(0.16,1,0.3,1)' }}>
             <BottomFeed />
