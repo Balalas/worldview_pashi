@@ -46,7 +46,28 @@ const CesiumGlobe = memo(() => {
       skyAtmosphere: new Cesium.SkyAtmosphere(),
     });
 
-    // Add Cesium World Terrain + imagery
+    // Add Google Photorealistic 3D Tiles + OSM Buildings
+    const add3DTiles = async () => {
+      try {
+        // Google Photorealistic 3D Tiles — shows real-world buildings, terrain, vegetation
+        const googleTileset = await Cesium.createGooglePhotorealistic3DTileset();
+        viewer.scene.primitives.add(googleTileset);
+        // Hide the default globe since Google tiles cover everything
+        viewer.scene.globe.show = false;
+      } catch (err) {
+        console.warn('Google 3D Tiles failed, falling back to OSM Buildings:', err);
+        // Fallback: Cesium OSM Buildings (free via Ion)
+        try {
+          const osmBuildings = await Cesium.createOsmBuildingsAsync();
+          viewer.scene.primitives.add(osmBuildings);
+        } catch (e2) {
+          console.warn('OSM Buildings also failed:', e2);
+        }
+      }
+    };
+    add3DTiles();
+
+    // Scene settings
     try {
       viewer.scene.globe.enableLighting = true;
       viewer.scene.globe.atmosphereLightIntensity = 8.0;
