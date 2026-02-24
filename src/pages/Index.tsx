@@ -6,6 +6,7 @@ import BottomFeed from '@/components/panels/BottomFeed';
 import MapContainer from '@/components/map/MapContainer';
 import HudOverlay from '@/components/hud/HudOverlay';
 import TrackingHud from '@/components/hud/TrackingHud';
+import StreetViewOverlay from '@/components/map/StreetViewOverlay';
 import GlobeControls from '@/components/hud/GlobeControls';
 import SearchBar from '@/components/hud/SearchBar';
 import { useWorldViewStore, LAYER_SHORTCUTS } from '@/store/worldview';
@@ -259,6 +260,8 @@ const Index = () => {
                 <GlobeContainer />
               </Suspense>
             )}
+            {/* Street View Overlay — fills main map when camera selected */}
+            <StreetViewOverlay />
             {/* HUD Overlay */}
             <HudOverlay />
             {/* AC-130 Tracking HUD */}
