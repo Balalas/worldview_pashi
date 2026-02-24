@@ -365,7 +365,7 @@ const Google3DGlobe = memo(() => {
     }
   }, []);
 
-  // Fly camera to a CCTV location — immediately show street-level 3D + start livestream
+  // Fly camera to a CCTV location — fly overhead first, don't go street-level
   const flyToCamera = useCallback((cam: PublicCamera) => {
     stopFollow();
     const map = mapRef.current;
@@ -374,21 +374,21 @@ const Google3DGlobe = memo(() => {
     // Draw highlighted FOV cone
     drawActiveCamCone(cam);
 
-    // Cinematic fly to street-level POV
+    // Cinematic fly to overhead view of the camera (not street-level)
     if (typeof map.flyCameraTo === 'function') {
       map.flyCameraTo({
         endCamera: {
-          center: { lat: cam.lat, lng: cam.lon, altitude: 5 },
-          range: 50,
-          tilt: 87,
+          center: { lat: cam.lat, lng: cam.lon, altitude: 0 },
+          range: 500,
+          tilt: 55,
           heading: cam.heading || 0,
         },
         durationMillis: 2500,
       });
     } else {
-      map.center = { lat: cam.lat, lng: cam.lon, altitude: 5 };
-      map.range = 50;
-      map.tilt = 87;
+      map.center = { lat: cam.lat, lng: cam.lon, altitude: 0 };
+      map.range = 500;
+      map.tilt = 55;
       map.heading = cam.heading || 0;
     }
     setDetailPanel({ type: 'camera', data: cam });
