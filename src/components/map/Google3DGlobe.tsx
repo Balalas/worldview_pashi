@@ -651,42 +651,45 @@ const Google3DGlobe = memo(() => {
       }
     };
 
-    const animateCars = () => {
-      if (destroyed) return;
-      for (const car of roadCars) {
-        car.progress += car.forward ? car.speed : -car.speed;
-        // Wrap around for continuous flow
-        if (car.progress >= 1) { car.progress = 0; }
-        if (car.progress <= 0) { car.progress = 1; }
 
-        const pos = interpolateAlongPath(car.path, car.progress);
-        try {
-          car.marker.position = { lat: pos.lat, lng: pos.lng, altitude: 1 };
-          // Only update SVG every 5th frame to reduce DOM churn
-        } catch {}
-      }
-    };
 
-    // Smooth animation loop ~30fps
+    // Smooth animation loop using requestAnimationFrame for buttery smooth motion
     let frameCount = 0;
-    const tick = () => {
+    let lastTime = 0;
+    const tick = (timestamp: number) => {
       if (destroyed) return;
-      animateCars();
-      // Update SVG heading every 5 frames
-      frameCount++;
-      if (frameCount % 5 === 0) {
+      // Throttle to ~60fps with delta-time based movement
+      const delta = timestamp - lastTime;
+      if (delta >= 16) { // ~60fps
+        lastTime = timestamp;
+        // Delta-time scaling for consistent speed regardless of frame rate
+        const dtScale = Math.min(delta / 33, 3); // normalize to ~30fps baseline
         for (const car of roadCars) {
+          car.progress += (car.forward ? car.speed : -car.speed) * dtScale;
+          if (car.progress >= 1) car.progress = 0;
+          if (car.progress <= 0) car.progress = 1;
+          const pos = interpolateAlongPath(car.path, car.progress);
           try {
-            const pos = interpolateAlongPath(car.path, car.progress);
-            car.marker.innerHTML = '';
-            const template = document.createElement('template');
-            template.content.append(carSvg(car.color, car.forward ? pos.heading : (pos.heading + 180) % 360));
-            car.marker.append(template);
+            car.marker.position = { lat: pos.lat, lng: pos.lng, altitude: 1 };
           } catch {}
         }
+        // Update SVG heading every 8 frames to reduce DOM churn
+        frameCount++;
+        if (frameCount % 8 === 0) {
+          for (const car of roadCars) {
+            try {
+              const pos = interpolateAlongPath(car.path, car.progress);
+              car.marker.innerHTML = '';
+              const template = document.createElement('template');
+              template.content.append(carSvg(car.color, car.forward ? pos.heading : (pos.heading + 180) % 360));
+              car.marker.append(template);
+            } catch {}
+          }
+        }
       }
-      animFrame = window.setTimeout(() => tick(), 33);
+      animFrame = requestAnimationFrame(tick) as unknown as number;
     };
+    const startTick = () => { animFrame = requestAnimationFrame(tick) as unknown as number; };
 
     const rangeCheck = setInterval(() => {
       if (destroyed) return;
@@ -699,12 +702,12 @@ const Google3DGlobe = memo(() => {
     }, 4000);
 
     setTimeout(spawnCarsOnGrid, 1500);
-    tick();
+    startTick();
 
     return () => {
       destroyed = true;
       clearInterval(rangeCheck);
-      if (animFrame) clearTimeout(animFrame);
+      if (animFrame) cancelAnimationFrame(animFrame);
       clearCars();
     };
   }, [layerSubFilters.showTraffic, layerSubFilters.trafficDensity]);
@@ -995,8 +998,8 @@ const Google3DGlobe = memo(() => {
 
             // Draw FOV cone on the ground showing where camera looks
             const heading = cam.heading ?? 0;
-            const fovDeg = 60;
-            const distKm = 0.06; // 60m cone
+            const fovDeg = 70;
+            const distKm = 0.10; // 100m cone — more visible
             const R = 6371;
             const latRad = (cam.lat * Math.PI) / 180;
             const lonRad = (cam.lon * Math.PI) / 180;
@@ -1022,9 +1025,9 @@ const Google3DGlobe = memo(() => {
             conePoints.push({ lat: cam.lat, lng: cam.lon, altitude: 2 });
 
             const cone = new Polygon3DElement({
-              fillColor: '#fbbf2440',
-              strokeColor: '#fbbf2480',
-              strokeWidth: 1,
+              fillColor: '#fbbf2470',
+              strokeColor: '#fbbf24cc',
+              strokeWidth: 2,
               altitudeMode: 'RELATIVE_TO_GROUND',
             });
             // Use 'path' (new API) with fallback to deprecated 'outerCoordinates'

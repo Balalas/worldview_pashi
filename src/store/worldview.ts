@@ -365,7 +365,7 @@ export const useWorldViewStore = create<WorldViewState>((set) => ({
   layers: {
     aircraft: true,
     satellites: true,
-    cameras: false,
+    cameras: true,
     militaryFlights: true,
     vessels: true,
     nuclearSites: false,
