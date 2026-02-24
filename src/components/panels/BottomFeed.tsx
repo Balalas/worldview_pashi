@@ -17,7 +17,7 @@ type NewsFilter = 'ALL' | 'CRITICAL' | 'MILITARY' | 'PROTEST' | 'CYBER';
 const BottomFeed = memo(() => {
   const { bottomTab, setBottomTab } = useWorldViewStore();
   return (
-    <div className="glass-panel border-t border-border flex flex-col overflow-hidden z-30 h-full">
+    <div className="glass-panel border-t border-primary/8 flex flex-col overflow-hidden z-30 h-full">
       <div className="h-6 border-b border-border flex items-center overflow-hidden bg-card-bg/50">
         <div className="flex items-center animate-ticker-scroll whitespace-nowrap">
           {[...MARKET_DATA, ...MARKET_DATA].map((m, i) => (
