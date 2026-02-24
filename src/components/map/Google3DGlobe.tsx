@@ -506,7 +506,7 @@ const Google3DGlobe = memo(() => {
         const isISS = sat.name.includes('ISS');
         const isMil = sat.name.includes('COSMOS') || sat.name.includes('USA-') || sat.name.includes('MUOS');
         const color = isMil ? '#ff6b35' : isISS ? '#ff6600' : '#00d4ff';
-        const alt = Math.min(sat.alt * 1000, 600000);
+        const alt = sat.alt * 1000; // true orbital altitude in meters (LEO ~400km, MEO ~20000km, GEO ~35786km)
         addMarker(sat.lat, sat.lon,
           satelliteSvg(color, sat.name, isISS),
           alt, true,
