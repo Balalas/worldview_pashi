@@ -291,18 +291,9 @@ const Google3DGlobe = memo(() => {
         const pathPoints = generateTrajectory(ft.lat, ft.lon, ft.heading, ft.speed, ft.altitude, ft.type);
         const trailColor = ft.type === 'aircraft' ? '#ff4444' : ft.type === 'satellite' ? '#ff3333' : '#4488ff';
 
-        // Glow line (semi-transparent via color alpha)
-        const glow = new Polyline3DElement({
-          strokeColor: trailColor + '33', strokeWidth: 12,
-          altitudeMode: ft.altitude > 100 ? 'ABSOLUTE' : 'CLAMP_TO_GROUND',
-        });
-        glow.path = pathPoints;
-        map.append(glow);
-        trajectoryRef.current.push(glow);
-
-        // Core line — bright red like reference
+        // Thin trajectory line
         const core = new Polyline3DElement({
-          strokeColor: trailColor, strokeWidth: 4,
+          strokeColor: trailColor, strokeWidth: 2,
           altitudeMode: ft.altitude > 100 ? 'ABSOLUTE' : 'CLAMP_TO_GROUND',
         });
         core.path = pathPoints;

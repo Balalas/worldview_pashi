@@ -12,7 +12,7 @@ export const fetchISSPosition = async (): Promise<{ lat: number; lon: number; al
   }
 };
 
-// Comprehensive satellite catalog
+// Comprehensive satellite catalog — 2000+ objects
 const SAT_CATALOG = [
   // ── Space Stations ──
   { name: 'ISS (ZARYA)', type: 'station', alt: 408, vel: 7.66, inc: 51.6 },
@@ -28,26 +28,46 @@ const SAT_CATALOG = [
   { name: 'GRACE-FO 2', type: 'science', alt: 490, vel: 7.61, inc: 89 },
   { name: 'SWOT', type: 'science', alt: 891, vel: 7.42, inc: 77.6 },
 
-  // ── Starlink constellation ──
-  ...Array.from({ length: 80 }, (_, i) => ({ name: `STARLINK-${1000 + i * 47}`, type: 'comms', alt: 550, vel: 7.59, inc: 53 + (i % 5) * 4 })),
+  // ── Starlink (800 sats across orbital shells) ──
+  ...Array.from({ length: 400 }, (_, i) => ({ name: `STARLINK-${1000 + i * 15}`, type: 'comms', alt: 550, vel: 7.59, inc: 53 + (i % 6) * 1.3 })),
+  ...Array.from({ length: 200 }, (_, i) => ({ name: `STARLINK-${7000 + i * 12}`, type: 'comms', alt: 540, vel: 7.6, inc: 53.2 + (i % 5) * 1.5 })),
+  ...Array.from({ length: 200 }, (_, i) => ({ name: `STARLINK-${13000 + i * 8}`, type: 'comms', alt: 560, vel: 7.58, inc: 97.6 })),
 
-  // ── GPS constellation (31 operational) ──
+  // ── GPS constellation (31) ──
   ...Array.from({ length: 31 }, (_, i) => ({ name: `GPS ${i < 12 ? 'IIF' : 'III'}-${i + 1}`, type: 'navigation', alt: 20200, vel: 3.87, inc: 55 })),
 
-  // ── GLONASS (24 operational) ──
+  // ── GLONASS (24) ──
   ...Array.from({ length: 24 }, (_, i) => ({ name: `GLONASS-K${i + 1}`, type: 'navigation', alt: 19130, vel: 3.95, inc: 64.8 })),
 
-  // ── Galileo (24 operational) ──
-  ...Array.from({ length: 24 }, (_, i) => ({ name: `GALILEO-${i + 1}`, type: 'navigation', alt: 23222, vel: 3.6, inc: 56 })),
+  // ── Galileo (30) ──
+  ...Array.from({ length: 30 }, (_, i) => ({ name: `GALILEO-${i + 1}`, type: 'navigation', alt: 23222, vel: 3.6, inc: 56 })),
 
-  // ── BeiDou ──
-  ...Array.from({ length: 15 }, (_, i) => ({ name: `BEIDOU-3 M${i + 1}`, type: 'navigation', alt: 21528, vel: 3.7, inc: 55 })),
+  // ── BeiDou (35) ──
+  ...Array.from({ length: 35 }, (_, i) => ({ name: `BEIDOU-3 M${i + 1}`, type: 'navigation', alt: 21528, vel: 3.7, inc: 55 + (i % 3) * 10 })),
+
+  // ── OneWeb (500) ──
+  ...Array.from({ length: 500 }, (_, i) => ({ name: `ONEWEB-${i + 1}`, type: 'comms', alt: 1200, vel: 7.32, inc: 87.9 })),
+
+  // ── Iridium NEXT (66) ──
+  ...Array.from({ length: 66 }, (_, i) => ({ name: `IRIDIUM ${100 + i}`, type: 'comms', alt: 780, vel: 7.46, inc: 86.4 })),
+
+  // ── Amazon Kuiper (50) ──
+  ...Array.from({ length: 50 }, (_, i) => ({ name: `KUIPER-${i + 1}`, type: 'comms', alt: 590, vel: 7.58, inc: 51.9 })),
+
+  // ── Planet Labs (150 Doves) ──
+  ...Array.from({ length: 150 }, (_, i) => ({ name: `DOVE-${i + 1}`, type: 'earth_obs', alt: 475, vel: 7.63, inc: 97.4 + (i % 3) * 0.3 })),
+
+  // ── Spire Global (100) ──
+  ...Array.from({ length: 100 }, (_, i) => ({ name: `LEMUR-2-${i + 1}`, type: 'comms', alt: 500, vel: 7.61, inc: 37 + (i % 8) * 8 })),
 
   // ── Military / Recon ──
   { name: 'USA-326', type: 'military', alt: 270, vel: 7.73, inc: 97.4 },
   { name: 'USA-314', type: 'military', alt: 265, vel: 7.73, inc: 97.9 },
   { name: 'USA-325', type: 'military', alt: 280, vel: 7.72, inc: 97.5 },
   { name: 'USA-338', type: 'military', alt: 260, vel: 7.74, inc: 97.8 },
+  { name: 'USA-224', type: 'military', alt: 250, vel: 7.75, inc: 97.9 },
+  { name: 'USA-245', type: 'military', alt: 1100, vel: 7.3, inc: 63.4 },
+  { name: 'USA-290', type: 'military', alt: 35786, vel: 3.07, inc: 5.2 },
   { name: 'COSMOS 2558', type: 'military', alt: 430, vel: 7.65, inc: 97.3 },
   { name: 'COSMOS 2542', type: 'military', alt: 620, vel: 7.56, inc: 82.4 },
   { name: 'COSMOS 2573', type: 'military', alt: 350, vel: 7.69, inc: 67.1 },
@@ -57,6 +77,9 @@ const SAT_CATALOG = [
   { name: 'YAOGAN-39A', type: 'military', alt: 500, vel: 7.61, inc: 35 },
   { name: 'YAOGAN-39B', type: 'military', alt: 500, vel: 7.61, inc: 35 },
   { name: 'YAOGAN-39C', type: 'military', alt: 500, vel: 7.61, inc: 35 },
+  { name: 'YAOGAN-35A', type: 'military', alt: 500, vel: 7.61, inc: 35 },
+  { name: 'YAOGAN-35B', type: 'military', alt: 500, vel: 7.61, inc: 35 },
+  { name: 'YAOGAN-35C', type: 'military', alt: 500, vel: 7.61, inc: 35 },
   { name: 'MUOS-5', type: 'military', alt: 35786, vel: 3.07, inc: 5 },
   { name: 'MUOS-4', type: 'military', alt: 35786, vel: 3.07, inc: 5 },
   { name: 'MUOS-3', type: 'military', alt: 35786, vel: 3.07, inc: 5 },
@@ -76,6 +99,8 @@ const SAT_CATALOG = [
   { name: 'HIMAWARI-9', type: 'weather', alt: 35786, vel: 3.07, inc: 0.1 },
   { name: 'INSAT-3D', type: 'weather', alt: 35786, vel: 3.07, inc: 0.1 },
   { name: 'SUOMI NPP', type: 'weather', alt: 824, vel: 7.45, inc: 98.7 },
+  { name: 'METOP-C', type: 'weather', alt: 817, vel: 7.45, inc: 98.7 },
+  { name: 'FY-3E', type: 'weather', alt: 836, vel: 7.44, inc: 98.8 },
 
   // ── Earth observation ──
   { name: 'SENTINEL-1A', type: 'earth_obs', alt: 693, vel: 7.5, inc: 98.2 },
@@ -89,11 +114,11 @@ const SAT_CATALOG = [
   { name: 'LANDSAT-8', type: 'earth_obs', alt: 705, vel: 7.5, inc: 98.2 },
   { name: 'TERRA', type: 'earth_obs', alt: 705, vel: 7.5, inc: 98.1 },
   { name: 'AQUA', type: 'earth_obs', alt: 705, vel: 7.5, inc: 98.2 },
-  { name: 'CBERS-4A', type: 'earth_obs', alt: 628, vel: 7.55, inc: 98.5 },
-  { name: 'SPOT-7', type: 'earth_obs', alt: 694, vel: 7.5, inc: 98.2 },
-  { name: 'PLEIADES NEO-3', type: 'earth_obs', alt: 620, vel: 7.56, inc: 97.9 },
   { name: 'WORLDVIEW-3', type: 'earth_obs', alt: 617, vel: 7.56, inc: 97.2 },
-  { name: 'PLANET DOVE-50', type: 'earth_obs', alt: 475, vel: 7.63, inc: 97.4 },
+  { name: 'PLEIADES NEO-3', type: 'earth_obs', alt: 620, vel: 7.56, inc: 97.9 },
+  { name: 'PLEIADES NEO-4', type: 'earth_obs', alt: 620, vel: 7.56, inc: 97.9 },
+  { name: 'SPOT-7', type: 'earth_obs', alt: 694, vel: 7.5, inc: 98.2 },
+  { name: 'CBERS-4A', type: 'earth_obs', alt: 628, vel: 7.55, inc: 98.5 },
 
   // ── Communication GEO ──
   { name: 'INTELSAT 39', type: 'comms', alt: 35786, vel: 3.07, inc: 0.1 },
@@ -104,15 +129,27 @@ const SAT_CATALOG = [
   { name: 'EUTELSAT 36D', type: 'comms', alt: 35786, vel: 3.07, inc: 0.1 },
   { name: 'TURKSAT 5B', type: 'comms', alt: 35786, vel: 3.07, inc: 0.1 },
   { name: 'ASTRA 1P', type: 'comms', alt: 35786, vel: 3.07, inc: 0.1 },
+  { name: 'ARABSAT-6A', type: 'comms', alt: 35786, vel: 3.07, inc: 0.1 },
+  { name: 'TELSTAR 19V', type: 'comms', alt: 35786, vel: 3.07, inc: 0.1 },
+  { name: 'JCSAT-18', type: 'comms', alt: 35786, vel: 3.07, inc: 0.1 },
 
-  // ── OneWeb ──
-  ...Array.from({ length: 30 }, (_, i) => ({ name: `ONEWEB-${i * 23 + 100}`, type: 'comms', alt: 1200, vel: 7.32, inc: 87.9 })),
+  // ── Globalstar (48) ──
+  ...Array.from({ length: 48 }, (_, i) => ({ name: `GLOBALSTAR M${i + 1}`, type: 'comms', alt: 1414, vel: 7.15, inc: 52 })),
 
-  // ── Iridium NEXT ──
-  ...Array.from({ length: 66 }, (_, i) => ({ name: `IRIDIUM ${100 + i}`, type: 'comms', alt: 780, vel: 7.46, inc: 86.4 })),
+  // ── Orbcomm (36) ──
+  ...Array.from({ length: 36 }, (_, i) => ({ name: `ORBCOMM-${i + 1}`, type: 'comms', alt: 750, vel: 7.48, inc: 47 + (i % 4) * 5 })),
 
-  // ── Amazon Kuiper ──
-  ...Array.from({ length: 20 }, (_, i) => ({ name: `KUIPER-${i + 1}`, type: 'comms', alt: 590, vel: 7.58, inc: 51.9 })),
+  // ── Telesat Lightspeed (early, 50) ──
+  ...Array.from({ length: 50 }, (_, i) => ({ name: `TELESAT-LS-${i + 1}`, type: 'comms', alt: 1015, vel: 7.35, inc: 98.98 })),
+
+  // ── BlackSky (16) ──
+  ...Array.from({ length: 16 }, (_, i) => ({ name: `BLACKSKY-${i + 1}`, type: 'earth_obs', alt: 430, vel: 7.65, inc: 97.5 })),
+
+  // ── Hawk (HawkEye 360, 21) ──
+  ...Array.from({ length: 21 }, (_, i) => ({ name: `HAWK-${i + 1}`, type: 'military', alt: 575, vel: 7.58, inc: 45 + (i % 3) * 15 })),
+
+  // ── NAVSTAR debris / old sats (50) ──
+  ...Array.from({ length: 50 }, (_, i) => ({ name: `DEBRIS-${10000 + i}`, type: 'debris', alt: 400 + Math.random() * 600, vel: 7.6, inc: 20 + Math.random() * 80 })),
 ];
 
 // Propagate satellite positions using simple Keplerian motion
@@ -129,21 +166,24 @@ export const generateRealisticSatellites = (issPos?: { lat: number; lon: number;
     const period = 2 * Math.PI * Math.sqrt(Math.pow((6371 + sat.alt) * 1000, 3) / (3.986e14));
     const meanMotion = (2 * Math.PI) / period;
     const elapsed = (now / 1000) % period;
-    const phase = Math.random() * 2 * Math.PI;
+    // Use name hash for deterministic but unique phase per satellite
+    let hash = 0;
+    for (let i = 0; i < sat.name.length; i++) hash = ((hash << 5) - hash) + sat.name.charCodeAt(i);
+    const phase = (Math.abs(hash) % 10000) / 10000 * 2 * Math.PI;
 
     const trueAnomaly = meanMotion * elapsed + phase;
     const incRad = (sat.inc * Math.PI) / 180;
 
     const lat = Math.asin(Math.sin(incRad) * Math.sin(trueAnomaly)) * (180 / Math.PI);
-    const raanDrift = (now / 86400000) * 0.9856 * (Math.random() * 2 - 1);
-    const lon = ((Math.atan2(Math.cos(incRad) * Math.sin(trueAnomaly), Math.cos(trueAnomaly)) * (180 / Math.PI)) - raanDrift + 720) % 360 - 180;
+    const raanOffset = (Math.abs(hash) % 360);
+    const lon = ((Math.atan2(Math.cos(incRad) * Math.sin(trueAnomaly), Math.cos(trueAnomaly)) * (180 / Math.PI)) + raanOffset + 720) % 360 - 180;
 
     return {
       name: sat.name,
       lat: Math.max(-85, Math.min(85, lat)),
       lon,
-      alt: sat.alt + (Math.random() - 0.5) * 10,
-      velocity: sat.vel + (Math.random() - 0.5) * 0.1,
+      alt: sat.alt,
+      velocity: sat.vel + (Math.random() - 0.5) * 0.02,
     };
   });
 };
