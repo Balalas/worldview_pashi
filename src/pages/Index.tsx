@@ -9,7 +9,7 @@ import TrackingHud from '@/components/hud/TrackingHud';
 import StreetViewOverlay from '@/components/map/StreetViewOverlay';
 import GlobeControls from '@/components/hud/GlobeControls';
 import SearchBar from '@/components/hud/SearchBar';
-import StylePresetsBar, { STYLE_FILTERS } from '@/components/hud/StylePresetsBar';
+import StylePresetsBar, { computeStyleConfig } from '@/components/hud/StylePresetsBar';
 import StyleParametersPanel from '@/components/hud/StyleParametersPanel';
 import { useWorldViewStore, LAYER_SHORTCUTS } from '@/store/worldview';
 import { fetchEarthquakes, fetchLiveNews, fetchLiveAircraft } from '@/services/dataServices';
@@ -139,7 +139,8 @@ const CctvPip = memo(() => {
 CctvPip.displayName = 'CctvPip';
 
 const Index = () => {
-  const { setAircraft, setSatellites, setEarthquakes, setNews, setLastRefresh, setNewsLoading, setWeatherAlerts, setVolcanoes, setVessels, setProtests, setOutages, setFires, toggleLayer, closeDetailPanel, mapMode, setFollowTarget, visualStyle } = useWorldViewStore();
+  const { setAircraft, setSatellites, setEarthquakes, setNews, setLastRefresh, setNewsLoading, setWeatherAlerts, setVolcanoes, setVessels, setProtests, setOutages, setFires, toggleLayer, closeDetailPanel, mapMode, setFollowTarget, visualStyle, filterParams } = useWorldViewStore();
+  const styleConfig = computeStyleConfig(visualStyle, filterParams);
 
   useEffect(() => {
     // Initialize satellites
@@ -256,9 +257,9 @@ const Index = () => {
             <div
               className="absolute inset-0"
               style={{
-                filter: STYLE_FILTERS[visualStyle].crt
-                  ? `${STYLE_FILTERS[visualStyle].filter} url(#crt-rgb-split)`
-                  : STYLE_FILTERS[visualStyle].filter,
+                filter: styleConfig.crt
+                  ? `${styleConfig.filter} url(#crt-rgb-split)`
+                  : styleConfig.filter,
               }}
             >
               {mapMode === '2d' ? (
@@ -287,39 +288,35 @@ const Index = () => {
                 </Suspense>
               )}
             </div>
-            {/* Tint overlay for style effects */}
-            {STYLE_FILTERS[visualStyle].tint && (
-              <div className="absolute inset-0 pointer-events-none z-10" style={{ backgroundColor: STYLE_FILTERS[visualStyle].tint, mixBlendMode: visualStyle === 'nvg' ? 'multiply' : 'normal' }} />
+            {/* Tint overlay */}
+            {styleConfig.tint && (
+              <div className="absolute inset-0 pointer-events-none z-10" style={{ backgroundColor: styleConfig.tint, mixBlendMode: visualStyle === 'nvg' ? 'multiply' : 'normal' }} />
             )}
-            {/* CRT-specific heavy scanlines + flicker */}
-            {STYLE_FILTERS[visualStyle].crt && (
+            {/* CRT-specific overlays */}
+            {styleConfig.crt && (
               <>
-                {/* Thick scanlines */}
-                <div className="absolute inset-0 pointer-events-none z-10 opacity-[0.12]"
-                  style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.6) 2px, rgba(0,0,0,0.6) 4px)' }}
+                <div className="absolute inset-0 pointer-events-none z-10"
+                  style={{ opacity: styleConfig.scanlineOpacity ?? 0.12, backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.6) 2px, rgba(0,0,0,0.6) 4px)' }}
                 />
-                {/* RGB sub-pixel columns */}
                 <div className="absolute inset-0 pointer-events-none z-10 opacity-[0.04]"
                   style={{ backgroundImage: 'repeating-linear-gradient(90deg, rgba(255,0,0,0.3) 0px, rgba(0,255,0,0.3) 1px, rgba(0,100,255,0.3) 2px, transparent 3px)' }}
                 />
-                {/* CRT curvature vignette — heavier than normal */}
                 <div className="absolute inset-0 pointer-events-none z-10"
-                  style={{ background: 'radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.5) 70%, rgba(0,0,0,0.85) 100%)' }}
+                  style={{ background: `radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,${styleConfig.vignetteStrength ?? 0.5}) 70%, rgba(0,0,0,0.85) 100%)` }}
                 />
-                {/* Subtle flicker animation */}
                 <div className="absolute inset-0 pointer-events-none z-10 animate-crt-flicker" />
               </>
             )}
-            {/* Scanline overlay for NVG etc (non-CRT) */}
-            {STYLE_FILTERS[visualStyle].scanlines && !STYLE_FILTERS[visualStyle].crt && (
-              <div className="absolute inset-0 pointer-events-none z-10 opacity-[0.08]"
-                style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 1px, rgba(0,0,0,0.3) 1px, rgba(0,0,0,0.3) 2px)' }}
+            {/* Scanlines (non-CRT) */}
+            {styleConfig.scanlines && !styleConfig.crt && (
+              <div className="absolute inset-0 pointer-events-none z-10"
+                style={{ opacity: styleConfig.scanlineOpacity ?? 0.08, backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 1px, rgba(0,0,0,0.3) 1px, rgba(0,0,0,0.3) 2px)' }}
               />
             )}
-            {/* Vignette overlay (non-CRT, CRT has its own) */}
-            {STYLE_FILTERS[visualStyle].vignette && !STYLE_FILTERS[visualStyle].crt && (
+            {/* Vignette (non-CRT) */}
+            {styleConfig.vignette && !styleConfig.crt && (
               <div className="absolute inset-0 pointer-events-none z-10"
-                style={{ background: 'radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.6) 100%)' }}
+                style={{ background: `radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,${styleConfig.vignetteStrength ?? 0.6}) 100%)` }}
               />
             )}
             {/* Street View Overlay — fills main map when camera selected */}
