@@ -196,55 +196,68 @@ interface RoadCar {
   forward: boolean;
 }
 
-/** Generate procedural road-grid paths around a camera center */
-function generateRoadGrid(centerLat: number, centerLng: number, range: number): { lat: number; lng: number }[][] {
-  const roads: { lat: number; lng: number }[][] = [];
-  // Scale grid to camera range
-  const gridSpan = range < 1000 ? 0.004 : range < 2500 ? 0.012 : 0.025;
-  const gridLines = range < 1000 ? 8 : range < 2500 ? 5 : 3;
-  const pointsPerLine = 12;
+/** Fetch real road geometries from OpenStreetMap via Overpass edge function */
+const roadCache = new Map<string, { lat: number; lng: number }[][]>();
 
-  // Horizontal roads (east-west)
+async function fetchRealRoads(centerLat: number, centerLng: number, range: number): Promise<{ lat: number; lng: number }[][]> {
+  // Round to ~100m grid for cache key
+  const keyLat = Math.round(centerLat * 100) / 100;
+  const keyLng = Math.round(centerLng * 100) / 100;
+  const cacheKey = `${keyLat},${keyLng},${Math.round(range)}`;
+  if (roadCache.has(cacheKey)) return roadCache.get(cacheKey)!;
+
+  try {
+    const radius = Math.min(Math.max(range * 0.8, 200), 1500);
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+    const res = await fetch(`${supabaseUrl}/functions/v1/overpass-roads`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseKey}`,
+        'apikey': supabaseKey,
+      },
+      body: JSON.stringify({ lat: centerLat, lng: centerLng, radius }),
+    });
+    if (!res.ok) throw new Error(`${res.status}`);
+    const data = await res.json();
+    const roads: { lat: number; lng: number }[][] = data.roads || [];
+    roadCache.set(cacheKey, roads);
+    // Keep cache small
+    if (roadCache.size > 50) {
+      const firstKey = roadCache.keys().next().value;
+      if (firstKey) roadCache.delete(firstKey);
+    }
+    return roads;
+  } catch (err) {
+    console.warn('Failed to fetch roads from Overpass, using fallback grid:', err);
+    // Fallback: simple grid
+    return generateFallbackGrid(centerLat, centerLng, range);
+  }
+}
+
+/** Fallback procedural grid if Overpass fails */
+function generateFallbackGrid(centerLat: number, centerLng: number, range: number): { lat: number; lng: number }[][] {
+  const roads: { lat: number; lng: number }[][] = [];
+  const gridSpan = range < 1000 ? 0.004 : range < 2500 ? 0.012 : 0.025;
+  const gridLines = range < 1000 ? 6 : 3;
+  const pts = 10;
   for (let i = 0; i < gridLines; i++) {
     const lat = centerLat - gridSpan + (gridSpan * 2 * i) / (gridLines - 1);
     const path: { lat: number; lng: number }[] = [];
-    for (let j = 0; j < pointsPerLine; j++) {
-      const lng = centerLng - gridSpan + (gridSpan * 2 * j) / (pointsPerLine - 1);
-      // Add slight natural curve
-      const wobble = Math.sin(j * 0.8 + i) * gridSpan * 0.02;
-      path.push({ lat: lat + wobble, lng });
+    for (let j = 0; j < pts; j++) {
+      path.push({ lat: lat + Math.sin(j * 0.8 + i) * gridSpan * 0.02, lng: centerLng - gridSpan + (gridSpan * 2 * j) / (pts - 1) });
     }
     roads.push(path);
   }
-
-  // Vertical roads (north-south)
   for (let i = 0; i < gridLines; i++) {
     const lng = centerLng - gridSpan + (gridSpan * 2 * i) / (gridLines - 1);
     const path: { lat: number; lng: number }[] = [];
-    for (let j = 0; j < pointsPerLine; j++) {
-      const lat = centerLat - gridSpan + (gridSpan * 2 * j) / (pointsPerLine - 1);
-      const wobble = Math.sin(j * 0.8 + i) * gridSpan * 0.02;
-      path.push({ lat, lng: lng + wobble });
+    for (let j = 0; j < pts; j++) {
+      path.push({ lat: centerLat - gridSpan + (gridSpan * 2 * j) / (pts - 1), lng: lng + Math.sin(j * 0.8 + i) * gridSpan * 0.02 });
     }
     roads.push(path);
   }
-
-  // Diagonal roads for variety
-  const diag1: { lat: number; lng: number }[] = [];
-  const diag2: { lat: number; lng: number }[] = [];
-  for (let j = 0; j < pointsPerLine; j++) {
-    const t = j / (pointsPerLine - 1);
-    diag1.push({
-      lat: centerLat - gridSpan * 0.8 + gridSpan * 1.6 * t,
-      lng: centerLng - gridSpan * 0.8 + gridSpan * 1.6 * t,
-    });
-    diag2.push({
-      lat: centerLat - gridSpan * 0.8 + gridSpan * 1.6 * t,
-      lng: centerLng + gridSpan * 0.8 - gridSpan * 1.6 * t,
-    });
-  }
-  roads.push(diag1, diag2);
-
   return roads;
 }
 
@@ -559,8 +572,9 @@ const Google3DGlobe = memo(() => {
       try {
         const lib = await (google.maps as any).importLibrary('maps3d');
         const densityMult = sf.trafficDensity / 50;
-        const roads = generateRoadGrid(centerLat, centerLng, range);
-        const carsPerRoad = Math.max(1, Math.round(3 * densityMult));
+        // Fetch real roads from OpenStreetMap
+        const roads = await fetchRealRoads(centerLat, centerLng, range);
+        const carsPerRoad = Math.max(1, Math.round(2 * densityMult));
 
         roads.forEach(path => {
           if (path.length < 2) return;
@@ -568,7 +582,7 @@ const Google3DGlobe = memo(() => {
             const color = CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)];
             const progress = Math.random();
             const forward = Math.random() > 0.5;
-            const speed = 0.002 + Math.random() * 0.004;
+            const speed = 0.001 + Math.random() * 0.003;
 
             const pos = interpolateAlongPath(path, progress);
             const marker = new lib.Marker3DElement({
