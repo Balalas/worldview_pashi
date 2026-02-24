@@ -11,6 +11,7 @@ import GlobeControls from '@/components/hud/GlobeControls';
 import SearchBar from '@/components/hud/SearchBar';
 import StylePresetsBar, { computeStyleConfig } from '@/components/hud/StylePresetsBar';
 import StyleParametersPanel from '@/components/hud/StyleParametersPanel';
+import HolographicTV from '@/components/hud/HolographicTV';
 import TacticalAlerts from '@/components/hud/TacticalAlerts';
 import MinimapRadar from '@/components/hud/MinimapRadar';
 import ThreatGauge from '@/components/hud/ThreatGauge';
@@ -365,6 +366,8 @@ const Index = () => {
             <StyleParametersPanel />
             {/* Holographic CCTV PiP */}
             <CctvPip />
+            {/* Holographic TV */}
+            <HolographicTV />
             {/* Tactical Alerts */}
             <TacticalAlerts />
             {/* Minimap Radar */}
