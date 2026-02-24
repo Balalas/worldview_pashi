@@ -52,6 +52,9 @@ const LAYER_SUB_OPTIONS: Partial<Record<LayerType, SubOption[]>> = {
   ],
   weather: [
     { key: 'showExtremeOnly', label: 'EXTREME ONLY' },
+    { key: 'showClouds', label: 'LIVE CLOUDS' },
+    { key: 'showRadar', label: 'PRECIPITATION' },
+    { key: 'cloudOpacity', label: 'CLOUD OPACITY', min: 0, max: 100, step: 5, suffix: '%' },
   ],
   fires: [
     { key: 'showWildfires', label: 'WILDFIRES' },

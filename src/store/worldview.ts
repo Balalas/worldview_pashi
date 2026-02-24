@@ -242,6 +242,9 @@ export interface LayerSubFilters {
   minMagnitude: number;
   // Weather
   showExtremeOnly: boolean;
+  showClouds: boolean;
+  showRadar: boolean;
+  cloudOpacity: number; // 0-100
   // Fires
   showWildfires: boolean;
   showStorms: boolean;
@@ -270,6 +273,9 @@ export const DEFAULT_SUB_FILTERS: LayerSubFilters = {
   showPassenger: true,
   minMagnitude: 2.5,
   showExtremeOnly: false,
+  showClouds: true,
+  showRadar: false,
+  cloudOpacity: 50,
   showWildfires: true,
   showStorms: true,
   showWeapons: true,
