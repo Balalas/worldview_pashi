@@ -1,15 +1,16 @@
 import { useEffect, useRef, memo } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { useWorldViewStore } from '@/store/worldview';
+import { useWorldViewStore, NUCLEAR_SITES } from '@/store/worldview';
 import { CONFLICT_ZONES } from '@/components/map/GlobeContainer';
+import { SUBMARINE_CABLES } from '@/data/submarineCables';
 
 const MapContainer = memo(() => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const layersRef = useRef<Record<string, L.LayerGroup>>({});
 
-  const { layers, aircraft, satellites, earthquakes, setDetailPanel, mapCenter } = useWorldViewStore();
+  const { layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, setDetailPanel, mapCenter } = useWorldViewStore();
 
   // Initialize map
   useEffect(() => {
@@ -30,17 +31,13 @@ const MapContainer = memo(() => {
     }).addTo(map);
 
     L.control.zoom({ position: 'bottomright' }).addTo(map);
-
     mapInstanceRef.current = map;
 
-    ['aircraft', 'satellites', 'earthquakes', 'conflicts'].forEach((key) => {
+    ['aircraft', 'satellites', 'earthquakes', 'conflicts', 'cables', 'weather', 'volcanoes', 'nuclear'].forEach((key) => {
       layersRef.current[key] = L.layerGroup().addTo(map);
     });
 
-    return () => {
-      map.remove();
-      mapInstanceRef.current = null;
-    };
+    return () => { map.remove(); mapInstanceRef.current = null; };
   }, []);
 
   // Fly to region
@@ -50,6 +47,27 @@ const MapContainer = memo(() => {
     }
   }, [mapCenter]);
 
+  // Render submarine cables
+  useEffect(() => {
+    const group = layersRef.current['cables'];
+    if (!group) return;
+    group.clearLayers();
+    if (!layers.underseaCables) return;
+
+    SUBMARINE_CABLES.forEach((cable) => {
+      const latlngs = cable.coordinates.map(([lat, lon]) => [lat, lon] as [number, number]);
+      const polyline = L.polyline(latlngs, {
+        color: cable.color,
+        weight: 1.5,
+        opacity: 0.6,
+        dashArray: '6,4',
+      });
+      polyline.bindTooltip(`🔌 ${cable.name} | ${cable.capacity} | ${cable.length}`, { sticky: true });
+      polyline.on('click', () => setDetailPanel({ type: 'cable', data: cable }));
+      group.addLayer(polyline);
+    });
+  }, [layers.underseaCables, setDetailPanel]);
+
   // Render aircraft
   useEffect(() => {
     const group = layersRef.current['aircraft'];
@@ -58,9 +76,9 @@ const MapContainer = memo(() => {
     if (!layers.aircraft || aircraft.length === 0) return;
 
     aircraft.forEach((ac) => {
-      const isMil = ac.isMilitary;
-      const color = isMil ? '#ff6b35' : '#00ff88';
-      const size = isMil ? 10 : 7;
+      if (!layers.militaryFlights && ac.isMilitary) return;
+      const color = ac.isMilitary ? '#ff6b35' : '#00ff88';
+      const size = ac.isMilitary ? 10 : 7;
 
       const icon = L.divIcon({
         className: '',
@@ -73,9 +91,10 @@ const MapContainer = memo(() => {
 
       const marker = L.marker([ac.lat, ac.lon], { icon })
         .on('click', () => setDetailPanel({ type: 'aircraft', data: ac }));
+      marker.bindTooltip(`${ac.callsign} | FL${Math.round(ac.altitudeFt / 100)} | ${ac.speedKts}kts`, { direction: 'top', offset: [0, -10] });
       group.addLayer(marker);
     });
-  }, [aircraft, layers.aircraft, setDetailPanel]);
+  }, [aircraft, layers.aircraft, layers.militaryFlights, setDetailPanel]);
 
   // Render satellites
   useEffect(() => {
@@ -86,8 +105,9 @@ const MapContainer = memo(() => {
 
     satellites.forEach((sat) => {
       const isISS = sat.name.includes('ISS');
-      const isMil = sat.name.includes('COSMOS') || sat.name.includes('USA-');
-      const color = isMil ? '#ff6b35' : isISS ? '#ff6600' : '#00d4ff';
+      const isMil = sat.name.includes('COSMOS') || sat.name.includes('USA-') || sat.name.includes('MUOS') || sat.name.includes('NROL');
+      const isGPS = sat.name.includes('GPS');
+      const color = isMil ? '#ff6b35' : isISS ? '#ff6600' : isGPS ? '#ffdd00' : '#00d4ff';
       const size = isISS ? 8 : 5;
 
       const icon = L.divIcon({
@@ -104,12 +124,7 @@ const MapContainer = memo(() => {
         .on('click', () => setDetailPanel({ type: 'satellite', data: sat }));
 
       if (isISS) {
-        marker.bindTooltip('ISS ●LIVE', {
-          permanent: true,
-          direction: 'right',
-          offset: [10, 0],
-          className: 'iss-label',
-        });
+        marker.bindTooltip('ISS ●LIVE', { permanent: true, direction: 'right', offset: [10, 0], className: 'iss-label' });
       }
 
       group.addLayer(marker);
@@ -127,13 +142,8 @@ const MapContainer = memo(() => {
       const radius = Math.pow(eq.magnitude, 1.5) * 3;
       const color = eq.magnitude >= 6 ? '#ff0044' : eq.magnitude >= 4.5 ? '#ff6600' : '#aa44ff';
 
-      const circle = L.circleMarker([eq.lat, eq.lon], {
-        radius,
-        color,
-        fillColor: color,
-        fillOpacity: 0.3,
-        weight: 1.5,
-      }).on('click', () => setDetailPanel({ type: 'earthquake', data: eq }));
+      const circle = L.circleMarker([eq.lat, eq.lon], { radius, color, fillColor: color, fillOpacity: 0.3, weight: 1.5 })
+        .on('click', () => setDetailPanel({ type: 'earthquake', data: eq }));
 
       if (eq.magnitude >= 4.0) {
         const pulseIcon = L.divIcon({
@@ -144,7 +154,6 @@ const MapContainer = memo(() => {
         });
         group.addLayer(L.marker([eq.lat, eq.lon], { icon: pulseIcon, interactive: false }));
       }
-
       group.addLayer(circle);
     });
   }, [earthquakes, layers.earthquakes, setDetailPanel]);
@@ -160,31 +169,11 @@ const MapContainer = memo(() => {
       const color = cz.intensity >= 8 ? '#ff0044' : cz.intensity >= 6 ? '#ff6b35' : '#ffb000';
       const radius = cz.intensity * 3;
 
-      // Outer glow
-      const outerCircle = L.circleMarker([cz.lat, cz.lon], {
-        radius: radius * 2,
-        color,
-        fillColor: color,
-        fillOpacity: 0.08,
-        weight: 0.5,
-        interactive: false,
-      });
+      group.addLayer(L.circleMarker([cz.lat, cz.lon], { radius: radius * 2, color, fillColor: color, fillOpacity: 0.08, weight: 0.5, interactive: false }));
 
-      // Inner marker
-      const innerCircle = L.circleMarker([cz.lat, cz.lon], {
-        radius,
-        color,
-        fillColor: color,
-        fillOpacity: 0.25,
-        weight: 1.5,
-      });
+      const inner = L.circleMarker([cz.lat, cz.lon], { radius, color, fillColor: color, fillOpacity: 0.25, weight: 1.5 });
+      inner.bindTooltip(`⚔ ${cz.name} [${cz.intensity}/10]`, { direction: 'top', offset: [0, -10] });
 
-      innerCircle.bindTooltip(`⚔ ${cz.name} [${cz.intensity}/10]`, {
-        direction: 'top',
-        offset: [0, -10],
-      });
-
-      // Pulsing ring
       const pulseIcon = L.divIcon({
         className: '',
         html: `<div style="width:${radius * 4}px;height:${radius * 4}px;border:1.5px solid ${color};border-radius:50%;animation:ping-ring 3s ease-out infinite;opacity:0.4;"></div>`,
@@ -192,11 +181,74 @@ const MapContainer = memo(() => {
         iconAnchor: [radius * 2, radius * 2],
       });
 
-      group.addLayer(outerCircle);
       group.addLayer(L.marker([cz.lat, cz.lon], { icon: pulseIcon, interactive: false }));
-      group.addLayer(innerCircle);
+      group.addLayer(inner);
     });
   }, [layers.conflicts]);
+
+  // Render weather alerts
+  useEffect(() => {
+    const group = layersRef.current['weather'];
+    if (!group) return;
+    group.clearLayers();
+    if (!layers.weather || weatherAlerts.length === 0) return;
+
+    weatherAlerts.forEach((w) => {
+      const color = w.isExtreme ? '#ff0044' : w.temp > 35 ? '#ff6b35' : w.temp < 0 ? '#00d4ff' : '#ffb000';
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="background:${color}20;border:1px solid ${color}60;border-radius:4px;padding:2px 4px;font-size:9px;font-family:monospace;color:${color};white-space:nowrap;">${Math.round(w.temp)}°C</div>`,
+        iconSize: [40, 16],
+        iconAnchor: [20, 8],
+      });
+      const marker = L.marker([w.lat, w.lon], { icon });
+      marker.bindTooltip(`🌤 ${w.city}: ${w.description} | ${w.temp}°C | Wind: ${w.windSpeed}km/h`, { direction: 'top' });
+      marker.on('click', () => setDetailPanel({ type: 'weather', data: w }));
+      group.addLayer(marker);
+    });
+  }, [weatherAlerts, layers.weather, setDetailPanel]);
+
+  // Render volcanoes
+  useEffect(() => {
+    const group = layersRef.current['volcanoes'];
+    if (!group) return;
+    group.clearLayers();
+    if (!layers.volcanoes || volcanoes.length === 0) return;
+
+    volcanoes.forEach((v) => {
+      const color = v.status === 'erupting' ? '#ff0044' : v.status === 'warning' ? '#ff6b35' : '#ffb000';
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="font-size:14px;filter:drop-shadow(0 0 4px ${color});">🌋</div>`,
+        iconSize: [18, 18],
+        iconAnchor: [9, 9],
+      });
+      const marker = L.marker([v.lat, v.lon], { icon });
+      marker.bindTooltip(`🌋 ${v.name} | ${v.status.toUpperCase()} | ${v.elevation}m | ${v.country}`, { direction: 'top' });
+      marker.on('click', () => setDetailPanel({ type: 'volcano', data: v }));
+      group.addLayer(marker);
+    });
+  }, [volcanoes, layers.volcanoes, setDetailPanel]);
+
+  // Render nuclear sites
+  useEffect(() => {
+    const group = layersRef.current['nuclear'];
+    if (!group) return;
+    group.clearLayers();
+    if (!layers.nuclearSites) return;
+
+    NUCLEAR_SITES.forEach((site) => {
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="font-size:12px;filter:drop-shadow(0 0 4px #bbff00);">☢️</div>`,
+        iconSize: [16, 16],
+        iconAnchor: [8, 8],
+      });
+      const marker = L.marker([site.lat, site.lon], { icon });
+      marker.bindTooltip(`☢️ ${site.name} | ${site.type.toUpperCase()} | ${site.country}`, { direction: 'top' });
+      group.addLayer(marker);
+    });
+  }, [layers.nuclearSites]);
 
   return <div ref={mapRef} className="w-full h-full" />;
 });
