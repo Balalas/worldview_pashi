@@ -723,15 +723,60 @@ const Google3DGlobe = memo(() => {
     if (layers.datacenters) DATACENTERS.forEach(d => addMarker(d.lat, d.lon, iconSvg('🖥️', '#5ab4ff', d.name), 0, true));
     CRITICAL_MINERALS.forEach(m => addMarker(m.lat, m.lon, iconSvg('💎', '#ffb000', m.mineral), 0, true));
 
-    // CCTV cameras — click flies to 3D street level
+    // CCTV cameras — click flies to 3D street level + FOV cone
     if (layers.cameras) {
-      PUBLIC_CAMERAS.forEach(cam => {
-        addMarker(cam.lat, cam.lon,
-          cameraSvg(cam.name, cam.official),
-          0, true,
-          () => flyToCamera(cam)
-        );
-      });
+      (async () => {
+        try {
+          const { Polygon3DElement } = await (google.maps as any).importLibrary('maps3d');
+          PUBLIC_CAMERAS.forEach(cam => {
+            addMarker(cam.lat, cam.lon,
+              cameraSvg(cam.name, cam.official),
+              0, true,
+              () => flyToCamera(cam)
+            );
+
+            // Draw FOV cone on the ground showing where camera looks
+            const heading = cam.heading ?? 0;
+            const fovDeg = 60;
+            const distKm = 0.06; // 60m cone
+            const R = 6371;
+            const latRad = (cam.lat * Math.PI) / 180;
+            const lonRad = (cam.lon * Math.PI) / 180;
+
+            const calcPoint = (angleDeg: number) => {
+              const a = (angleDeg * Math.PI) / 180;
+              const lat2 = Math.asin(
+                Math.sin(latRad) * Math.cos(distKm / R) +
+                Math.cos(latRad) * Math.sin(distKm / R) * Math.cos(a)
+              );
+              const lon2 = lonRad + Math.atan2(
+                Math.sin(a) * Math.sin(distKm / R) * Math.cos(latRad),
+                Math.cos(distKm / R) - Math.sin(latRad) * Math.sin(lat2)
+              );
+              return { lat: (lat2 * 180) / Math.PI, lng: (lon2 * 180) / Math.PI, altitude: 2 };
+            };
+
+            const conePoints = [{ lat: cam.lat, lng: cam.lon, altitude: 2 }];
+            const arcSteps = 8;
+            for (let i = 0; i <= arcSteps; i++) {
+              conePoints.push(calcPoint(heading - fovDeg / 2 + (fovDeg * i) / arcSteps));
+            }
+            conePoints.push({ lat: cam.lat, lng: cam.lon, altitude: 2 });
+
+            const cone = new Polygon3DElement({
+              fillColor: '#fbbf2440',
+              strokeColor: '#fbbf2480',
+              strokeWidth: 1,
+              altitudeMode: 'RELATIVE_TO_GROUND',
+            });
+            cone.outerCoordinates = conePoints;
+            map.append(cone);
+            markersRef.current.push(cone);
+          });
+        } catch (err) {
+          console.warn('Camera FOV cone fail:', err);
+        }
+      })();
     }
 
   }, [layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, fires, setDetailPanel, setActiveLivestream, flyToCamera, setFollowTarget, stopFollow]);
