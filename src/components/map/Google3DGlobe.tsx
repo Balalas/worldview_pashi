@@ -198,16 +198,35 @@ interface RoadCar {
 
 /** Fetch real road geometries from OpenStreetMap via Overpass edge function */
 const roadCache = new Map<string, { lat: number; lng: number }[][]>();
+let lastOverpassCall = 0;
+let overpassCooldown = 0; // backoff ms after 429
+const OVERPASS_MIN_INTERVAL = 4000; // minimum 4s between calls
 
 async function fetchRealRoads(centerLat: number, centerLng: number, range: number): Promise<{ lat: number; lng: number }[][]> {
-  // Round to ~100m grid for cache key
-  const keyLat = Math.round(centerLat * 100) / 100;
-  const keyLng = Math.round(centerLng * 100) / 100;
-  const cacheKey = `${keyLat},${keyLng},${Math.round(range)}`;
+  // Coarser grid for cache — snap to ~200m
+  const keyLat = Math.round(centerLat * 50) / 50;
+  const keyLng = Math.round(centerLng * 50) / 50;
+  const cacheKey = `${keyLat},${keyLng},${Math.round(range / 100) * 100}`;
   if (roadCache.has(cacheKey)) return roadCache.get(cacheKey)!;
 
+  // Also check nearby cache keys (within ~500m)
+  for (const [k, v] of roadCache.entries()) {
+    const [kLat, kLng] = k.split(',').map(Number);
+    if (Math.abs(kLat - keyLat) < 0.006 && Math.abs(kLng - keyLng) < 0.006) return v;
+  }
+
+  // Rate-limit: respect cooldown after 429
+  const now = Date.now();
+  const minWait = Math.max(OVERPASS_MIN_INTERVAL, overpassCooldown);
+  if (now - lastOverpassCall < minWait) {
+    return roadCache.size > 0
+      ? Array.from(roadCache.values())[roadCache.size - 1]
+      : generateFallbackGrid(centerLat, centerLng, range);
+  }
+  lastOverpassCall = now;
+
   try {
-    const radius = Math.min(Math.max(range * 0.8, 200), 1500);
+    const radius = Math.min(Math.max(range * 0.8, 300), 1200);
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
     const res = await fetch(`${supabaseUrl}/functions/v1/overpass-roads`, {
@@ -219,19 +238,24 @@ async function fetchRealRoads(centerLat: number, centerLng: number, range: numbe
       },
       body: JSON.stringify({ lat: centerLat, lng: centerLng, radius }),
     });
+    if (res.status === 429) {
+      overpassCooldown = Math.min((overpassCooldown || 5000) * 2, 60000);
+      console.warn(`Overpass 429 — backing off ${overpassCooldown}ms`);
+      return generateFallbackGrid(centerLat, centerLng, range);
+    }
     if (!res.ok) throw new Error(`${res.status}`);
+    overpassCooldown = 0; // reset on success
     const data = await res.json();
     const roads: { lat: number; lng: number }[][] = data.roads || [];
     roadCache.set(cacheKey, roads);
-    // Keep cache small
-    if (roadCache.size > 50) {
+    // Keep cache at 100 entries
+    if (roadCache.size > 100) {
       const firstKey = roadCache.keys().next().value;
       if (firstKey) roadCache.delete(firstKey);
     }
     return roads;
   } catch (err) {
-    console.warn('Failed to fetch roads from Overpass, using fallback grid:', err);
-    // Fallback: simple grid
+    console.warn('Overpass fetch failed, using fallback grid:', err);
     return generateFallbackGrid(centerLat, centerLng, range);
   }
 }
@@ -532,7 +556,7 @@ const Google3DGlobe = memo(() => {
     };
   }, [followTarget?.id, followTarget?.type]);
 
-  // ── Road-grid traffic simulation (procedural, no API needed) ──
+  // ── Seamless road-traffic simulation — real OSM roads with smooth animation ──
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -542,8 +566,9 @@ const Google3DGlobe = memo(() => {
     let lastCenter = { lat: 0, lng: 0 };
     let lastRange = Infinity;
     let destroyed = false;
+    let fetchingRoads = false;
 
-    const CAR_COLORS = ['#e8e8e8', '#cccccc', '#ffdd44', '#ff4444', '#4488ff', '#222222', '#888888', '#ffffff', '#ff8800', '#00cc66'];
+    const CAR_COLORS = ['#e8e8e8', '#cccccc', '#ffdd44', '#ff4444', '#4488ff', '#222222', '#888888', '#ffffff', '#ff8800', '#00cc66', '#dddddd', '#aaaaaa', '#334455'];
 
     const clearCars = () => {
       roadCars.forEach(c => { try { c.marker.remove(); } catch {} });
@@ -551,38 +576,47 @@ const Google3DGlobe = memo(() => {
     };
 
     const spawnCarsOnGrid = async () => {
-      if (destroyed) return;
+      if (destroyed || fetchingRoads) return;
       const sf = useWorldViewStore.getState().layerSubFilters;
       if (!sf.showTraffic) { clearCars(); return; }
 
       const range = map.range ?? Infinity;
-      if (range > 5000) { clearCars(); return; }
+      if (range > 8000) { clearCars(); return; }
 
       const centerLat = map.center?.lat ?? 0;
       const centerLng = map.center?.lng ?? 0;
 
       // Don't respawn if camera hasn't moved much
       const dist = Math.abs(centerLat - lastCenter.lat) + Math.abs(centerLng - lastCenter.lng);
-      if (dist < 0.002 && roadCars.length > 0 && Math.abs(range - lastRange) < 500) return;
+      if (dist < 0.003 && roadCars.length > 0 && Math.abs(range - lastRange) < 800) return;
 
       clearCars();
       lastCenter = { lat: centerLat, lng: centerLng };
       lastRange = range;
 
+      fetchingRoads = true;
       try {
         const lib = await (google.maps as any).importLibrary('maps3d');
         const densityMult = sf.trafficDensity / 50;
-        // Fetch real roads from OpenStreetMap
         const roads = await fetchRealRoads(centerLat, centerLng, range);
-        const carsPerRoad = Math.max(1, Math.round(2 * densityMult));
 
+        // More cars on longer roads, fewer on short ones
         roads.forEach(path => {
           if (path.length < 2) return;
-          for (let i = 0; i < carsPerRoad; i++) {
+          // Estimate road length in degrees
+          let len = 0;
+          for (let i = 1; i < path.length; i++) {
+            len += Math.abs(path[i].lat - path[i-1].lat) + Math.abs(path[i].lng - path[i-1].lng);
+          }
+          const baseCars = Math.max(1, Math.round(len * 800 * densityMult));
+          const carsOnRoad = Math.min(baseCars, 6);
+
+          for (let i = 0; i < carsOnRoad; i++) {
             const color = CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)];
             const progress = Math.random();
             const forward = Math.random() > 0.5;
-            const speed = 0.001 + Math.random() * 0.003;
+            // Vary speed: some fast, some slow — feels more real
+            const speed = 0.0005 + Math.random() * 0.004;
 
             const pos = interpolateAlongPath(path, progress);
             const marker = new lib.Marker3DElement({
@@ -598,45 +632,59 @@ const Google3DGlobe = memo(() => {
             roadCars.push({ marker, path, progress, speed, color, forward });
           }
         });
-      } catch {}
+      } catch {} finally {
+        fetchingRoads = false;
+      }
     };
 
     const animateCars = () => {
       if (destroyed) return;
-      roadCars.forEach(car => {
+      for (const car of roadCars) {
         car.progress += car.forward ? car.speed : -car.speed;
-        if (car.progress >= 1) { car.progress = 1; car.forward = false; }
-        if (car.progress <= 0) { car.progress = 0; car.forward = true; }
+        // Wrap around for continuous flow
+        if (car.progress >= 1) { car.progress = 0; }
+        if (car.progress <= 0) { car.progress = 1; }
 
         const pos = interpolateAlongPath(car.path, car.progress);
         try {
           car.marker.position = { lat: pos.lat, lng: pos.lng, altitude: 1 };
-          car.marker.innerHTML = '';
-          const template = document.createElement('template');
-          template.content.append(carSvg(car.color, car.forward ? pos.heading : (pos.heading + 180) % 360));
-          car.marker.append(template);
+          // Only update SVG every 5th frame to reduce DOM churn
         } catch {}
-      });
+      }
     };
 
-    // Animation loop ~20fps
+    // Smooth animation loop ~30fps
+    let frameCount = 0;
     const tick = () => {
       if (destroyed) return;
       animateCars();
-      animFrame = window.setTimeout(() => tick(), 50);
+      // Update SVG heading every 5 frames
+      frameCount++;
+      if (frameCount % 5 === 0) {
+        for (const car of roadCars) {
+          try {
+            const pos = interpolateAlongPath(car.path, car.progress);
+            car.marker.innerHTML = '';
+            const template = document.createElement('template');
+            template.content.append(carSvg(car.color, car.forward ? pos.heading : (pos.heading + 180) % 360));
+            car.marker.append(template);
+          } catch {}
+        }
+      }
+      animFrame = window.setTimeout(() => tick(), 33);
     };
 
     const rangeCheck = setInterval(() => {
       if (destroyed) return;
       const range = map.range ?? Infinity;
-      if (range < 5000) {
+      if (range < 8000) {
         spawnCarsOnGrid();
-      } else {
+      } else if (roadCars.length > 0) {
         clearCars();
       }
-    }, 3000);
+    }, 4000);
 
-    setTimeout(spawnCarsOnGrid, 2000);
+    setTimeout(spawnCarsOnGrid, 1500);
     tick();
 
     return () => {
