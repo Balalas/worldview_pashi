@@ -205,25 +205,47 @@ const OutageDetail = ({ data }: { data: any }) => (
   </div>
 );
 
-const CameraDetail = ({ data }: { data: any }) => (
-  <div className="mt-3 space-y-0.5">
-    <DataRow label="NAME" value={data.name} />
-    <DataRow label="CITY" value={data.city} />
-    <DataRow label="COUNTRY" value={data.country} />
-    <DataRow label="CATEGORY" value={data.category?.toUpperCase()} />
-    <DataRow label="SOURCE" value={data.source} />
-    <DataRow label="LAT" value={`${data.lat.toFixed(4)}°`} />
-    <DataRow label="LON" value={`${data.lon.toFixed(4)}°`} />
-    <div className="border-t border-border my-2" />
-    <div className="flex gap-2 mt-3">
-      <ActionButton label="📺 LIVESTREAM" onClick={() => useWorldViewStore.getState().setActiveLivestream(data.embedUrl)} />
+const CameraDetail = ({ data }: { data: any }) => {
+  const { activeLivestream, setActiveLivestream } = useWorldViewStore();
+  
+  return (
+    <div className="mt-3 space-y-0.5">
+      <DataRow label="NAME" value={data.name} />
+      <DataRow label="CITY" value={data.city} />
+      <DataRow label="COUNTRY" value={data.country} />
+      <DataRow label="CATEGORY" value={data.category?.toUpperCase()} />
+      <DataRow label="SOURCE" value={data.source} />
+      <div className="border-t border-border my-2" />
+      {/* Embedded livestream */}
+      {activeLivestream && (
+        <div className="relative w-full aspect-video rounded border border-primary/30 overflow-hidden mb-2">
+          <iframe
+            src={activeLivestream}
+            className="w-full h-full"
+            allow="autoplay; encrypted-media"
+            allowFullScreen
+            title={data.name}
+          />
+          <div className="absolute top-1 left-1 flex items-center gap-1 bg-background/80 px-1.5 py-0.5 rounded-sm">
+            <span className="w-1.5 h-1.5 rounded-full bg-destructive animate-pulse" />
+            <span className="text-[8px] font-data text-destructive">LIVE</span>
+          </div>
+        </div>
+      )}
+      <div className="flex gap-2 mt-2">
+        {!activeLivestream && (
+          <ActionButton label="📺 LIVESTREAM" onClick={() => setActiveLivestream(data.embedUrl)} />
+        )}
+        <ActionButton label="🗺 STREET VIEW" onClick={() => {
+          // Load street view in the app
+          const sv = `https://www.google.com/maps/embed/v1/streetview?key=AIzaSyDrustkDU3XpRzb7bvKXaZ4NJE9e9TwE2o&location=${data.lat},${data.lon}&heading=${data.heading || 0}&fov=90&pitch=0`;
+          setActiveLivestream(sv);
+        }} />
+        <ActionButton label="📋 COPY" onClick={() => navigator.clipboard.writeText(`${data.name} | ${data.city}, ${data.country} | ${data.lat.toFixed(4)},${data.lon.toFixed(4)}`)} />
+      </div>
     </div>
-    <div className="flex gap-2 mt-2">
-      <ActionButton label="🗺 STREET VIEW" onClick={() => window.open(`https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${data.lat},${data.lon}&heading=${data.heading || 0}`, '_blank')} />
-      <ActionButton label="📋 COPY" onClick={() => navigator.clipboard.writeText(`${data.name} | ${data.city}, ${data.country} | ${data.lat.toFixed(4)},${data.lon.toFixed(4)}`)} />
-    </div>
-  </div>
-);
+  );
+};
 
 RightPanel.displayName = 'RightPanel';
 export default RightPanel;

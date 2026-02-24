@@ -229,7 +229,7 @@ const Google3DGlobe = memo(() => {
     trajectoryRef.current = [];
   }, [setFollowTarget]);
 
-  // Fly camera to a CCTV location at street level (3D, not Street View)
+  // Fly camera to a CCTV location — immediately show street-level 3D + start livestream
   const flyToCamera = useCallback((cam: PublicCamera) => {
     stopFollow();
     const map = mapRef.current;
@@ -239,7 +239,9 @@ const Google3DGlobe = memo(() => {
     map.tilt = 75;
     map.heading = cam.heading || 0;
     setDetailPanel({ type: 'camera', data: cam });
-  }, [setDetailPanel, stopFollow]);
+    // Auto-start the livestream
+    setActiveLivestream(cam.embedUrl);
+  }, [setDetailPanel, stopFollow, setActiveLivestream]);
 
   const initMap = useCallback(async () => {
     if (!containerRef.current || initRef.current) return;
@@ -327,7 +329,7 @@ const Google3DGlobe = memo(() => {
         if (ac) { updatedLat = ac.lat; updatedLon = ac.lon; updatedAlt = Math.max(ac.altitudeFt * 0.3048, 500); updatedHdg = ac.heading; updatedSpd = ac.speedKts * 1.852; }
       } else if (ft.type === 'satellite') {
         const sat = state.satellites.find(s => s.name === ft.id);
-        if (sat) { updatedLat = sat.lat; updatedLon = sat.lon; updatedAlt = Math.min(sat.alt * 1000, 600000); updatedSpd = sat.velocity * 3600; }
+        if (sat) { updatedLat = sat.lat; updatedLon = sat.lon; updatedAlt = sat.alt * 1000; updatedSpd = sat.velocity * 3600; }
       } else if (ft.type === 'vessel') {
         const v = state.vessels.find(v => v.id === ft.id);
         if (v) { updatedLat = v.lat; updatedLon = v.lon; updatedHdg = v.heading; updatedSpd = v.speedKnots * 1.852; }
@@ -504,9 +506,11 @@ const Google3DGlobe = memo(() => {
     if (layers.satellites) {
       satellites.forEach(sat => {
         const isISS = sat.name.includes('ISS');
-        const isMil = sat.name.includes('COSMOS') || sat.name.includes('USA-') || sat.name.includes('MUOS');
-        const color = isMil ? '#ff6b35' : isISS ? '#ff6600' : '#00d4ff';
-        const alt = sat.alt * 1000; // true orbital altitude in meters (LEO ~400km, MEO ~20000km, GEO ~35786km)
+        const isMil = sat.name.includes('COSMOS') || sat.name.includes('USA-') || sat.name.includes('MUOS') || sat.name.includes('NROL') || sat.name.includes('YAOGAN') || sat.name.includes('HAWK');
+        const isStarlink = sat.name.includes('STARLINK');
+        const isDebris = sat.name.includes('DEBRIS');
+        const color = isStarlink ? '#a855f7' : isMil ? '#ff6b35' : isISS ? '#ff6600' : isDebris ? '#666666' : '#00d4ff';
+        const alt = sat.alt * 1000;
         addMarker(sat.lat, sat.lon,
           satelliteSvg(color, sat.name, isISS),
           alt, true,
