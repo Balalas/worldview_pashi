@@ -227,6 +227,10 @@ export interface WorldViewState {
 
   visualStyle: VisualStyle;
   setVisualStyle: (style: VisualStyle) => void;
+
+  filterParams: Record<string, number>;
+  setFilterParam: (key: string, value: number) => void;
+  resetFilterParams: () => void;
 }
 
 export const useWorldViewStore = create<WorldViewState>((set) => ({
@@ -317,7 +321,11 @@ export const useWorldViewStore = create<WorldViewState>((set) => ({
   setFollowTarget: (followTarget) => set({ followTarget }),
 
   visualStyle: 'normal',
-  setVisualStyle: (visualStyle) => set({ visualStyle }),
+  setVisualStyle: (visualStyle) => set({ visualStyle, filterParams: {} }),
+
+  filterParams: {},
+  setFilterParam: (key, value) => set((s) => ({ filterParams: { ...s.filterParams, [key]: value } })),
+  resetFilterParams: () => set({ filterParams: {} }),
 }));
 
 // Keyboard shortcuts
