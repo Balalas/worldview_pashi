@@ -9,11 +9,11 @@ const RightPanel = memo(() => {
     aircraft: detailPanel.data?.isMilitary ? 'MILITARY AIRCRAFT' : 'COMMERCIAL AIRCRAFT',
     satellite: 'SATELLITE', earthquake: 'EARTHQUAKE', volcano: 'VOLCANO', weather: 'WEATHER', cable: 'SUBMARINE CABLE',
     vessel: detailPanel.data?.type === 'yacht' ? 'SUPERYACHT' : detailPanel.data?.type === 'military' ? 'MILITARY VESSEL' : 'VESSEL',
-    protest: 'PROTEST EVENT', outage: 'CYBER / OUTAGE',
+    protest: 'PROTEST EVENT', outage: 'CYBER / OUTAGE', camera: 'CCTV / WEBCAM',
   };
   const typeIcons: Record<string, string> = {
     aircraft: '✈', satellite: '🛰', earthquake: '🌍', volcano: '🌋', weather: '🌤', cable: '🔌',
-    vessel: detailPanel.data?.type === 'yacht' ? '🛥' : '🚢', protest: '✊', outage: '🔒',
+    vessel: detailPanel.data?.type === 'yacht' ? '🛥' : '🚢', protest: '✊', outage: '🔒', camera: '📹',
   };
 
   return (
@@ -40,6 +40,7 @@ const RightPanel = memo(() => {
         {detailPanel.type === 'vessel' && <VesselDetail data={detailPanel.data} />}
         {detailPanel.type === 'protest' && <ProtestDetail data={detailPanel.data} />}
         {detailPanel.type === 'outage' && <OutageDetail data={detailPanel.data} />}
+        {detailPanel.type === 'camera' && <CameraDetail data={detailPanel.data} />}
       </div>
     </aside>
   );
@@ -200,6 +201,26 @@ const OutageDetail = ({ data }: { data: any }) => (
     <div className="flex gap-2 mt-3">
       <ActionButton label="📍 LOCATE" onClick={() => useWorldViewStore.getState().setMapCenter({ lat: data.lat, lon: data.lon, zoom: 6 })} />
       {data.link && <ActionButton label="🔗 SOURCE" onClick={() => window.open(data.link, '_blank')} />}
+    </div>
+  </div>
+);
+
+const CameraDetail = ({ data }: { data: any }) => (
+  <div className="mt-3 space-y-0.5">
+    <DataRow label="NAME" value={data.name} />
+    <DataRow label="CITY" value={data.city} />
+    <DataRow label="COUNTRY" value={data.country} />
+    <DataRow label="CATEGORY" value={data.category?.toUpperCase()} />
+    <DataRow label="SOURCE" value={data.source} />
+    <DataRow label="LAT" value={`${data.lat.toFixed(4)}°`} />
+    <DataRow label="LON" value={`${data.lon.toFixed(4)}°`} />
+    <div className="border-t border-border my-2" />
+    <div className="flex gap-2 mt-3">
+      <ActionButton label="📺 LIVESTREAM" onClick={() => useWorldViewStore.getState().setActiveLivestream(data.embedUrl)} />
+    </div>
+    <div className="flex gap-2 mt-2">
+      <ActionButton label="🗺 STREET VIEW" onClick={() => window.open(`https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${data.lat},${data.lon}&heading=${data.heading || 0}`, '_blank')} />
+      <ActionButton label="📋 COPY" onClick={() => navigator.clipboard.writeText(`${data.name} | ${data.city}, ${data.country} | ${data.lat.toFixed(4)},${data.lon.toFixed(4)}`)} />
     </div>
   </div>
 );
