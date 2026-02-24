@@ -1,4 +1,4 @@
-import { useEffect, lazy, Suspense } from 'react';
+import { useEffect, lazy, Suspense, memo } from 'react';
 import TopBar from '@/components/panels/TopBar';
 import LeftPanel from '@/components/panels/LeftPanel';
 import RightPanel from '@/components/panels/RightPanel';
@@ -17,6 +17,51 @@ import { fetchActiveFiresEONET } from '@/services/fireService';
 
 const GlobeContainer = lazy(() => import('@/components/map/GlobeContainer'));
 const Google3DGlobe = lazy(() => import('@/components/map/Google3DGlobe'));
+
+// Holographic CCTV picture-in-picture overlay
+const CctvPip = memo(() => {
+  const { activeLivestream, setActiveLivestream, detailPanel } = useWorldViewStore();
+  if (!activeLivestream || detailPanel.type !== 'camera') return null;
+  const cam = detailPanel.data;
+  
+  return (
+    <div className="absolute bottom-4 left-4 z-40 group">
+      <div className="relative w-[280px] h-[160px] rounded-lg overflow-hidden border border-primary/40 shadow-[0_0_20px_rgba(0,255,136,0.15)]"
+        style={{ 
+          background: 'linear-gradient(135deg, hsl(var(--background) / 0.3), hsl(var(--background) / 0.1))',
+          backdropFilter: 'blur(8px)',
+        }}
+      >
+        <iframe
+          src={activeLivestream}
+          className="w-full h-full"
+          allow="autoplay; encrypted-media"
+          allowFullScreen
+          title={cam?.name || 'CCTV'}
+        />
+        {/* Holographic scan lines */}
+        <div className="absolute inset-0 pointer-events-none opacity-[0.04]"
+          style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, hsl(var(--primary)) 2px, hsl(var(--primary)) 3px)' }}
+        />
+        {/* Top bar */}
+        <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-2 py-1 bg-background/70">
+          <div className="flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-destructive animate-pulse" />
+            <span className="text-[8px] font-data text-destructive tracking-wider">● LIVE</span>
+            <span className="text-[8px] font-data text-muted-foreground">{cam?.name || 'CCTV'}</span>
+          </div>
+          <button onClick={() => setActiveLivestream(null)} className="text-muted-foreground hover:text-foreground text-[10px] pointer-events-auto">✕</button>
+        </div>
+        {/* Corner brackets */}
+        <div className="absolute top-0 left-0 w-3 h-3 border-t border-l border-primary/60 pointer-events-none" />
+        <div className="absolute top-0 right-0 w-3 h-3 border-t border-r border-primary/60 pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-3 h-3 border-b border-l border-primary/60 pointer-events-none" />
+        <div className="absolute bottom-0 right-0 w-3 h-3 border-b border-r border-primary/60 pointer-events-none" />
+      </div>
+    </div>
+  );
+});
+CctvPip.displayName = 'CctvPip';
 
 const Index = () => {
   const { setAircraft, setSatellites, setEarthquakes, setNews, setLastRefresh, setNewsLoading, setWeatherAlerts, setVolcanoes, setVessels, setProtests, setOutages, setFires, toggleLayer, closeDetailPanel, mapMode, setFollowTarget } = useWorldViewStore();
@@ -150,6 +195,8 @@ const Index = () => {
             <SearchBar />
             {/* Globe Controls */}
             {mapMode === 'google3d' && <GlobeControls />}
+            {/* Holographic CCTV PiP */}
+            <CctvPip />
           </div>
           <div className="h-[220px]">
             <BottomFeed />
