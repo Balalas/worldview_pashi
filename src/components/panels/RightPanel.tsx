@@ -18,7 +18,7 @@ const RightPanel = memo(() => {
   };
 
   return (
-    <aside className="glass-panel w-[340px] border-l border-border overflow-y-auto animate-slide-in-right z-40">
+    <aside className="glass-panel w-[320px] border-l border-primary/10 overflow-y-auto animate-slide-in-right z-40">
       <div className="p-3">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">

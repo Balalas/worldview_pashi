@@ -79,7 +79,7 @@ const LeftPanel = memo(() => {
   const milVessels = vessels.filter(v => v.type === 'military').length;
 
   return (
-    <aside className="glass-panel w-[280px] overflow-y-auto border-r border-border flex flex-col z-40">
+    <aside className="glass-panel w-[260px] overflow-y-auto border-r border-border flex flex-col z-40 animate-fade-in">
       {/* Layers */}
       <div className="p-3 border-b border-border">
         <h2 className="text-[10px] font-display tracking-[0.2em] text-muted-foreground mb-2">DATA LAYERS</h2>
