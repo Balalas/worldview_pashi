@@ -220,9 +220,71 @@ export const LANDMARK_PRESETS: RegionPreset[] = [
   { label: 'HIROSHIMA', emoji: '☮️', lat: 34.3955, lon: 132.4536, zoom: 16 },
 ];
 
+export interface LayerSubFilters {
+  // Satellites
+  showStarlink: boolean;
+  showMilitarySats: boolean;
+  showDebris: boolean;
+  showCommSats: boolean;
+  // Aircraft
+  showCivilian: boolean;
+  showMilitaryAC: boolean;
+  showHelicopters: boolean;
+  maxAircraft: number; // 0-100 slider
+  // Vessels
+  showYachts: boolean;
+  showCargo: boolean;
+  showTankers: boolean;
+  showMilVessels: boolean;
+  showFishing: boolean;
+  showPassenger: boolean;
+  // Earthquakes
+  minMagnitude: number;
+  // Weather
+  showExtremeOnly: boolean;
+  // Fires
+  showWildfires: boolean;
+  showStorms: boolean;
+  // Nuclear
+  showWeapons: boolean;
+  showPower: boolean;
+  // Traffic
+  trafficDensity: number; // 0-100
+  showTraffic: boolean;
+}
+
+export const DEFAULT_SUB_FILTERS: LayerSubFilters = {
+  showStarlink: true,
+  showMilitarySats: true,
+  showDebris: false,
+  showCommSats: true,
+  showCivilian: true,
+  showMilitaryAC: true,
+  showHelicopters: true,
+  maxAircraft: 100,
+  showYachts: true,
+  showCargo: true,
+  showTankers: true,
+  showMilVessels: true,
+  showFishing: true,
+  showPassenger: true,
+  minMagnitude: 2.5,
+  showExtremeOnly: false,
+  showWildfires: true,
+  showStorms: true,
+  showWeapons: true,
+  showPower: true,
+  trafficDensity: 50,
+  showTraffic: true,
+};
+
 export interface WorldViewState {
   layers: Record<LayerType, boolean>;
   toggleLayer: (layer: LayerType) => void;
+
+  layerSubFilters: LayerSubFilters;
+  setSubFilter: <K extends keyof LayerSubFilters>(key: K, value: LayerSubFilters[K]) => void;
+  toggleSubFilter: (key: keyof LayerSubFilters) => void;
 
   aircraft: Aircraft[];
   setAircraft: (a: Aircraft[]) => void;
@@ -318,6 +380,16 @@ export const useWorldViewStore = create<WorldViewState>((set) => ({
   toggleLayer: (layer) => set((s) => ({
     layers: { ...s.layers, [layer]: !s.layers[layer] }
   })),
+
+  layerSubFilters: { ...DEFAULT_SUB_FILTERS },
+  setSubFilter: (key, value) => set((s) => ({ layerSubFilters: { ...s.layerSubFilters, [key]: value } })),
+  toggleSubFilter: (key) => set((s) => {
+    const current = s.layerSubFilters[key];
+    if (typeof current === 'boolean') {
+      return { layerSubFilters: { ...s.layerSubFilters, [key]: !current } };
+    }
+    return {};
+  }),
 
   aircraft: [],
   setAircraft: (aircraft) => set({ aircraft }),

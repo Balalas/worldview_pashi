@@ -1,7 +1,8 @@
-import { memo } from 'react';
-import { useWorldViewStore, LayerType, INSTABILITY_DATA, MARKET_DATA, REGION_PRESETS, NUCLEAR_SITES } from '@/store/worldview';
+import { memo, useState } from 'react';
+import { useWorldViewStore, LayerType, INSTABILITY_DATA, MARKET_DATA, REGION_PRESETS, NUCLEAR_SITES, LayerSubFilters } from '@/store/worldview';
 import { PIZZA_INDEX_DATA } from '@/services/dataServices';
 import { SUBMARINE_CABLES } from '@/data/submarineCables';
+import { Slider } from '@/components/ui/slider';
 
 const LAYER_CONFIG: { key: LayerType; label: string; shortcut: string; colorClass: string }[] = [
   { key: 'aircraft', label: 'AIRCRAFT', shortcut: 'A', colorClass: 'bg-signal-aircraft' },
@@ -20,8 +21,51 @@ const LAYER_CONFIG: { key: LayerType; label: string; shortcut: string; colorClas
   { key: 'cameras', label: 'CAMERAS', shortcut: 'C', colorClass: 'bg-signal-camera' },
 ];
 
+type SubToggle = { key: keyof LayerSubFilters; label: string };
+type SubSlider = { key: keyof LayerSubFilters; label: string; min: number; max: number; step: number; suffix?: string };
+type SubOption = SubToggle | SubSlider;
+function isSlider(o: SubOption): o is SubSlider { return 'min' in o; }
+
+const LAYER_SUB_OPTIONS: Partial<Record<LayerType, SubOption[]>> = {
+  satellites: [
+    { key: 'showStarlink', label: 'STARLINK' },
+    { key: 'showMilitarySats', label: 'MILITARY' },
+    { key: 'showDebris', label: 'DEBRIS' },
+    { key: 'showCommSats', label: 'COMMS/SCI' },
+  ],
+  aircraft: [
+    { key: 'showCivilian', label: 'CIVILIAN' },
+    { key: 'showMilitaryAC', label: 'MILITARY' },
+    { key: 'showHelicopters', label: 'HELICOPTERS' },
+    { key: 'maxAircraft', label: 'DENSITY', min: 0, max: 100, step: 5, suffix: '%' },
+  ],
+  vessels: [
+    { key: 'showYachts', label: 'YACHTS' },
+    { key: 'showCargo', label: 'CARGO' },
+    { key: 'showTankers', label: 'TANKERS' },
+    { key: 'showMilVessels', label: 'MILITARY' },
+    { key: 'showFishing', label: 'FISHING' },
+    { key: 'showPassenger', label: 'PASSENGER' },
+  ],
+  earthquakes: [
+    { key: 'minMagnitude', label: 'MIN MAG', min: 1, max: 8, step: 0.5, suffix: '' },
+  ],
+  weather: [
+    { key: 'showExtremeOnly', label: 'EXTREME ONLY' },
+  ],
+  fires: [
+    { key: 'showWildfires', label: 'WILDFIRES' },
+    { key: 'showStorms', label: 'STORMS/FLOODS' },
+  ],
+  nuclearSites: [
+    { key: 'showWeapons', label: 'WEAPONS' },
+    { key: 'showPower', label: 'POWER/ENRICH' },
+  ],
+};
+
 const LeftPanel = memo(() => {
-  const { layers, toggleLayer, leftPanelOpen, activeRegion, setActiveRegion, setMapCenter, satellites, aircraft, earthquakes, volcanoes, vessels, protests, outages } = useWorldViewStore();
+  const { layers, toggleLayer, leftPanelOpen, activeRegion, setActiveRegion, setMapCenter, satellites, aircraft, earthquakes, volcanoes, vessels, protests, outages, layerSubFilters, setSubFilter, toggleSubFilter } = useWorldViewStore();
+  const [expandedLayer, setExpandedLayer] = useState<LayerType | null>(null);
 
   if (!leftPanelOpen) return null;
 
@@ -39,19 +83,83 @@ const LeftPanel = memo(() => {
       {/* Layers */}
       <div className="p-3 border-b border-border">
         <h2 className="text-[10px] font-display tracking-[0.2em] text-muted-foreground mb-2">DATA LAYERS</h2>
-        <div className="space-y-1">
-          {LAYER_CONFIG.map(({ key, label, shortcut, colorClass }) => (
-            <button key={key} onClick={() => toggleLayer(key)} className="w-full flex items-center justify-between px-2 py-1 rounded text-xs hover:bg-card-hover transition-colors group">
-              <div className="flex items-center gap-2">
-                <div className={`w-1.5 h-1.5 rounded-full ${layers[key] ? colorClass : 'bg-text-muted-custom'} transition-colors`} />
-                <span className={`font-display tracking-wider text-[11px] ${layers[key] ? 'text-foreground' : 'text-muted-foreground'}`}>{label}</span>
+        <div className="space-y-0.5">
+          {LAYER_CONFIG.map(({ key, label, shortcut, colorClass }) => {
+            const hasSubs = !!LAYER_SUB_OPTIONS[key];
+            const isExpanded = expandedLayer === key;
+            return (
+              <div key={key}>
+                <div className="flex items-center">
+                  <button onClick={() => toggleLayer(key)} className="flex-1 flex items-center justify-between px-2 py-1 rounded text-xs hover:bg-card-hover transition-colors group">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-1.5 h-1.5 rounded-full ${layers[key] ? colorClass : 'bg-text-muted-custom'} transition-colors`} />
+                      <span className={`font-display tracking-wider text-[11px] ${layers[key] ? 'text-foreground' : 'text-muted-foreground'}`}>{label}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[9px] font-data ${layers[key] ? 'text-primary' : 'text-text-muted-custom'}`}>{layers[key] ? 'ON' : 'OFF'}</span>
+                      {shortcut && <span className="text-[9px] font-data text-text-muted-custom opacity-0 group-hover:opacity-100 transition-opacity">[{shortcut}]</span>}
+                    </div>
+                  </button>
+                  {hasSubs && layers[key] && (
+                    <button onClick={() => setExpandedLayer(isExpanded ? null : key)} className="px-1.5 py-1 text-[9px] text-muted-foreground hover:text-primary transition-colors">
+                      {isExpanded ? '▾' : '▸'}
+                    </button>
+                  )}
+                </div>
+                {/* Sub-options */}
+                {hasSubs && isExpanded && layers[key] && (
+                  <div className="ml-5 pl-2 border-l border-border/50 py-1 space-y-1 mb-1">
+                    {LAYER_SUB_OPTIONS[key]!.map((opt) => {
+                      if (isSlider(opt)) {
+                        const val = layerSubFilters[opt.key] as number;
+                        return (
+                          <div key={opt.key} className="px-1">
+                            <div className="flex items-center justify-between mb-0.5">
+                              <span className="text-[9px] font-data text-muted-foreground">{opt.label}</span>
+                              <span className="text-[9px] font-data text-primary">{val}{opt.suffix}</span>
+                            </div>
+                            <Slider
+                              min={opt.min} max={opt.max} step={opt.step}
+                              value={[val]}
+                              onValueChange={([v]) => setSubFilter(opt.key, v)}
+                              className="h-3"
+                            />
+                          </div>
+                        );
+                      }
+                      const checked = layerSubFilters[opt.key] as boolean;
+                      return (
+                        <button key={opt.key} onClick={() => toggleSubFilter(opt.key)}
+                          className="w-full flex items-center justify-between px-1 py-0.5 rounded text-[10px] hover:bg-card-hover transition-colors">
+                          <span className={`font-data tracking-wider ${checked ? 'text-foreground' : 'text-muted-foreground/50'}`}>{opt.label}</span>
+                          <span className={`text-[8px] font-data ${checked ? 'text-primary' : 'text-text-muted-custom'}`}>{checked ? '●' : '○'}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
+            );
+          })}
+          {/* Traffic sub-option (standalone) */}
+          <div>
+            <button onClick={() => toggleSubFilter('showTraffic')} className="w-full flex items-center justify-between px-2 py-1 rounded text-xs hover:bg-card-hover transition-colors">
               <div className="flex items-center gap-2">
-                <span className={`text-[9px] font-data ${layers[key] ? 'text-primary' : 'text-text-muted-custom'}`}>{layers[key] ? 'ON' : 'OFF'}</span>
-                {shortcut && <span className="text-[9px] font-data text-text-muted-custom opacity-0 group-hover:opacity-100 transition-opacity">[{shortcut}]</span>}
+                <div className={`w-1.5 h-1.5 rounded-full ${layerSubFilters.showTraffic ? 'bg-primary' : 'bg-text-muted-custom'} transition-colors`} />
+                <span className={`font-display tracking-wider text-[11px] ${layerSubFilters.showTraffic ? 'text-foreground' : 'text-muted-foreground'}`}>TRAFFIC</span>
               </div>
+              <span className={`text-[9px] font-data ${layerSubFilters.showTraffic ? 'text-primary' : 'text-text-muted-custom'}`}>{layerSubFilters.showTraffic ? 'ON' : 'OFF'}</span>
             </button>
-          ))}
+            {layerSubFilters.showTraffic && (
+              <div className="ml-5 pl-2 border-l border-border/50 py-1 px-1">
+                <div className="flex items-center justify-between mb-0.5">
+                  <span className="text-[9px] font-data text-muted-foreground">DENSITY</span>
+                  <span className="text-[9px] font-data text-primary">{layerSubFilters.trafficDensity}%</span>
+                </div>
+                <Slider min={0} max={100} step={5} value={[layerSubFilters.trafficDensity]} onValueChange={([v]) => setSubFilter('trafficDensity', v)} className="h-3" />
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
