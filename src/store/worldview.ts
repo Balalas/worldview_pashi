@@ -131,6 +131,7 @@ export type BottomPanelTab = 'news' | 'livestream' | 'radio' | 'pizza' | 'weathe
 export type MapMode = '2d' | '3d' | 'google3d' | 'cesium';
 export type DashboardMode = 'WORLD' | 'TECH' | 'FINANCE';
 export type VisualStyle = 'normal' | 'crt' | 'nvg' | 'flir' | 'anime' | 'noir' | 'snow';
+export type DetectionMode = 'full' | 'sparse';
 
 export interface MapCenter {
   lat: number;
@@ -365,6 +366,13 @@ export interface WorldViewState {
   filterParams: Record<string, number>;
   setFilterParam: (key: string, value: number) => void;
   resetFilterParams: () => void;
+
+  detectionMode: DetectionMode;
+  setDetectionMode: (mode: DetectionMode) => void;
+  toggleDetectionMode: () => void;
+
+  leftPanelFloating: boolean;
+  toggleLeftPanelFloating: () => void;
 }
 
 export const useWorldViewStore = create<WorldViewState>((set) => ({
@@ -473,6 +481,13 @@ export const useWorldViewStore = create<WorldViewState>((set) => ({
   filterParams: {},
   setFilterParam: (key, value) => set((s) => ({ filterParams: { ...s.filterParams, [key]: value } })),
   resetFilterParams: () => set({ filterParams: {} }),
+
+  detectionMode: 'full',
+  setDetectionMode: (detectionMode) => set({ detectionMode }),
+  toggleDetectionMode: () => set((s) => ({ detectionMode: s.detectionMode === 'full' ? 'sparse' : 'full' })),
+
+  leftPanelFloating: true,
+  toggleLeftPanelFloating: () => set((s) => ({ leftPanelFloating: !s.leftPanelFloating })),
 }));
 
 // Keyboard shortcuts
