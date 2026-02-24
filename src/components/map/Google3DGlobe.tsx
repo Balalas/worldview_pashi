@@ -193,12 +193,86 @@ const TRAFFIC_CITIES = [
 ];
 
 function carSvg(color: string, heading: number) {
-  return svgEl(`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
-    <g transform="translate(8,8) rotate(${heading})">
-      <rect x="-2.5" y="-5" width="5" height="10" rx="1.5" fill="${color}" opacity="0.85"/>
-      <rect x="-2" y="-4" width="4" height="2" rx="0.5" fill="#ffffff30"/>
+  return svgEl(`<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20">
+    <g transform="translate(10,10) rotate(${heading})">
+      <rect x="-3" y="-6" width="6" height="12" rx="2" fill="${color}" opacity="0.9"/>
+      <rect x="-2.5" y="-5" width="5" height="3" rx="1" fill="#ffffff40"/>
+      <rect x="-2.5" y="2" width="5" height="2" rx="0.5" fill="#ff000080"/>
     </g>
   </svg>`);
+}
+
+/** Compute heading between two lat/lng points in degrees */
+function bearingBetween(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const y = Math.sin(dLon) * Math.cos((lat2 * Math.PI) / 180);
+  const x = Math.cos((lat1 * Math.PI) / 180) * Math.sin((lat2 * Math.PI) / 180) -
+    Math.sin((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.cos(dLon);
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+}
+
+interface RoadCar {
+  marker: any;
+  path: { lat: number; lng: number }[];
+  progress: number; // 0..1
+  speed: number; // progress per tick
+  color: string;
+  forward: boolean;
+}
+
+/** Decode Google encoded polyline string into lat/lng array */
+function decodePolyline(encoded: string): { lat: number; lng: number }[] {
+  const points: { lat: number; lng: number }[] = [];
+  let index = 0, lat = 0, lng = 0;
+  while (index < encoded.length) {
+    let shift = 0, result = 0, byte: number;
+    do { byte = encoded.charCodeAt(index++) - 63; result |= (byte & 0x1f) << shift; shift += 5; } while (byte >= 0x20);
+    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+    shift = 0; result = 0;
+    do { byte = encoded.charCodeAt(index++) - 63; result |= (byte & 0x1f) << shift; shift += 5; } while (byte >= 0x20);
+    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+    points.push({ lat: lat / 1e5, lng: lng / 1e5 });
+  }
+  return points;
+}
+
+/** Fetch a driving route between two points using Directions API */
+async function fetchRoute(
+  originLat: number, originLng: number,
+  destLat: number, destLng: number
+): Promise<{ lat: number; lng: number }[] | null> {
+  try {
+    const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${originLat},${originLng}&destination=${destLat},${destLng}&key=${GOOGLE_MAPS_API_KEY}`;
+    // Directions API doesn't support CORS from browser — use DirectionsService instead
+    const { DirectionsService } = await (google.maps as any).importLibrary('routes');
+    const svc = new DirectionsService();
+    const result = await svc.route({
+      origin: { lat: originLat, lng: originLng },
+      destination: { lat: destLat, lng: destLng },
+      travelMode: google.maps.TravelMode.DRIVING,
+    });
+    if (result.routes?.[0]?.overview_path) {
+      return result.routes[0].overview_path.map((p: any) => ({ lat: p.lat(), lng: p.lng() }));
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/** Interpolate along a path at a given progress (0..1) */
+function interpolateAlongPath(path: { lat: number; lng: number }[], progress: number): { lat: number; lng: number; heading: number } {
+  if (path.length < 2) return { lat: path[0]?.lat ?? 0, lng: path[0]?.lng ?? 0, heading: 0 };
+  const totalSegments = path.length - 1;
+  const exactIdx = progress * totalSegments;
+  const idx = Math.min(Math.floor(exactIdx), totalSegments - 1);
+  const t = exactIdx - idx;
+  const p1 = path[idx];
+  const p2 = path[Math.min(idx + 1, path.length - 1)];
+  const lat = p1.lat + (p2.lat - p1.lat) * t;
+  const lng = p1.lng + (p2.lng - p1.lng) * t;
+  const heading = bearingBetween(p1.lat, p1.lng, p2.lat, p2.lng);
+  return { lat, lng, heading };
 }
 
 // ── Component ──
@@ -457,84 +531,149 @@ const Google3DGlobe = memo(() => {
     };
   }, [followTarget?.id, followTarget?.type]);
 
-  // ── Simulated city traffic when zoomed in ──
+  // ── Road-following traffic simulation ──
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
-    const trafficMarkersRef: any[] = [];
-    let lastRange = Infinity;
+    const roadCars: RoadCar[] = [];
+    let animFrame: number | null = null;
+    let fetchingRoutes = false;
+    let lastCenter = { lat: 0, lng: 0 };
+    let routeCache: { lat: number; lng: number }[][] = [];
+    let destroyed = false;
 
-    const spawnTraffic = async () => {
-      trafficMarkersRef.forEach(m => { try { m.remove(); } catch {} });
-      trafficMarkersRef.length = 0;
+    const CAR_COLORS = ['#e8e8e8', '#cccccc', '#ffdd44', '#ff4444', '#4488ff', '#222222', '#888888', '#ffffff', '#ff8800', '#00cc66'];
 
-      const sf = useWorldViewStore.getState().layerSubFilters;
-      if (!sf.showTraffic) return;
+    const clearCars = () => {
+      roadCars.forEach(c => { try { c.marker.remove(); } catch {} });
+      roadCars.length = 0;
+    };
 
-      const range = map.range;
-      if (!range || range > 5000) return;
-
-      const centerLat = map.center?.lat ?? 0;
-      const centerLng = map.center?.lng ?? 0;
-
+    const spawnCarsOnRoutes = async (routes: { lat: number; lng: number }[][]) => {
+      if (destroyed) return;
       try {
         const lib = await (google.maps as any).importLibrary('maps3d');
+        const sf = useWorldViewStore.getState().layerSubFilters;
         const densityMult = sf.trafficDensity / 50;
-        const baseCount = range < 1000 ? 60 : range < 2500 ? 35 : 15;
-        const carCount = Math.round(baseCount * densityMult);
-        const colors = ['#e8e8e8', '#cccccc', '#ffdd44', '#ff4444', '#4488ff', '#222222', '#888888', '#ffffff'];
+        // Spawn multiple cars per route
+        const carsPerRoute = Math.max(1, Math.round(3 * densityMult));
 
-        // Spawn around current camera center (works anywhere, not just cities)
-        const spread = range < 1000 ? 0.008 : range < 2500 ? 0.02 : 0.04;
-        for (let i = 0; i < carCount; i++) {
-          const lat = centerLat + (Math.random() - 0.5) * spread;
-          const lon = centerLng + (Math.random() - 0.5) * spread;
-          const heading = Math.random() * 360;
-          const color = colors[Math.floor(Math.random() * colors.length)];
-          const marker = new lib.Marker3DElement({
-            position: { lat, lng: lon, altitude: 0 },
-            altitudeMode: 'CLAMP_TO_GROUND',
-            sizePreserved: false,
-          });
-          const template = document.createElement('template');
-          template.content.append(carSvg(color, heading));
-          marker.append(template);
-          map.append(marker);
-          trafficMarkersRef.push(marker);
-        }
+        routes.forEach(path => {
+          if (path.length < 2) return;
+          for (let i = 0; i < carsPerRoute; i++) {
+            const color = CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)];
+            const progress = Math.random();
+            const forward = Math.random() > 0.5;
+            const speed = (0.002 + Math.random() * 0.004) * (forward ? 1 : -1);
+
+            const pos = interpolateAlongPath(path, progress);
+            const marker = new lib.Marker3DElement({
+              position: { lat: pos.lat, lng: pos.lng, altitude: 1 },
+              altitudeMode: 'CLAMP_TO_GROUND',
+              sizePreserved: false,
+            });
+            const template = document.createElement('template');
+            template.content.append(carSvg(color, pos.heading));
+            marker.append(template);
+            map.append(marker);
+
+            roadCars.push({ marker, path, progress, speed: Math.abs(speed), color, forward });
+          }
+        });
       } catch {}
     };
 
-    const animateTraffic = () => {
-      trafficMarkersRef.forEach(marker => {
+    const animateCars = () => {
+      if (destroyed) return;
+      roadCars.forEach(car => {
+        car.progress += car.forward ? car.speed : -car.speed;
+        // Loop: reverse direction at ends
+        if (car.progress >= 1) { car.progress = 1; car.forward = false; }
+        if (car.progress <= 0) { car.progress = 0; car.forward = true; }
+
+        const pos = interpolateAlongPath(car.path, car.progress);
         try {
-          const pos = marker.position;
-          if (!pos) return;
-          const jitter = 0.0001;
-          marker.position = {
-            lat: pos.lat + (Math.random() - 0.5) * jitter,
-            lng: pos.lng + (Math.random() - 0.5) * jitter,
-            altitude: 0,
-          };
+          car.marker.position = { lat: pos.lat, lng: pos.lng, altitude: 1 };
+          // Update SVG with new heading
+          car.marker.innerHTML = '';
+          const template = document.createElement('template');
+          template.content.append(carSvg(car.color, car.forward ? pos.heading : (pos.heading + 180) % 360));
+          car.marker.append(template);
         } catch {}
       });
     };
 
-    const rangeCheck = setInterval(() => {
-      const range = map.range ?? Infinity;
-      const rangeChanged = (range < 5000 && lastRange >= 5000) || (range >= 5000 && lastRange < 5000) ||
-        (range < 1000 && lastRange >= 1000) || (range >= 1000 && lastRange < 1000);
-      if (rangeChanged) spawnTraffic();
-      lastRange = range;
-      if (range < 5000) animateTraffic();
-    }, 2000);
+    const fetchAndSpawnRoutes = async () => {
+      if (fetchingRoutes || destroyed) return;
+      const sf = useWorldViewStore.getState().layerSubFilters;
+      if (!sf.showTraffic) { clearCars(); return; }
 
-    setTimeout(spawnTraffic, 2000);
+      const range = map.range ?? Infinity;
+      if (range > 5000) { clearCars(); return; }
+
+      const centerLat = map.center?.lat ?? 0;
+      const centerLng = map.center?.lng ?? 0;
+
+      // Don't refetch if camera hasn't moved much
+      const dist = Math.abs(centerLat - lastCenter.lat) + Math.abs(centerLng - lastCenter.lng);
+      if (dist < 0.002 && routeCache.length > 0 && roadCars.length > 0) return;
+
+      fetchingRoutes = true;
+      lastCenter = { lat: centerLat, lng: centerLng };
+      clearCars();
+      routeCache = [];
+
+      // Generate random origin/destination pairs around camera center
+      const spread = range < 1000 ? 0.005 : range < 2500 ? 0.015 : 0.03;
+      const routeCount = range < 1000 ? 8 : range < 2500 ? 5 : 3;
+
+      const routePromises: Promise<{ lat: number; lng: number }[] | null>[] = [];
+      for (let i = 0; i < routeCount; i++) {
+        const oLat = centerLat + (Math.random() - 0.5) * spread;
+        const oLng = centerLng + (Math.random() - 0.5) * spread;
+        const dLat = centerLat + (Math.random() - 0.5) * spread;
+        const dLng = centerLng + (Math.random() - 0.5) * spread;
+        routePromises.push(fetchRoute(oLat, oLng, dLat, dLng));
+      }
+
+      const results = await Promise.all(routePromises);
+      if (destroyed) { fetchingRoutes = false; return; }
+
+      routeCache = results.filter((r): r is { lat: number; lng: number }[] => r !== null && r.length >= 2);
+      await spawnCarsOnRoutes(routeCache);
+      fetchingRoutes = false;
+    };
+
+    // Animation loop at ~20fps
+    const tick = () => {
+      if (destroyed) return;
+      animateCars();
+      animFrame = window.setTimeout(() => tick(), 50);
+    };
+
+    // Check range periodically and fetch routes when zoomed in
+    const rangeCheck = setInterval(() => {
+      if (destroyed) return;
+      const sf = useWorldViewStore.getState().layerSubFilters;
+      const range = map.range ?? Infinity;
+      if (range < 5000 && sf.showTraffic) {
+        fetchAndSpawnRoutes();
+      } else {
+        clearCars();
+        routeCache = [];
+      }
+    }, 3000);
+
+    // Initial spawn
+    setTimeout(fetchAndSpawnRoutes, 2000);
+    tick();
 
     return () => {
+      destroyed = true;
       clearInterval(rangeCheck);
-      trafficMarkersRef.forEach(m => { try { m.remove(); } catch {} });
+      if (animFrame) clearTimeout(animFrame);
+      clearCars();
     };
   }, [layerSubFilters.showTraffic, layerSubFilters.trafficDensity]);
 
