@@ -16,13 +16,11 @@ export interface PublicCamera {
 
 // ── Hand-curated cameras with real livestream URLs ──
 const CURATED_CAMERAS: PublicCamera[] = [
-  // ── North America (verified working streams) ──
   // ── North America (verified working streams — Feb 2026) ──
-  { id: 'nyc-ts', name: 'Times Square 4K', lat: 40.758, lon: -73.9855, country: 'US', city: 'New York', category: 'landmark', embedUrl: 'https://www.youtube.com/embed/AdUw5RdyZxI?autoplay=1&mute=1', source: 'EarthCam', heading: 180 },
-  { id: 'nyc-ts2', name: 'Times Square South', lat: 40.7585, lon: -73.9852, country: 'US', city: 'New York', category: 'landmark', embedUrl: 'https://www.youtube.com/embed/eJ7ZkQ5TC08?autoplay=1&mute=1', source: 'EarthCam', heading: 200 },
+  { id: 'nyc-ts', name: 'Times Square 4K', lat: 40.758, lon: -73.9855, country: 'US', city: 'New York', category: 'landmark', embedUrl: 'https://www.youtube.com/embed/QTTTY_ra2Tg?autoplay=1&mute=1', source: 'EarthCam', heading: 180 },
+  { id: 'nyc-ts2', name: 'Times Square South', lat: 40.7585, lon: -73.9852, country: 'US', city: 'New York', category: 'landmark', embedUrl: 'https://www.youtube.com/embed/rnXIjl_Rzy4?autoplay=1&mute=1', source: 'EarthCam', heading: 200 },
   { id: 'nyc-liberty', name: 'Statue of Liberty', lat: 40.6892, lon: -74.0445, country: 'US', city: 'New York', category: 'landmark', embedUrl: 'https://www.youtube.com/embed/1-iS7LArMPA?autoplay=1&mute=1', source: 'EarthCam', heading: 270 },
-  { id: 'nyc-wtc', name: 'World Trade Center', lat: 40.7127, lon: -74.0134, country: 'US', city: 'New York', category: 'landmark', embedUrl: 'https://www.youtube.com/embed/qbDobsMZsRQ?autoplay=1&mute=1', source: 'EarthCam', heading: 0 },
-  { id: 'nyc-live', name: 'NYC Live', lat: 40.7484, lon: -73.9967, country: 'US', city: 'New York', category: 'city', embedUrl: 'https://www.youtube.com/embed/1-iS7LArMPA?autoplay=1&mute=1', source: 'EarthCam', heading: 90 },
+  { id: 'nyc-live', name: 'NYC Skyline', lat: 40.7484, lon: -73.9967, country: 'US', city: 'New York', category: 'city', embedUrl: 'https://www.youtube.com/embed/kQYk-j2e1JE?autoplay=1&mute=1', source: 'EarthCam', heading: 90 },
   { id: 'la-santa-monica', name: 'Santa Monica Beach', lat: 34.0095, lon: -118.4970, country: 'US', city: 'Los Angeles', category: 'beach', embedUrl: 'https://www.youtube.com/embed/ZiBGHKMh0Ek?autoplay=1&mute=1', source: 'Explore.org', heading: 270 },
   { id: 'sf-gg-bridge', name: 'Golden Gate Bridge', lat: 37.8199, lon: -122.4783, country: 'US', city: 'San Francisco', category: 'landmark', embedUrl: 'https://www.youtube.com/embed/Gur0rLfBPBI?autoplay=1&mute=1', source: 'Webcam', heading: 180 },
   { id: 'miami-beach', name: 'Miami Beach', lat: 25.7907, lon: -80.1300, country: 'US', city: 'Miami', category: 'beach', embedUrl: 'https://www.youtube.com/embed/dVGSxUE-0SQ?autoplay=1&mute=1', source: 'Webcam', heading: 90 },
@@ -55,7 +53,7 @@ const CURATED_CAMERAS: PublicCamera[] = [
   { id: 'singapore', name: 'Marina Bay', lat: 1.2838, lon: 103.8591, country: 'SG', city: 'Singapore', category: 'city', embedUrl: 'https://www.youtube.com/embed/Nsb57rW-l18?autoplay=1&mute=1', source: 'Webcam', heading: 0 },
   { id: 'istanbul', name: 'Istanbul Bosphorus', lat: 41.0082, lon: 28.9784, country: 'TR', city: 'Istanbul', category: 'port', embedUrl: 'https://www.youtube.com/embed/a_VGZeAb6jk?autoplay=1&mute=1', source: 'Webcam', heading: 45 },
   { id: 'dubai-burj', name: 'Burj Khalifa', lat: 25.1972, lon: 55.2744, country: 'AE', city: 'Dubai', category: 'landmark', embedUrl: 'https://www.youtube.com/embed/QGLCwYDd4TQ?autoplay=1&mute=1', source: 'Webcam', heading: 0 },
-  { id: 'jerusalem', name: 'Western Wall', lat: 31.7767, lon: 35.2345, country: 'IL', city: 'Jerusalem', category: 'landmark', embedUrl: 'https://www.youtube.com/embed/YNk8_gqg8ao?autoplay=1&mute=1', source: 'Webcam', heading: 270 },
+  { id: 'jerusalem', name: 'Western Wall', lat: 31.7767, lon: 35.2345, country: 'IL', city: 'Jerusalem', category: 'landmark', embedUrl: 'https://www.youtube.com/embed/CrRThOApudI?autoplay=1&mute=1', source: 'EarthCam', heading: 270 },
   { id: 'mecca', name: 'Masjid al-Haram', lat: 21.4225, lon: 39.8262, country: 'SA', city: 'Mecca', category: 'landmark', embedUrl: 'https://www.youtube.com/embed/jSa5sPEp4E4?autoplay=1&mute=1', source: 'Webcam', heading: 0 },
 
   // ── Oceania ──
