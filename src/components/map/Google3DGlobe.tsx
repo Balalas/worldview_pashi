@@ -192,13 +192,12 @@ const TRAFFIC_CITIES = [
   { name: 'Bangkok', lat: 13.7563, lon: 100.5018 },
 ];
 
-function carSvg(color: string, heading: number) {
-  return svgEl(`<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20">
-    <g transform="translate(10,10) rotate(${heading})">
-      <rect x="-3" y="-6" width="6" height="12" rx="2" fill="${color}" opacity="0.9"/>
-      <rect x="-2.5" y="-5" width="5" height="3" rx="1" fill="#ffffff40"/>
-      <rect x="-2.5" y="2" width="5" height="2" rx="0.5" fill="#ff000080"/>
-    </g>
+function carSvg(color: string, _heading: number) {
+  return svgEl(`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14">
+    <rect x="1" y="1" width="12" height="12" fill="none" stroke="${color}" stroke-width="1.5" opacity="0.85"/>
+    <line x1="7" y1="0" x2="7" y2="14" stroke="${color}" stroke-width="0.7" opacity="0.5"/>
+    <line x1="0" y1="7" x2="14" y2="7" stroke="${color}" stroke-width="0.7" opacity="0.5"/>
+    <rect x="5" y="5" width="4" height="4" fill="${color}" opacity="0.6"/>
   </svg>`);
 }
 
