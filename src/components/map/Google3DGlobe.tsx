@@ -4,6 +4,7 @@ import { CONFLICT_ZONES } from '@/components/map/GlobeContainer';
 import { SUBMARINE_CABLES } from '@/data/submarineCables';
 import { MILITARY_BASES, SPACEPORTS, CHOKEPOINTS, DATACENTERS, CRITICAL_MINERALS } from '@/data/staticLayers';
 import { PUBLIC_CAMERAS, PublicCamera } from '@/data/publicCameras';
+import { PIPELINES } from '@/data/pipelines';
 
 declare const google: any;
 
@@ -175,7 +176,7 @@ const Google3DGlobe = memo(() => {
   const followIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const initRef = useRef(false);
 
-  const { layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, setDetailPanel, setActiveLivestream, mapCenter, followTarget, setFollowTarget } = useWorldViewStore();
+  const { layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, fires, setDetailPanel, setActiveLivestream, mapCenter, followTarget, setFollowTarget } = useWorldViewStore();
 
   // Start following a target with cinematic camera
   const startFollow = useCallback((target: FollowTarget) => {
@@ -541,6 +542,37 @@ const Google3DGlobe = memo(() => {
       })();
     }
 
+    // Fires (NASA EONET)
+    if (layers.fires) {
+      fires.forEach(f => {
+        const icons: Record<string, string> = { wildfire: '🔥', volcano: '🌋', storm: '🌀', flood: '🌊', earthquake: '💥', drought: '☀️', landslide: '⛰️', other: '⚠️' };
+        const colors: Record<string, string> = { wildfire: '#ff4400', volcano: '#ff0044', storm: '#00d4ff', flood: '#4488ff', earthquake: '#ff6600', drought: '#ffb000', landslide: '#aa6633', other: '#ff6b35' };
+        addMarker(f.lat, f.lon,
+          iconSvg(icons[f.category] || '🔥', colors[f.category] || '#ff4400', f.title.substring(0, 16)),
+          0, true,
+          () => { stopFollow(); setDetailPanel({ type: 'fire', data: f }); }
+        );
+      });
+    }
+
+    // Pipelines
+    if (layers.pipelines) {
+      (async () => {
+        try {
+          const { Polyline3DElement } = await (google.maps as any).importLibrary('maps3d');
+          PIPELINES.forEach(pipe => {
+            const polyline = new Polyline3DElement({ strokeColor: pipe.color, strokeWidth: 4, altitudeMode: 'CLAMP_TO_GROUND', strokeOpacity: 0.7 });
+            polyline.path = pipe.coordinates.map(([lat, lon]) => ({ lat, lng: lon, altitude: 0 }));
+            map.append(polyline);
+            markersRef.current.push(polyline);
+            // Add label marker at midpoint
+            const mid = pipe.coordinates[Math.floor(pipe.coordinates.length / 2)];
+            addMarker(mid[0], mid[1], iconSvg('🛢️', pipe.color, pipe.name.substring(0, 14), pipe.capacity), 0, true);
+          });
+        } catch {}
+      })();
+    }
+
     // Static layers — all sizePreserved
     MILITARY_BASES.forEach(b => addMarker(b.lat, b.lon, iconSvg('🎖️', '#ff6b35', b.name), 0, true));
     SPACEPORTS.forEach(s => addMarker(s.lat, s.lon, iconSvg('🚀', '#00d4ff', s.name), 0, true));
@@ -559,7 +591,7 @@ const Google3DGlobe = memo(() => {
       });
     }
 
-  }, [layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, setDetailPanel, setActiveLivestream, flyToCamera, setFollowTarget, stopFollow]);
+  }, [layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, fires, setDetailPanel, setActiveLivestream, flyToCamera, setFollowTarget, stopFollow]);
 
   return (
     <div ref={containerRef} className="w-full h-full bg-background relative">
