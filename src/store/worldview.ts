@@ -107,7 +107,7 @@ export interface CountryInstability {
 }
 
 export type BottomPanelTab = 'news' | 'livestream' | 'pizza' | 'weather' | 'stats';
-export type MapMode = '2d' | '3d';
+export type MapMode = '2d' | '3d' | 'google3d';
 export type DashboardMode = 'WORLD' | 'TECH' | 'FINANCE';
 
 export interface MapCenter {

@@ -38,6 +38,7 @@ const TopBar = memo(() => {
         <div className="flex items-center border border-border rounded overflow-hidden ml-2">
           <MapToggleBtn active={mapMode === '2d'} label="2D" onClick={() => setMapMode('2d')} />
           <MapToggleBtn active={mapMode === '3d'} label="3D" onClick={() => setMapMode('3d')} />
+          <MapToggleBtn active={mapMode === 'google3d'} label="G3D" onClick={() => setMapMode('google3d')} />
         </div>
       </div>
 

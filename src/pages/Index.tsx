@@ -11,6 +11,7 @@ import { fetchGlobalWeather, ACTIVE_VOLCANOES } from '@/services/weatherService'
 import { generateVessels, extractProtestsFromNews, extractOutagesFromNews, fetchCyberNews } from '@/services/vesselService';
 
 const GlobeContainer = lazy(() => import('@/components/map/GlobeContainer'));
+const Google3DGlobe = lazy(() => import('@/components/map/Google3DGlobe'));
 
 const Index = () => {
   const { setAircraft, setSatellites, setEarthquakes, setNews, setLastRefresh, setNewsLoading, setWeatherAlerts, setVolcanoes, setVessels, setProtests, setOutages, toggleLayer, closeDetailPanel, mapMode } = useWorldViewStore();
@@ -107,6 +108,17 @@ const Index = () => {
           <div className="flex-1 relative">
             {mapMode === '2d' ? (
               <MapContainer />
+            ) : mapMode === 'google3d' ? (
+              <Suspense fallback={
+                <div className="w-full h-full flex items-center justify-center bg-background">
+                  <div className="text-center">
+                    <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                    <span className="text-[11px] font-display tracking-wider text-muted-foreground">LOADING GOOGLE 3D...</span>
+                  </div>
+                </div>
+              }>
+                <Google3DGlobe />
+              </Suspense>
             ) : (
               <Suspense fallback={
                 <div className="w-full h-full flex items-center justify-center bg-background">
