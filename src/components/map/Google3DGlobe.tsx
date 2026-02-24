@@ -29,6 +29,61 @@ function loadGoogleMaps(): Promise<void> {
   return googleMapsLoadPromise;
 }
 
+// Build an SVG string that renders text/emoji as a marker label
+function makeSvgMarker(opts: {
+  icon?: string;
+  label?: string;
+  sublabel?: string;
+  color: string;
+  size?: number;
+  shape?: 'circle' | 'diamond' | 'pin';
+  rotate?: number;
+}): SVGElement {
+  const { icon, label, sublabel, color, size = 24, shape, rotate } = opts;
+  const parser = new DOMParser();
+  const w = Math.max(size, (label?.length || 0) * 7 + 16);
+  const h = size + (label ? 14 : 0) + (sublabel ? 10 : 0);
+
+  let shapeStr = '';
+  if (shape === 'circle') {
+    const r = size / 2;
+    shapeStr = `<circle cx="${w/2}" cy="${r}" r="${r}" fill="${color}" fill-opacity="0.8" stroke="${color}" stroke-width="1"/>`;
+  } else if (shape === 'diamond') {
+    const cx = w/2, cy = size/2, s = size/2;
+    shapeStr = `<polygon points="${cx},${cy-s} ${cx+s},${cy} ${cx},${cy+s} ${cx-s},${cy}" fill="${color}" fill-opacity="0.7" stroke="${color}" stroke-width="1"/>`;
+  }
+
+  // Aircraft/vessel triangle
+  let triangleStr = '';
+  if (rotate !== undefined) {
+    const cx = w / 2, cy = size / 2;
+    triangleStr = `<g transform="rotate(${rotate}, ${cx}, ${cy})">
+      <polygon points="${cx},${cy - size/2} ${cx - size/3},${cy + size/2} ${cx + size/3},${cy + size/2}" fill="${color}" fill-opacity="0.85" stroke="${color}" stroke-width="0.5"/>
+    </g>`;
+  }
+
+  let iconStr = '';
+  if (icon) {
+    iconStr = `<text x="${w/2}" y="${size/2 + 5}" text-anchor="middle" font-size="${size * 0.7}px">${icon}</text>`;
+  }
+
+  let labelStr = '';
+  if (label) {
+    labelStr = `<text x="${w/2}" y="${size + 10}" text-anchor="middle" font-family="monospace" font-size="8px" fill="${color}">${label}</text>`;
+  }
+
+  let sublabelStr = '';
+  if (sublabel) {
+    sublabelStr = `<text x="${w/2}" y="${size + (label ? 20 : 10)}" text-anchor="middle" font-family="monospace" font-size="6px" fill="${color}" opacity="0.7">${sublabel}</text>`;
+  }
+
+  const svgString = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+    ${shapeStr}${triangleStr}${iconStr}${labelStr}${sublabelStr}
+  </svg>`;
+
+  return parser.parseFromString(svgString, 'image/svg+xml').documentElement as unknown as SVGElement;
+}
+
 const Google3DGlobe = memo(() => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
@@ -75,7 +130,7 @@ const Google3DGlobe = memo(() => {
     mapRef.current.tilt = 55;
   }, [mapCenter]);
 
-  // Render all data layers as HTML overlay markers
+  // Render all data layers
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -84,18 +139,24 @@ const Google3DGlobe = memo(() => {
     markersRef.current.forEach(m => { try { m.remove(); } catch {} });
     markersRef.current = [];
 
-    const addMarker3D = async (lat: number, lng: number, html: string, altitude: number = 0, onClick?: () => void) => {
+    const addMarker = async (
+      lat: number, lng: number,
+      svgEl: SVGElement,
+      altitude: number = 0,
+      onClick?: () => void
+    ) => {
       try {
-        const { Marker3DInteractiveElement } = await (google.maps as any).importLibrary('maps3d');
-        const marker = new Marker3DInteractiveElement({
+        const MarkerClass = onClick
+          ? (await (google.maps as any).importLibrary('maps3d')).Marker3DInteractiveElement
+          : (await (google.maps as any).importLibrary('maps3d')).Marker3DElement;
+
+        const marker = new MarkerClass({
           position: { lat, lng, altitude },
           altitudeMode: altitude > 100 ? 'ABSOLUTE' : 'CLAMP_TO_GROUND',
         });
 
-        // Marker3D requires a <template> element as slotted content
         const template = document.createElement('template');
-        template.setAttribute('id', 'default');
-        template.innerHTML = html.trim();
+        template.content.append(svgEl);
         marker.append(template);
 
         if (onClick) {
@@ -107,7 +168,9 @@ const Google3DGlobe = memo(() => {
 
         map.append(marker);
         markersRef.current.push(marker);
-      } catch {}
+      } catch (err) {
+        console.warn('Marker creation failed:', err);
+      }
     };
 
     // Aircraft
@@ -116,13 +179,8 @@ const Google3DGlobe = memo(() => {
         if (!layers.militaryFlights && ac.isMilitary) return;
         const color = ac.isMilitary ? '#ff6b35' : '#00ff88';
         const altMeters = ac.altitudeFt * 0.3048;
-        addMarker3D(ac.lat, ac.lon,
-          `<div style="cursor:pointer;filter:drop-shadow(0 0 6px ${color});">
-            <svg width="20" height="20" viewBox="0 0 24 24" style="transform:rotate(${ac.heading}deg);">
-              <path d="M12 2L8 10H3L5 13H9L12 22L15 13H19L21 10H16L12 2Z" fill="${color}" stroke="${color}" stroke-width="0.5"/>
-            </svg>
-            <div style="font-size:8px;font-family:monospace;color:${color};text-align:center;text-shadow:0 0 4px #000;white-space:nowrap;">${ac.callsign}</div>
-          </div>`,
+        addMarker(ac.lat, ac.lon,
+          makeSvgMarker({ color, size: 20, rotate: ac.heading, label: ac.callsign }),
           Math.max(altMeters, 500),
           () => setDetailPanel({ type: 'aircraft', data: ac })
         );
@@ -135,13 +193,9 @@ const Google3DGlobe = memo(() => {
         const isISS = sat.name.includes('ISS');
         const isMil = sat.name.includes('COSMOS') || sat.name.includes('USA-') || sat.name.includes('MUOS');
         const color = isMil ? '#ff6b35' : isISS ? '#ff6600' : '#00d4ff';
-        const altMeters = sat.alt * 1000; // km to m
-        const size = isISS ? 14 : 8;
-        addMarker3D(sat.lat, sat.lon,
-          `<div style="cursor:pointer;text-align:center;filter:drop-shadow(0 0 8px ${color});">
-            <div style="width:${size}px;height:${size}px;background:${color};border-radius:50%;box-shadow:0 0 12px ${color};margin:0 auto;"></div>
-            ${isISS ? `<div style="font-size:9px;font-family:monospace;color:#ff6600;text-shadow:0 0 4px #000;margin-top:2px;">ISS ●LIVE</div>` : ''}
-          </div>`,
+        const altMeters = sat.alt * 1000;
+        addMarker(sat.lat, sat.lon,
+          makeSvgMarker({ color, size: isISS ? 14 : 8, shape: 'circle', label: isISS ? 'ISS ●LIVE' : undefined }),
           Math.min(altMeters, 600000),
           () => setDetailPanel({ type: 'satellite', data: sat })
         );
@@ -153,11 +207,8 @@ const Google3DGlobe = memo(() => {
       earthquakes.forEach((eq) => {
         const color = eq.magnitude >= 6 ? '#ff0044' : eq.magnitude >= 4.5 ? '#ff6600' : '#aa44ff';
         const size = Math.pow(eq.magnitude, 1.3) * 4;
-        addMarker3D(eq.lat, eq.lon,
-          `<div style="cursor:pointer;position:relative;">
-            <div style="width:${size}px;height:${size}px;background:${color};border-radius:50%;opacity:0.7;box-shadow:0 0 ${size}px ${color};animation:ping-ring 2s ease-out infinite;"></div>
-            <div style="font-size:8px;font-family:monospace;color:${color};text-shadow:0 0 3px #000;text-align:center;">M${eq.magnitude}</div>
-          </div>`,
+        addMarker(eq.lat, eq.lon,
+          makeSvgMarker({ color, size: Math.max(size, 12), shape: 'circle', label: `M${eq.magnitude}` }),
           0,
           () => setDetailPanel({ type: 'earthquake', data: eq })
         );
@@ -168,11 +219,8 @@ const Google3DGlobe = memo(() => {
     if (layers.conflicts) {
       CONFLICT_ZONES.forEach((cz) => {
         const color = cz.intensity >= 8 ? '#ff0044' : cz.intensity >= 6 ? '#ff6b35' : '#ffb000';
-        addMarker3D(cz.lat, cz.lon,
-          `<div style="position:relative;text-align:center;">
-            <div style="width:${cz.intensity * 4}px;height:${cz.intensity * 4}px;border:2px solid ${color};border-radius:50%;opacity:0.5;animation:ping-ring 3s ease-out infinite;margin:0 auto;"></div>
-            <div style="font-size:8px;font-family:monospace;color:${color};text-shadow:0 0 3px #000;white-space:nowrap;">⚔ ${cz.name.split('–')[0]}</div>
-          </div>`,
+        addMarker(cz.lat, cz.lon,
+          makeSvgMarker({ icon: '⚔', color, size: cz.intensity * 4, label: cz.name.split('–')[0] }),
           0
         );
       });
@@ -182,11 +230,8 @@ const Google3DGlobe = memo(() => {
     if (layers.volcanoes) {
       volcanoes.forEach((v) => {
         const color = v.status === 'erupting' ? '#ff0044' : v.status === 'warning' ? '#ff6b35' : '#ffb000';
-        addMarker3D(v.lat, v.lon,
-          `<div style="cursor:pointer;text-align:center;filter:drop-shadow(0 0 4px ${color});">
-            <div style="font-size:16px;">🌋</div>
-            <div style="font-size:7px;font-family:monospace;color:${color};text-shadow:0 0 3px #000;">${v.name}</div>
-          </div>`,
+        addMarker(v.lat, v.lon,
+          makeSvgMarker({ icon: '🌋', color, size: 18, label: v.name }),
           v.elevation,
           () => setDetailPanel({ type: 'volcano', data: v })
         );
@@ -198,14 +243,8 @@ const Google3DGlobe = memo(() => {
       vessels.forEach((v) => {
         const colors: Record<string, string> = { yacht: '#FFD700', cargo: '#4488ff', tanker: '#ff8800', military: '#ff0044', fishing: '#44ff88', passenger: '#ff44ff', container: '#00aaff' };
         const color = colors[v.type] || '#4488ff';
-        const emoji = v.type === 'yacht' ? '🛥' : v.type === 'military' ? '⚓' : '🚢';
-        addMarker3D(v.lat, v.lon,
-          `<div style="cursor:pointer;text-align:center;">
-            <svg width="14" height="14" viewBox="0 0 24 24" style="transform:rotate(${v.heading}deg);filter:drop-shadow(0 0 3px ${color}80);">
-              <path d="M12 2L6 18H18L12 2Z" fill="${color}" fill-opacity="0.85" stroke="${color}" stroke-width="0.5"/>
-            </svg>
-            <div style="font-size:7px;font-family:monospace;color:${color};text-shadow:0 0 3px #000;white-space:nowrap;">${emoji} ${v.name}</div>
-          </div>`,
+        addMarker(v.lat, v.lon,
+          makeSvgMarker({ color, size: 14, rotate: v.heading, label: v.name }),
           0,
           () => setDetailPanel({ type: 'vessel', data: v })
         );
@@ -216,11 +255,8 @@ const Google3DGlobe = memo(() => {
     if (layers.protests) {
       protests.forEach((p) => {
         const color = p.intensity === 'large' ? '#ff0088' : '#ff44aa';
-        addMarker3D(p.lat, p.lon,
-          `<div style="cursor:pointer;text-align:center;">
-            <div style="font-size:14px;">✊</div>
-            <div style="font-size:7px;font-family:monospace;color:${color};text-shadow:0 0 3px #000;">${p.country}</div>
-          </div>`,
+        addMarker(p.lat, p.lon,
+          makeSvgMarker({ icon: '✊', color, size: 16, label: p.country }),
           0,
           () => setDetailPanel({ type: 'protest', data: p })
         );
@@ -231,11 +267,8 @@ const Google3DGlobe = memo(() => {
     if (layers.outages) {
       const typeIcons: Record<string, string> = { internet: '🌐', power: '⚡', cyber: '🔒', telecom: '📡', ddos: '💀', ransomware: '🔐' };
       outages.forEach((o) => {
-        addMarker3D(o.lat, o.lon,
-          `<div style="cursor:pointer;text-align:center;">
-            <div style="font-size:12px;">${typeIcons[o.type] || '⚠'}</div>
-            <div style="font-size:7px;font-family:monospace;color:#ff6b35;text-shadow:0 0 3px #000;white-space:nowrap;">${o.type.toUpperCase()}</div>
-          </div>`,
+        addMarker(o.lat, o.lon,
+          makeSvgMarker({ icon: typeIcons[o.type] || '⚠', color: '#ff6b35', size: 14, label: o.type.toUpperCase() }),
           0,
           () => setDetailPanel({ type: 'outage', data: o })
         );
@@ -246,11 +279,8 @@ const Google3DGlobe = memo(() => {
     if (layers.weather) {
       weatherAlerts.forEach((w) => {
         const color = w.isExtreme ? '#ff0044' : w.temp > 35 ? '#ff6b35' : w.temp < 0 ? '#00d4ff' : '#ffb000';
-        addMarker3D(w.lat, w.lon,
-          `<div style="cursor:pointer;text-align:center;">
-            <div style="background:${color}30;border:1px solid ${color}80;border-radius:4px;padding:1px 4px;font-size:9px;font-family:monospace;color:${color};white-space:nowrap;">${Math.round(w.temp)}°C</div>
-            <div style="font-size:6px;font-family:monospace;color:${color}aa;text-shadow:0 0 3px #000;">${w.city}</div>
-          </div>`,
+        addMarker(w.lat, w.lon,
+          makeSvgMarker({ color, size: 14, label: `${Math.round(w.temp)}°C`, sublabel: w.city }),
           0,
           () => setDetailPanel({ type: 'weather', data: w })
         );
@@ -260,11 +290,8 @@ const Google3DGlobe = memo(() => {
     // Nuclear sites
     if (layers.nuclearSites) {
       NUCLEAR_SITES.forEach((site) => {
-        addMarker3D(site.lat, site.lon,
-          `<div style="text-align:center;filter:drop-shadow(0 0 4px #bbff00);">
-            <div style="font-size:14px;">☢️</div>
-            <div style="font-size:6px;font-family:monospace;color:#bbff00;text-shadow:0 0 3px #000;white-space:nowrap;">${site.name}</div>
-          </div>`,
+        addMarker(site.lat, site.lon,
+          makeSvgMarker({ icon: '☢', color: '#bbff00', size: 16, label: site.name }),
           0
         );
       });
@@ -286,41 +313,31 @@ const Google3DGlobe = memo(() => {
             markersRef.current.push(polyline);
           });
         } catch (err) {
-          console.warn('Polyline3D not available, skipping cables:', err);
+          console.warn('Polyline3D not available:', err);
         }
       })();
     }
 
-    // Military bases (static)
+    // Military bases
     MILITARY_BASES.forEach((base) => {
-      addMarker3D(base.lat, base.lon,
-        `<div style="text-align:center;filter:drop-shadow(0 0 4px #ff6b35);">
-          <div style="font-size:12px;">🎖</div>
-          <div style="font-size:6px;font-family:monospace;color:#ff6b35;text-shadow:0 0 3px #000;white-space:nowrap;">${base.name}</div>
-        </div>`,
+      addMarker(base.lat, base.lon,
+        makeSvgMarker({ icon: '🎖', color: '#ff6b35', size: 14, label: base.name }),
         0
       );
     });
 
     // Spaceports
     SPACEPORTS.forEach((sp) => {
-      addMarker3D(sp.lat, sp.lon,
-        `<div style="text-align:center;filter:drop-shadow(0 0 4px #00d4ff);">
-          <div style="font-size:12px;">🚀</div>
-          <div style="font-size:6px;font-family:monospace;color:#00d4ff;text-shadow:0 0 3px #000;white-space:nowrap;">${sp.name}</div>
-        </div>`,
+      addMarker(sp.lat, sp.lon,
+        makeSvgMarker({ icon: '🚀', color: '#00d4ff', size: 14, label: sp.name }),
         0
       );
     });
 
     // Chokepoints
     CHOKEPOINTS.forEach((cp) => {
-      addMarker3D(cp.lat, cp.lon,
-        `<div style="text-align:center;">
-          <div style="font-size:11px;">⚓</div>
-          <div style="font-size:6px;font-family:monospace;color:#ff0088;text-shadow:0 0 3px #000;white-space:nowrap;">${cp.name}</div>
-          <div style="font-size:5px;font-family:monospace;color:#ff008880;text-shadow:0 0 2px #000;">${cp.flow}</div>
-        </div>`,
+      addMarker(cp.lat, cp.lon,
+        makeSvgMarker({ icon: '⚓', color: '#ff0088', size: 14, label: cp.name, sublabel: cp.flow }),
         0
       );
     });
@@ -328,11 +345,8 @@ const Google3DGlobe = memo(() => {
     // Datacenters
     if (layers.datacenters) {
       DATACENTERS.forEach((dc) => {
-        addMarker3D(dc.lat, dc.lon,
-          `<div style="text-align:center;filter:drop-shadow(0 0 4px #5ab4ff);">
-            <div style="font-size:11px;">🖥</div>
-            <div style="font-size:6px;font-family:monospace;color:#5ab4ff;text-shadow:0 0 3px #000;white-space:nowrap;">${dc.name}</div>
-          </div>`,
+        addMarker(dc.lat, dc.lon,
+          makeSvgMarker({ icon: '🖥', color: '#5ab4ff', size: 14, label: dc.name }),
           0
         );
       });
@@ -340,26 +354,17 @@ const Google3DGlobe = memo(() => {
 
     // Critical minerals
     CRITICAL_MINERALS.forEach((m) => {
-      addMarker3D(m.lat, m.lon,
-        `<div style="text-align:center;filter:drop-shadow(0 0 3px #ffb000);">
-          <div style="font-size:10px;">💎</div>
-          <div style="font-size:5px;font-family:monospace;color:#ffb000;text-shadow:0 0 2px #000;white-space:nowrap;">${m.mineral}</div>
-        </div>`,
+      addMarker(m.lat, m.lon,
+        makeSvgMarker({ icon: '💎', color: '#ffb000', size: 12, label: m.mineral }),
         0
       );
     });
 
     // Public CCTV cameras
     if (layers.cameras) {
-      const catIcons: Record<string, string> = { traffic: '🚦', city: '🏙', nature: '🌿', port: '⚓', airport: '✈️', landmark: '🏛', weather: '🌤', beach: '🏖' };
       PUBLIC_CAMERAS.forEach((cam) => {
-        addMarker3D(cam.lat, cam.lon,
-          `<div style="cursor:pointer;text-align:center;filter:drop-shadow(0 0 4px #00ff88);">
-            <div style="width:18px;height:18px;background:#00ff8830;border:1.5px solid #00ff88;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto;">
-              <span style="font-size:10px;">📹</span>
-            </div>
-            <div style="font-size:6px;font-family:monospace;color:#00ff88;text-shadow:0 0 3px #000;white-space:nowrap;margin-top:1px;">${catIcons[cam.category] || '📷'} ${cam.name}</div>
-          </div>`,
+        addMarker(cam.lat, cam.lon,
+          makeSvgMarker({ icon: '📹', color: '#00ff88', size: 14, label: cam.name }),
           0,
           () => setActiveLivestream(cam.embedUrl)
         );
