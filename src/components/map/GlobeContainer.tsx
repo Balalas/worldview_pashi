@@ -5,7 +5,7 @@ import { SUBMARINE_CABLES } from '@/data/submarineCables';
 
 const GlobeContainer = memo(() => {
   const globeRef = useRef<any>(null);
-  const { layers, aircraft, satellites, earthquakes, volcanoes, setDetailPanel, mapCenter } = useWorldViewStore();
+  const { layers, aircraft, satellites, earthquakes, volcanoes, vessels, protests, outages, setDetailPanel, mapCenter } = useWorldViewStore();
 
   useEffect(() => {
     if (globeRef.current) {
@@ -16,23 +16,16 @@ const GlobeContainer = memo(() => {
 
   useEffect(() => {
     if (globeRef.current && mapCenter) {
-      globeRef.current.pointOfView({
-        lat: mapCenter.lat, lng: mapCenter.lon,
-        altitude: mapCenter.zoom ? Math.max(0.5, 4 - mapCenter.zoom * 0.3) : 2,
-      }, 1000);
+      globeRef.current.pointOfView({ lat: mapCenter.lat, lng: mapCenter.lon, altitude: mapCenter.zoom ? Math.max(0.5, 4 - mapCenter.zoom * 0.3) : 2 }, 1000);
     }
   }, [mapCenter]);
 
-  // Build points data
   const pointsData: any[] = [];
 
   if (layers.aircraft) {
     aircraft.forEach((ac) => {
       if (!layers.militaryFlights && ac.isMilitary) return;
-      pointsData.push({ lat: ac.lat, lng: ac.lon, size: ac.isMilitary ? 0.4 : 0.2,
-        color: ac.isMilitary ? '#ff6b35' : '#00ff88',
-        label: `${ac.callsign} | ${ac.country} | FL${Math.round(ac.altitudeFt / 100)}`,
-        type: 'aircraft', data: ac });
+      pointsData.push({ lat: ac.lat, lng: ac.lon, size: ac.isMilitary ? 0.4 : 0.2, color: ac.isMilitary ? '#ff6b35' : '#00ff88', label: `${ac.callsign} | ${ac.country}`, type: 'aircraft', data: ac });
     });
   }
 
@@ -40,46 +33,50 @@ const GlobeContainer = memo(() => {
     satellites.forEach((sat) => {
       const isMil = sat.name.includes('COSMOS') || sat.name.includes('USA-') || sat.name.includes('MUOS');
       const isISS = sat.name.includes('ISS');
-      pointsData.push({ lat: sat.lat, lng: sat.lon, size: isISS ? 0.6 : 0.3,
-        color: isMil ? '#ff6b35' : isISS ? '#ff6600' : '#00d4ff',
-        label: `${sat.name} | ${Math.round(sat.alt)}km | ${sat.velocity.toFixed(2)}km/s`,
-        type: 'satellite', data: sat });
+      pointsData.push({ lat: sat.lat, lng: sat.lon, size: isISS ? 0.6 : 0.3, color: isMil ? '#ff6b35' : isISS ? '#ff6600' : '#00d4ff', label: `${sat.name} | ${Math.round(sat.alt)}km`, type: 'satellite', data: sat });
     });
   }
 
   if (layers.earthquakes) {
     earthquakes.forEach((eq) => {
-      pointsData.push({ lat: eq.lat, lng: eq.lon, size: Math.pow(eq.magnitude, 1.2) * 0.15,
-        color: eq.magnitude >= 6 ? '#ff0044' : eq.magnitude >= 4.5 ? '#ff6600' : '#aa44ff',
-        label: `M${eq.magnitude} | ${eq.place}`, type: 'earthquake', data: eq });
+      pointsData.push({ lat: eq.lat, lng: eq.lon, size: Math.pow(eq.magnitude, 1.2) * 0.15, color: eq.magnitude >= 6 ? '#ff0044' : eq.magnitude >= 4.5 ? '#ff6600' : '#aa44ff', label: `M${eq.magnitude} | ${eq.place}`, type: 'earthquake', data: eq });
     });
   }
 
   if (layers.volcanoes) {
     volcanoes.forEach((v) => {
-      pointsData.push({ lat: v.lat, lng: v.lon, size: 0.4,
-        color: v.status === 'erupting' ? '#ff0044' : v.status === 'warning' ? '#ff6b35' : '#ffb000',
-        label: `🌋 ${v.name} | ${v.status} | ${v.country}`, type: 'volcano', data: v });
+      pointsData.push({ lat: v.lat, lng: v.lon, size: 0.4, color: v.status === 'erupting' ? '#ff0044' : v.status === 'warning' ? '#ff6b35' : '#ffb000', label: `🌋 ${v.name} | ${v.status}`, type: 'volcano', data: v });
     });
   }
 
-  // Conflict + cable rings/arcs
+  if (layers.vessels) {
+    vessels.forEach((v) => {
+      const colors: Record<string, string> = { yacht: '#FFD700', cargo: '#4488ff', tanker: '#ff8800', military: '#ff0044', fishing: '#44ff88', passenger: '#ff44ff', container: '#00aaff' };
+      pointsData.push({ lat: v.lat, lng: v.lon, size: v.type === 'yacht' ? 0.35 : v.type === 'military' ? 0.4 : 0.25, color: colors[v.type] || '#4488ff', label: `${v.type === 'yacht' ? '🛥' : '🚢'} ${v.name} | ${v.flag}`, type: 'vessel', data: v });
+    });
+  }
+
+  if (layers.protests) {
+    protests.forEach((p) => {
+      pointsData.push({ lat: p.lat, lng: p.lon, size: p.intensity === 'large' ? 0.5 : 0.3, color: '#ff0088', label: `✊ ${p.country} | ${p.title.slice(0, 50)}`, type: 'protest', data: p });
+    });
+  }
+
+  if (layers.outages) {
+    outages.forEach((o) => {
+      pointsData.push({ lat: o.lat, lng: o.lon, size: 0.35, color: o.severity === 'critical' ? '#ff0044' : '#ff6b35', label: `⚠ ${o.type.toUpperCase()} | ${o.title.slice(0, 50)}`, type: 'outage', data: o });
+    });
+  }
+
   const ringsData = layers.conflicts ? CONFLICT_ZONES.map((cz) => ({
-    lat: cz.lat, lng: cz.lon, maxR: cz.intensity * 2, propagationSpeed: 1,
-    repeatPeriod: 800 + Math.random() * 400,
-    color: () => cz.intensity > 7 ? 'rgba(255,0,68,0.6)' : 'rgba(255,107,53,0.4)',
-    label: cz.name,
+    lat: cz.lat, lng: cz.lon, maxR: cz.intensity * 2, propagationSpeed: 1, repeatPeriod: 800 + Math.random() * 400,
+    color: () => cz.intensity > 7 ? 'rgba(255,0,68,0.6)' : 'rgba(255,107,53,0.4)', label: cz.name,
   })) : [];
 
-  // Submarine cables as arcs
   const arcsData = layers.underseaCables ? SUBMARINE_CABLES.flatMap((cable) => {
     const arcs = [];
     for (let i = 0; i < cable.coordinates.length - 1; i++) {
-      arcs.push({
-        startLat: cable.coordinates[i][0], startLng: cable.coordinates[i][1],
-        endLat: cable.coordinates[i + 1][0], endLng: cable.coordinates[i + 1][1],
-        color: cable.color, label: cable.name,
-      });
+      arcs.push({ startLat: cable.coordinates[i][0], startLng: cable.coordinates[i][1], endLat: cable.coordinates[i + 1][0], endLng: cable.coordinates[i + 1][1], color: cable.color, label: cable.name });
     }
     return arcs;
   }) : [];
@@ -90,48 +87,16 @@ const GlobeContainer = memo(() => {
 
   return (
     <div className="w-full h-full bg-background">
-      <GlobeGL
-        ref={globeRef}
-        globeImageUrl="//unpkg.com/three-globe/example/img/earth-night.jpg"
-        bumpImageUrl="//unpkg.com/three-globe/example/img/earth-topology.png"
-        backgroundImageUrl="//unpkg.com/three-globe/example/img/night-sky.png"
-        atmosphereColor="#00ff88"
-        atmosphereAltitude={0.15}
-        pointsData={pointsData}
-        pointLat="lat"
-        pointLng="lng"
-        pointAltitude={(d: any) => d.type === 'satellite' ? 0.02 : 0.005}
-        pointRadius="size"
-        pointColor="color"
-        pointLabel="label"
-        onPointClick={handlePointClick}
-        ringsData={ringsData}
-        ringLat="lat"
-        ringLng="lng"
-        ringMaxRadius="maxR"
-        ringPropagationSpeed="propagationSpeed"
-        ringRepeatPeriod="repeatPeriod"
-        ringColor="color"
-        arcsData={arcsData}
-        arcStartLat="startLat"
-        arcStartLng="startLng"
-        arcEndLat="endLat"
-        arcEndLng="endLng"
-        arcColor="color"
-        arcLabel="label"
-        arcDashLength={0.4}
-        arcDashGap={0.2}
-        arcDashAnimateTime={2000}
-        arcStroke={0.5}
-        animateIn={true}
-        width={typeof window !== 'undefined' ? window.innerWidth * 0.6 : 800}
-        height={typeof window !== 'undefined' ? window.innerHeight * 0.6 : 600}
+      <GlobeGL ref={globeRef} globeImageUrl="//unpkg.com/three-globe/example/img/earth-night.jpg" bumpImageUrl="//unpkg.com/three-globe/example/img/earth-topology.png" backgroundImageUrl="//unpkg.com/three-globe/example/img/night-sky.png" atmosphereColor="#00ff88" atmosphereAltitude={0.15}
+        pointsData={pointsData} pointLat="lat" pointLng="lng" pointAltitude={(d: any) => d.type === 'satellite' ? 0.02 : 0.005} pointRadius="size" pointColor="color" pointLabel="label" onPointClick={handlePointClick}
+        ringsData={ringsData} ringLat="lat" ringLng="lng" ringMaxRadius="maxR" ringPropagationSpeed="propagationSpeed" ringRepeatPeriod="repeatPeriod" ringColor="color"
+        arcsData={arcsData} arcStartLat="startLat" arcStartLng="startLng" arcEndLat="endLat" arcEndLng="endLng" arcColor="color" arcLabel="label" arcDashLength={0.4} arcDashGap={0.2} arcDashAnimateTime={2000} arcStroke={0.5}
+        animateIn={true} width={typeof window !== 'undefined' ? window.innerWidth * 0.6 : 800} height={typeof window !== 'undefined' ? window.innerHeight * 0.6 : 600}
       />
     </div>
   );
 });
 
-// Conflict zone data
 export const CONFLICT_ZONES = [
   { name: 'Ukraine – Eastern Front', lat: 48.5, lon: 37.5, intensity: 9, type: 'war' },
   { name: 'Gaza Strip', lat: 31.35, lon: 34.31, intensity: 10, type: 'war' },

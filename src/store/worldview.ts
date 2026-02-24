@@ -42,6 +42,45 @@ export interface Earthquake {
   url: string;
 }
 
+export interface Vessel {
+  id: string;
+  name: string;
+  type: 'yacht' | 'cargo' | 'tanker' | 'military' | 'fishing' | 'passenger' | 'container';
+  lat: number;
+  lon: number;
+  heading: number;
+  speedKnots: number;
+  flag: string;
+  length: number; // meters
+  destination?: string;
+  mmsi?: string;
+}
+
+export interface ProtestEvent {
+  id: string;
+  title: string;
+  lat: number;
+  lon: number;
+  country: string;
+  intensity: 'large' | 'medium' | 'small';
+  source: string;
+  time: Date;
+  link?: string;
+}
+
+export interface OutageEvent {
+  id: string;
+  title: string;
+  lat: number;
+  lon: number;
+  type: 'internet' | 'power' | 'cyber' | 'telecom' | 'ddos' | 'ransomware';
+  severity: 'critical' | 'major' | 'minor';
+  source: string;
+  time: Date;
+  affected?: string;
+  link?: string;
+}
+
 export interface NewsItem {
   id: string;
   title: string;
@@ -51,10 +90,11 @@ export interface NewsItem {
   time: Date;
   isStateMedia?: boolean;
   link?: string;
+  category?: 'general' | 'protest' | 'cyber' | 'military' | 'conflict';
 }
 
 export interface DetailPanel {
-  type: 'aircraft' | 'satellite' | 'earthquake' | 'volcano' | 'weather' | 'cable' | 'none';
+  type: 'aircraft' | 'satellite' | 'earthquake' | 'volcano' | 'weather' | 'cable' | 'vessel' | 'protest' | 'outage' | 'none';
   data: any;
 }
 
@@ -108,6 +148,15 @@ export interface WorldViewState {
   earthquakes: Earthquake[];
   setEarthquakes: (e: Earthquake[]) => void;
 
+  vessels: Vessel[];
+  setVessels: (v: Vessel[]) => void;
+
+  protests: ProtestEvent[];
+  setProtests: (p: ProtestEvent[]) => void;
+
+  outages: OutageEvent[];
+  setOutages: (o: OutageEvent[]) => void;
+
   news: NewsItem[];
   setNews: (n: NewsItem[]) => void;
 
@@ -159,10 +208,10 @@ export const useWorldViewStore = create<WorldViewState>((set) => ({
     nuclearSites: false,
     underseaCables: true,
     conflicts: true,
-    protests: false,
+    protests: true,
     earthquakes: true,
     fires: true,
-    outages: false,
+    outages: true,
     pipelines: false,
     datacenters: false,
     volcanoes: true,
@@ -180,6 +229,15 @@ export const useWorldViewStore = create<WorldViewState>((set) => ({
 
   earthquakes: [],
   setEarthquakes: (earthquakes) => set({ earthquakes }),
+
+  vessels: [],
+  setVessels: (vessels) => set({ vessels }),
+
+  protests: [],
+  setProtests: (protests) => set({ protests }),
+
+  outages: [],
+  setOutages: (outages) => set({ outages }),
 
   news: [],
   setNews: (news) => set({ news }),
