@@ -125,10 +125,10 @@ function generateTrajectory(
   const R = 6371; // earth radius km
   const hdgRad = (headingDeg * Math.PI) / 180;
 
-  // How far to project (in km)
-  const durationHours = type === 'satellite' ? 1.5 : type === 'aircraft' ? 0.5 : 2;
+  // How far to project (in km) — satellites get full orbital arc
+  const durationHours = type === 'satellite' ? 4 : type === 'aircraft' ? 0.5 : 2;
   const totalDist = speedKmh * durationHours;
-  const steps = 60;
+  const steps = type === 'satellite' ? 200 : 60;
 
   // Past trajectory (reverse heading)
   const pastDist = totalDist * 0.3;
@@ -289,35 +289,25 @@ const Google3DGlobe = memo(() => {
 
         const { Polyline3DElement } = await (google.maps as any).importLibrary('maps3d');
         const pathPoints = generateTrajectory(ft.lat, ft.lon, ft.heading, ft.speed, ft.altitude, ft.type);
-        const trailColor = ft.type === 'aircraft' ? '#00ff88' : ft.type === 'satellite' ? '#00d4ff' : '#4488ff';
+        const trailColor = ft.type === 'aircraft' ? '#ff4444' : ft.type === 'satellite' ? '#ff3333' : '#4488ff';
 
-        // Glow line
+        // Glow line (semi-transparent via color alpha)
         const glow = new Polyline3DElement({
-          strokeColor: trailColor, strokeWidth: 8,
-          altitudeMode: ft.altitude > 100 ? 'ABSOLUTE' : 'CLAMP_TO_GROUND', strokeOpacity: 0.15,
+          strokeColor: trailColor + '33', strokeWidth: 12,
+          altitudeMode: ft.altitude > 100 ? 'ABSOLUTE' : 'CLAMP_TO_GROUND',
         });
+        glow.path = pathPoints;
         map.append(glow);
-        // Set coordinates via property
-        glow.coordinates = pathPoints;
         trajectoryRef.current.push(glow);
 
-        // Core line
+        // Core line — bright red like reference
         const core = new Polyline3DElement({
-          strokeColor: trailColor, strokeWidth: 3,
-          altitudeMode: ft.altitude > 100 ? 'ABSOLUTE' : 'CLAMP_TO_GROUND', strokeOpacity: 0.9,
+          strokeColor: trailColor, strokeWidth: 4,
+          altitudeMode: ft.altitude > 100 ? 'ABSOLUTE' : 'CLAMP_TO_GROUND',
         });
+        core.path = pathPoints;
         map.append(core);
-        core.coordinates = pathPoints;
         trajectoryRef.current.push(core);
-
-        // Dashed effect: small segments
-        const dash = new Polyline3DElement({
-          strokeColor: '#ffffff', strokeWidth: 1,
-          altitudeMode: ft.altitude > 100 ? 'ABSOLUTE' : 'CLAMP_TO_GROUND', strokeOpacity: 0.3,
-        });
-        map.append(dash);
-        dash.coordinates = pathPoints.filter((_: any, i: number) => i % 3 === 0);
-        trajectoryRef.current.push(dash);
       } catch (err) {
         console.warn('Trajectory polyline fail:', err);
       }
@@ -677,7 +667,7 @@ const Google3DGlobe = memo(() => {
         try {
           const { Polyline3DElement } = await (google.maps as any).importLibrary('maps3d');
           PIPELINES.forEach(pipe => {
-            const polyline = new Polyline3DElement({ strokeColor: pipe.color, strokeWidth: 4, altitudeMode: 'CLAMP_TO_GROUND', strokeOpacity: 0.7 });
+            const polyline = new Polyline3DElement({ strokeColor: pipe.color + 'BB', strokeWidth: 4, altitudeMode: 'CLAMP_TO_GROUND' });
             polyline.path = pipe.coordinates.map(([lat, lon]) => ({ lat, lng: lon, altitude: 0 }));
             map.append(polyline);
             markersRef.current.push(polyline);
