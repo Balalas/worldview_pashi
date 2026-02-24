@@ -237,8 +237,30 @@ const Index = () => {
         <LeftPanel />
         <div className="flex flex-col flex-1 overflow-hidden">
           <div className="flex-1 relative">
+            {/* SVG filter for CRT chromatic aberration */}
+            <svg className="absolute w-0 h-0">
+              <defs>
+                <filter id="crt-rgb-split">
+                  <feOffset in="SourceGraphic" dx="2" dy="0" result="red" />
+                  <feOffset in="SourceGraphic" dx="-2" dy="0" result="blue" />
+                  <feOffset in="SourceGraphic" dx="0" dy="1" result="green" />
+                  <feColorMatrix in="red" type="matrix" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="redOnly" />
+                  <feColorMatrix in="green" type="matrix" values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0" result="greenOnly" />
+                  <feColorMatrix in="blue" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0" result="blueOnly" />
+                  <feBlend in="redOnly" in2="greenOnly" mode="screen" result="rg" />
+                  <feBlend in="rg" in2="blueOnly" mode="screen" />
+                </filter>
+              </defs>
+            </svg>
             {/* Map with visual style filter applied */}
-            <div className="absolute inset-0" style={{ filter: STYLE_FILTERS[visualStyle].filter }}>
+            <div
+              className="absolute inset-0"
+              style={{
+                filter: STYLE_FILTERS[visualStyle].crt
+                  ? `${STYLE_FILTERS[visualStyle].filter} url(#crt-rgb-split)`
+                  : STYLE_FILTERS[visualStyle].filter,
+              }}
+            >
               {mapMode === '2d' ? (
                 <MapContainer />
               ) : mapMode === 'google3d' ? (
@@ -269,14 +291,33 @@ const Index = () => {
             {STYLE_FILTERS[visualStyle].tint && (
               <div className="absolute inset-0 pointer-events-none z-10" style={{ backgroundColor: STYLE_FILTERS[visualStyle].tint, mixBlendMode: visualStyle === 'nvg' ? 'multiply' : 'normal' }} />
             )}
-            {/* Scanline overlay for CRT/NVG */}
-            {STYLE_FILTERS[visualStyle].scanlines && (
+            {/* CRT-specific heavy scanlines + flicker */}
+            {STYLE_FILTERS[visualStyle].crt && (
+              <>
+                {/* Thick scanlines */}
+                <div className="absolute inset-0 pointer-events-none z-10 opacity-[0.12]"
+                  style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.6) 2px, rgba(0,0,0,0.6) 4px)' }}
+                />
+                {/* RGB sub-pixel columns */}
+                <div className="absolute inset-0 pointer-events-none z-10 opacity-[0.04]"
+                  style={{ backgroundImage: 'repeating-linear-gradient(90deg, rgba(255,0,0,0.3) 0px, rgba(0,255,0,0.3) 1px, rgba(0,100,255,0.3) 2px, transparent 3px)' }}
+                />
+                {/* CRT curvature vignette — heavier than normal */}
+                <div className="absolute inset-0 pointer-events-none z-10"
+                  style={{ background: 'radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.5) 70%, rgba(0,0,0,0.85) 100%)' }}
+                />
+                {/* Subtle flicker animation */}
+                <div className="absolute inset-0 pointer-events-none z-10 animate-crt-flicker" />
+              </>
+            )}
+            {/* Scanline overlay for NVG etc (non-CRT) */}
+            {STYLE_FILTERS[visualStyle].scanlines && !STYLE_FILTERS[visualStyle].crt && (
               <div className="absolute inset-0 pointer-events-none z-10 opacity-[0.08]"
                 style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 1px, rgba(0,0,0,0.3) 1px, rgba(0,0,0,0.3) 2px)' }}
               />
             )}
-            {/* Vignette overlay */}
-            {STYLE_FILTERS[visualStyle].vignette && (
+            {/* Vignette overlay (non-CRT, CRT has its own) */}
+            {STYLE_FILTERS[visualStyle].vignette && !STYLE_FILTERS[visualStyle].crt && (
               <div className="absolute inset-0 pointer-events-none z-10"
                 style={{ background: 'radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.6) 100%)' }}
               />

@@ -157,6 +157,19 @@
 .animate-ticker-scroll { animation: ticker-scroll 30s linear infinite; }
 .animate-glow-pulse { animation: glow-pulse 2s ease-in-out infinite; }
 
+@keyframes crt-flicker {
+  0%, 100% { opacity: 0; }
+  3% { opacity: 0.04; background: rgba(255,255,255,0.02); }
+  4% { opacity: 0; }
+  48% { opacity: 0; }
+  50% { opacity: 0.02; background: rgba(200,220,255,0.015); }
+  51% { opacity: 0; }
+  92% { opacity: 0; }
+  94% { opacity: 0.03; background: rgba(255,255,200,0.02); }
+  95% { opacity: 0; }
+}
+.animate-crt-flicker { animation: crt-flicker 4s linear infinite; }
+
 /* Custom scrollbar */
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: hsl(var(--bg-panel)); }

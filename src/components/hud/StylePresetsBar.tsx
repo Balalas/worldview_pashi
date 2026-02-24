@@ -19,13 +19,15 @@ export const STYLE_FILTERS: Record<VisualStyle, {
   scanlines?: boolean;
   tint?: string;
   vignette?: boolean;
+  crt?: boolean;
 }> = {
   normal: { filter: 'none' },
   crt: {
-    filter: 'contrast(1.3) saturate(0.7) brightness(0.8) sepia(0.15)',
+    filter: 'contrast(1.35) saturate(0.6) brightness(0.75) sepia(0.2)',
     scanlines: true,
-    tint: 'hsla(40, 100%, 40%, 0.08)',
+    tint: 'hsla(40, 100%, 35%, 0.06)',
     vignette: true,
+    crt: true,
   },
   nvg: {
     filter: 'brightness(1.6) contrast(1.5) saturate(0)',
