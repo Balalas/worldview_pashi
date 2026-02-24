@@ -236,13 +236,24 @@ const Google3DGlobe = memo(() => {
     stopFollow();
     const map = mapRef.current;
     if (!map) return;
-    // True 3D POV: eye-level altitude (5m), very close range, near-horizontal tilt
-    map.center = { lat: cam.lat, lng: cam.lon, altitude: 5 };
-    map.range = 50;
-    map.tilt = 87;
-    map.heading = cam.heading || 0;
+    // Cinematic fly to street-level POV
+    if (typeof map.flyCameraTo === 'function') {
+      map.flyCameraTo({
+        endCamera: {
+          center: { lat: cam.lat, lng: cam.lon, altitude: 5 },
+          range: 50,
+          tilt: 87,
+          heading: cam.heading || 0,
+        },
+        durationMillis: 2500,
+      });
+    } else {
+      map.center = { lat: cam.lat, lng: cam.lon, altitude: 5 };
+      map.range = 50;
+      map.tilt = 87;
+      map.heading = cam.heading || 0;
+    }
     setDetailPanel({ type: 'camera', data: cam });
-    // Auto-start: for snapshot cameras, use a marker URL; for embeds, use the embed URL
     setActiveLivestream(cam.feedType === 'snapshot' ? (cam.snapshotUrl || 'snapshot') : cam.embedUrl);
   }, [setDetailPanel, stopFollow, setActiveLivestream]);
 
@@ -272,13 +283,29 @@ const Google3DGlobe = memo(() => {
 
   useEffect(() => { initMap(); }, [initMap]);
 
-  // Fly to location
+  // Cinematic fly to location
   useEffect(() => {
     if (!mapRef.current || !mapCenter) return;
+    const map = mapRef.current;
     const altitude = mapCenter.zoom ? Math.max(1000, Math.pow(2, 22 - mapCenter.zoom)) : 0;
-    mapRef.current.center = { lat: mapCenter.lat, lng: mapCenter.lon, altitude: 0 };
-    mapRef.current.range = altitude * 4;
-    mapRef.current.tilt = 55;
+    const range = altitude * 4;
+
+    // Use flyCameraTo for smooth cinematic transition
+    if (typeof map.flyCameraTo === 'function') {
+      map.flyCameraTo({
+        endCamera: {
+          center: { lat: mapCenter.lat, lng: mapCenter.lon, altitude: 0 },
+          range,
+          tilt: 55,
+        },
+        durationMillis: 2500,
+      });
+    } else {
+      // Fallback: instant snap
+      map.center = { lat: mapCenter.lat, lng: mapCenter.lon, altitude: 0 };
+      map.range = range;
+      map.tilt = 55;
+    }
   }, [mapCenter]);
 
   // ── Follow effect: fly-to on click, then update trajectory + telemetry only ──
@@ -311,13 +338,25 @@ const Google3DGlobe = memo(() => {
 
     drawTrajectory(followTarget);
 
-    // Initial fly-to
+    // Cinematic initial fly-to
     const range = followTarget.type === 'satellite' ? 150000 : followTarget.type === 'aircraft' ? 8000 : 3000;
     const tilt = followTarget.type === 'satellite' ? 55 : 72;
-    map.center = { lat: followTarget.lat, lng: followTarget.lon, altitude: followTarget.altitude };
-    map.range = range;
-    map.tilt = tilt;
-    map.heading = (followTarget.heading + 180) % 360;
+    if (typeof map.flyCameraTo === 'function') {
+      map.flyCameraTo({
+        endCamera: {
+          center: { lat: followTarget.lat, lng: followTarget.lon, altitude: followTarget.altitude },
+          range,
+          tilt,
+          heading: (followTarget.heading + 180) % 360,
+        },
+        durationMillis: 3000,
+      });
+    } else {
+      map.center = { lat: followTarget.lat, lng: followTarget.lon, altitude: followTarget.altitude };
+      map.range = range;
+      map.tilt = tilt;
+      map.heading = (followTarget.heading + 180) % 360;
+    }
 
     // Periodic update: keep camera centered on target but preserve user's heading/tilt/range
     followIntervalRef.current = setInterval(() => {
