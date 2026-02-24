@@ -1,6 +1,7 @@
 import { useEffect, useRef, memo, useCallback } from 'react';
-import { useWorldViewStore } from '@/store/worldview';
+import { useWorldViewStore, NUCLEAR_SITES } from '@/store/worldview';
 import { CONFLICT_ZONES } from '@/components/map/GlobeContainer';
+import { SUBMARINE_CABLES } from '@/data/submarineCables';
 
 declare const google: any;
 
@@ -32,7 +33,7 @@ const Google3DGlobe = memo(() => {
   const markersRef = useRef<any[]>([]);
   const initRef = useRef(false);
 
-  const { layers, aircraft, satellites, earthquakes, volcanoes, vessels, protests, outages, setDetailPanel, mapCenter } = useWorldViewStore();
+  const { layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, setDetailPanel, mapCenter } = useWorldViewStore();
 
   const initMap = useCallback(async () => {
     if (!containerRef.current || initRef.current) return;
@@ -240,7 +241,56 @@ const Google3DGlobe = memo(() => {
         );
       });
     }
-  }, [layers, aircraft, satellites, earthquakes, volcanoes, vessels, protests, outages, setDetailPanel]);
+
+    // Weather alerts
+    if (layers.weather) {
+      weatherAlerts.forEach((w) => {
+        const color = w.isExtreme ? '#ff0044' : w.temp > 35 ? '#ff6b35' : w.temp < 0 ? '#00d4ff' : '#ffb000';
+        addMarker3D(w.lat, w.lon,
+          `<div style="cursor:pointer;text-align:center;">
+            <div style="background:${color}30;border:1px solid ${color}80;border-radius:4px;padding:1px 4px;font-size:9px;font-family:monospace;color:${color};white-space:nowrap;">${Math.round(w.temp)}°C</div>
+            <div style="font-size:6px;font-family:monospace;color:${color}aa;text-shadow:0 0 3px #000;">${w.city}</div>
+          </div>`,
+          0,
+          () => setDetailPanel({ type: 'weather', data: w })
+        );
+      });
+    }
+
+    // Nuclear sites
+    if (layers.nuclearSites) {
+      NUCLEAR_SITES.forEach((site) => {
+        addMarker3D(site.lat, site.lon,
+          `<div style="text-align:center;filter:drop-shadow(0 0 4px #bbff00);">
+            <div style="font-size:14px;">☢️</div>
+            <div style="font-size:6px;font-family:monospace;color:#bbff00;text-shadow:0 0 3px #000;white-space:nowrap;">${site.name}</div>
+          </div>`,
+          0
+        );
+      });
+    }
+
+    // Submarine cables as polylines
+    if (layers.underseaCables) {
+      (async () => {
+        try {
+          const { Polyline3DElement } = await (google.maps as any).importLibrary('maps3d');
+          SUBMARINE_CABLES.forEach((cable) => {
+            const polyline = new Polyline3DElement({
+              strokeColor: cable.color,
+              strokeWidth: 3,
+              altitudeMode: 'CLAMP_TO_GROUND',
+            });
+            polyline.coordinates = cable.coordinates.map(([lat, lon]) => ({ lat, lng: lon, altitude: 0 }));
+            map.append(polyline);
+            markersRef.current.push(polyline);
+          });
+        } catch (err) {
+          console.warn('Polyline3D not available, skipping cables:', err);
+        }
+      })();
+    }
+  }, [layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, setDetailPanel]);
 
   return (
     <div ref={containerRef} className="w-full h-full bg-background">
