@@ -1,12 +1,14 @@
-import { memo, useState } from 'react';
+import { memo, useState, useRef, useEffect, useCallback } from 'react';
 import { useWorldViewStore, MARKET_DATA, NewsItem, BottomPanelTab } from '@/store/worldview';
 import { PIZZA_INDEX_DATA, LIVESTREAM_FEEDS, LivestreamFeed } from '@/services/dataServices';
 import { ACTIVE_VOLCANOES } from '@/services/weatherService';
 import { SUBMARINE_CABLES } from '@/data/submarineCables';
+import { RADIO_STATIONS, RadioStation } from '@/data/radioStations';
 
 const TABS: { key: BottomPanelTab; label: string; icon: string }[] = [
   { key: 'news', label: 'INTEL FEED', icon: '📡' },
   { key: 'livestream', label: 'LIVESTREAMS', icon: '📺' },
+  { key: 'radio', label: 'RADIO', icon: '📻' },
   { key: 'weather', label: 'WEATHER', icon: '🌤' },
   { key: 'stats', label: 'WORLD STATS', icon: '📊' },
   { key: 'pizza', label: 'PIZZA INDEX', icon: '🍕' },
@@ -45,6 +47,7 @@ const BottomFeed = memo(() => {
           <div className="flex-1 overflow-hidden">
             {bottomTab === 'news' && <NewsFeed />}
             {bottomTab === 'livestream' && <LivestreamPanel />}
+            {bottomTab === 'radio' && <RadioPanel />}
             {bottomTab === 'weather' && <WeatherPanel />}
             {bottomTab === 'stats' && <WorldStatsPanel />}
             {bottomTab === 'pizza' && <PizzaIndexPanel />}
@@ -292,8 +295,156 @@ const getTimeAgo = (date: Date): string => {
   return `${Math.floor(hrs / 24)}d ago`;
 };
 
+const RadioPanel = memo(() => {
+  const { setMapCenter } = useWorldViewStore();
+  const [regionFilter, setRegionFilter] = useState<'all' | RadioStation['region']>('all');
+  const [activeStation, setActiveStation] = useState<RadioStation | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const regions: { key: typeof regionFilter; label: string; emoji: string }[] = [
+    { key: 'all', label: 'ALL', emoji: '🌍' },
+    { key: 'americas', label: 'AMERICAS', emoji: '🌎' },
+    { key: 'europe', label: 'EUROPE', emoji: '🇪🇺' },
+    { key: 'asia', label: 'ASIA', emoji: '🌏' },
+    { key: 'middle-east', label: 'MENA', emoji: '🕌' },
+    { key: 'africa', label: 'AFRICA', emoji: '🌍' },
+    { key: 'oceania', label: 'OCEANIA', emoji: '🦘' },
+  ];
+
+  const filtered = regionFilter === 'all' ? RADIO_STATIONS : RADIO_STATIONS.filter(s => s.region === regionFilter);
+
+  const playStation = useCallback((station: RadioStation) => {
+    // Stop current
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = '';
+    }
+    setActiveStation(station);
+    setIsPlaying(true);
+    // Fly to station location
+    setMapCenter({ lat: station.lat, lon: station.lon, zoom: 8 });
+    // Create new audio
+    const audio = new Audio(station.streamUrl);
+    audio.crossOrigin = 'anonymous';
+    audio.volume = 0.7;
+    audio.play().catch(() => setIsPlaying(false));
+    audioRef.current = audio;
+    audio.onerror = () => setIsPlaying(false);
+  }, [setMapCenter]);
+
+  const stopPlayback = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = '';
+    }
+    setIsPlaying(false);
+    setActiveStation(null);
+  }, []);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = '';
+      }
+    };
+  }, []);
+
+  return (
+    <div className="h-full flex overflow-hidden">
+      {/* Station list */}
+      <div className="w-[320px] border-r border-border overflow-y-auto p-2">
+        <div className="flex items-center gap-1 mb-2 flex-wrap">
+          {regions.map((r) => (
+            <button key={r.key} onClick={() => setRegionFilter(r.key)}
+              className={`text-[8px] font-display tracking-wider px-1.5 py-0.5 rounded ${regionFilter === r.key ? 'bg-primary/10 text-primary border border-primary/20' : 'text-text-muted-custom hover:text-muted-foreground'}`}>
+              {r.emoji} {r.label}
+            </button>
+          ))}
+        </div>
+        <div className="text-[8px] font-data text-muted-foreground/60 mb-1.5 px-1">{filtered.length} STATIONS</div>
+        <div className="space-y-0.5">
+          {filtered.map((station) => (
+            <button key={station.id}
+              onClick={() => playStation(station)}
+              className={`w-full text-left px-2 py-1.5 rounded text-[10px] transition-colors ${
+                activeStation?.id === station.id
+                  ? 'bg-primary/10 border border-primary/20'
+                  : 'hover:bg-card-hover border border-transparent'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-sm">{station.flag}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    {activeStation?.id === station.id && isPlaying && (
+                      <span className="flex gap-[1px]">
+                        <span className="w-[2px] h-2 bg-primary animate-pulse" style={{ animationDelay: '0s' }} />
+                        <span className="w-[2px] h-3 bg-primary animate-pulse" style={{ animationDelay: '0.15s' }} />
+                        <span className="w-[2px] h-1.5 bg-primary animate-pulse" style={{ animationDelay: '0.3s' }} />
+                      </span>
+                    )}
+                    <span className="font-display tracking-wide text-foreground truncate">{station.name}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className="text-[8px] font-data text-text-secondary">{station.country}</span>
+                    <span className="text-[8px] font-data text-text-muted-custom">· {station.genre}</span>
+                  </div>
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Now playing */}
+      <div className="flex-1 flex items-center justify-center bg-background/50">
+        {activeStation ? (
+          <div className="text-center">
+            <div className="text-4xl mb-3">{activeStation.flag}</div>
+            <div className="text-[13px] font-display tracking-[0.15em] text-foreground mb-1">{activeStation.name}</div>
+            <div className="text-[10px] font-data text-muted-foreground mb-1">{activeStation.country} — {activeStation.genre}</div>
+            <div className="flex items-center justify-center gap-3 mt-3">
+              {/* Audio visualizer bars */}
+              {isPlaying && (
+                <div className="flex items-end gap-[2px] h-6">
+                  {Array.from({ length: 12 }).map((_, i) => (
+                    <div key={i} className="w-[3px] bg-primary rounded-sm animate-pulse"
+                      style={{
+                        height: `${8 + Math.random() * 16}px`,
+                        animationDelay: `${i * 0.1}s`,
+                        animationDuration: `${0.4 + Math.random() * 0.4}s`,
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+            <button onClick={stopPlayback}
+              className="mt-3 text-[9px] font-display tracking-wider text-destructive/70 hover:text-destructive px-3 py-1 border border-destructive/20 rounded transition-colors">
+              ■ STOP
+            </button>
+            <div className="text-[7px] font-data text-muted-foreground/40 mt-2">
+              {activeStation.lat.toFixed(2)}°N {activeStation.lon.toFixed(2)}°E
+            </div>
+          </div>
+        ) : (
+          <div className="text-center">
+            <span className="text-2xl mb-2 block">📻</span>
+            <p className="text-[11px] font-display tracking-wider text-muted-foreground">SELECT A STATION</p>
+            <p className="text-[9px] font-data text-text-muted-custom mt-1">{RADIO_STATIONS.length} stations worldwide</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+});
+
 NewsFeed.displayName = 'NewsFeed';
 LivestreamPanel.displayName = 'LivestreamPanel';
+RadioPanel.displayName = 'RadioPanel';
 WeatherPanel.displayName = 'WeatherPanel';
 WorldStatsPanel.displayName = 'WorldStatsPanel';
 PizzaIndexPanel.displayName = 'PizzaIndexPanel';
