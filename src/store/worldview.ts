@@ -94,7 +94,7 @@ export interface NewsItem {
 }
 
 export interface DetailPanel {
-  type: 'aircraft' | 'satellite' | 'earthquake' | 'volcano' | 'weather' | 'cable' | 'vessel' | 'protest' | 'outage' | 'none';
+  type: 'aircraft' | 'satellite' | 'earthquake' | 'volcano' | 'weather' | 'cable' | 'vessel' | 'protest' | 'outage' | 'camera' | 'none';
   data: any;
 }
 
