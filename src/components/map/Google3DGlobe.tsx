@@ -445,9 +445,14 @@ const Google3DGlobe = memo(() => {
       });
       map.style.width = '100%';
       map.style.height = '100%';
-      containerRef.current.innerHTML = '';
-      containerRef.current.appendChild(map);
+      // Append to the map-host div, not containerRef (which includes overlay)
+      const host = containerRef.current?.querySelector('.map-host') as HTMLDivElement;
+      if (host) {
+        host.innerHTML = '';
+        host.appendChild(map);
+      }
       mapRef.current = map;
+      setMapReady(true);
     } catch (err) {
       console.error('Google Maps 3D init failed:', err);
       initRef.current = false;
@@ -1125,6 +1130,7 @@ const Google3DGlobe = memo(() => {
 
   return (
     <div ref={containerRef} className="w-full h-full bg-background relative">
+      <div className="map-host w-full h-full" />
       {!mapReady && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/95 backdrop-blur-sm animate-fade-in">
           <div className="text-center">

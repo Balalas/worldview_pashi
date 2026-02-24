@@ -15,10 +15,10 @@ const TABS: { key: BottomPanelTab; label: string; icon: string }[] = [
 type NewsFilter = 'ALL' | 'CRITICAL' | 'MILITARY' | 'PROTEST' | 'CYBER';
 
 const BottomFeed = memo(() => {
-  const { bottomTab, setBottomTab } = useWorldViewStore();
+  const { bottomTab, setBottomTab, bottomPanelCollapsed, toggleBottomPanel } = useWorldViewStore();
   return (
     <div className="glass-panel border-t border-primary/8 flex flex-col overflow-hidden z-30 h-full">
-      <div className="h-6 border-b border-border flex items-center overflow-hidden bg-card-bg/50">
+      <div className="h-6 border-b border-border flex items-center overflow-hidden bg-card-bg/50 relative">
         <div className="flex items-center animate-ticker-scroll whitespace-nowrap">
           {[...MARKET_DATA, ...MARKET_DATA].map((m, i) => (
             <span key={i} className="inline-flex items-center gap-1.5 mx-4 text-[10px] font-data">
@@ -28,22 +28,29 @@ const BottomFeed = memo(() => {
             </span>
           ))}
         </div>
+        <button onClick={toggleBottomPanel} className="absolute right-1 top-0.5 z-10 px-1.5 py-0.5 text-[8px] font-data text-muted-foreground hover:text-primary bg-background/60 backdrop-blur-sm rounded transition-colors">
+          {bottomPanelCollapsed ? '▲' : '▼'}
+        </button>
       </div>
-      <div className="flex items-center gap-1 px-2 py-1 border-b border-border bg-card-bg/30">
-        {TABS.map((tab) => (
-          <button key={tab.key} onClick={() => setBottomTab(tab.key)}
-            className={`flex items-center gap-1.5 px-2.5 py-0.5 text-[10px] font-display tracking-wider rounded transition-colors ${bottomTab === tab.key ? 'bg-primary/10 text-primary border border-primary/20' : 'text-muted-foreground hover:text-foreground'}`}>
-            <span className="text-[9px]">{tab.icon}</span>{tab.label}
-          </button>
-        ))}
-      </div>
-      <div className="flex-1 overflow-hidden">
-        {bottomTab === 'news' && <NewsFeed />}
-        {bottomTab === 'livestream' && <LivestreamPanel />}
-        {bottomTab === 'weather' && <WeatherPanel />}
-        {bottomTab === 'stats' && <WorldStatsPanel />}
-        {bottomTab === 'pizza' && <PizzaIndexPanel />}
-      </div>
+      {!bottomPanelCollapsed && (
+        <>
+          <div className="flex items-center gap-1 px-2 py-1 border-b border-border bg-card-bg/30">
+            {TABS.map((tab) => (
+              <button key={tab.key} onClick={() => setBottomTab(tab.key)}
+                className={`flex items-center gap-1.5 px-2.5 py-0.5 text-[10px] font-display tracking-wider rounded transition-colors ${bottomTab === tab.key ? 'bg-primary/10 text-primary border border-primary/20' : 'text-muted-foreground hover:text-foreground'}`}>
+                <span className="text-[9px]">{tab.icon}</span>{tab.label}
+              </button>
+            ))}
+          </div>
+          <div className="flex-1 overflow-hidden">
+            {bottomTab === 'news' && <NewsFeed />}
+            {bottomTab === 'livestream' && <LivestreamPanel />}
+            {bottomTab === 'weather' && <WeatherPanel />}
+            {bottomTab === 'stats' && <WorldStatsPanel />}
+            {bottomTab === 'pizza' && <PizzaIndexPanel />}
+          </div>
+        </>
+      )}
     </div>
   );
 });
