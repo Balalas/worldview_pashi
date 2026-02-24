@@ -267,7 +267,7 @@ export const useWorldViewStore = create<WorldViewState>((set) => ({
   newsLoading: false,
   setNewsLoading: (newsLoading) => set({ newsLoading }),
 
-  mapMode: '2d',
+  mapMode: 'google3d',
   setMapMode: (mapMode) => set({ mapMode }),
 
   dashboardMode: 'WORLD',
