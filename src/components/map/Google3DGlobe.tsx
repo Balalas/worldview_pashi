@@ -288,24 +288,36 @@ const Google3DGlobe = memo(() => {
         trajectoryRef.current = [];
 
         const { Polyline3DElement } = await (google.maps as any).importLibrary('maps3d');
-        const path = generateTrajectory(ft.lat, ft.lon, ft.heading, ft.speed, ft.altitude, ft.type);
+        const pathPoints = generateTrajectory(ft.lat, ft.lon, ft.heading, ft.speed, ft.altitude, ft.type);
         const trailColor = ft.type === 'aircraft' ? '#00ff88' : ft.type === 'satellite' ? '#00d4ff' : '#4488ff';
 
+        // Glow line
         const glow = new Polyline3DElement({
-          strokeColor: trailColor, strokeWidth: 6,
-          altitudeMode: ft.altitude > 100 ? 'ABSOLUTE' : 'CLAMP_TO_GROUND', strokeOpacity: 0.2,
+          strokeColor: trailColor, strokeWidth: 8,
+          altitudeMode: ft.altitude > 100 ? 'ABSOLUTE' : 'CLAMP_TO_GROUND', strokeOpacity: 0.15,
         });
-        glow.path = path;
         map.append(glow);
+        // Set coordinates via property
+        glow.coordinates = pathPoints;
         trajectoryRef.current.push(glow);
 
+        // Core line
         const core = new Polyline3DElement({
-          strokeColor: trailColor, strokeWidth: 2,
-          altitudeMode: ft.altitude > 100 ? 'ABSOLUTE' : 'CLAMP_TO_GROUND', strokeOpacity: 0.8,
+          strokeColor: trailColor, strokeWidth: 3,
+          altitudeMode: ft.altitude > 100 ? 'ABSOLUTE' : 'CLAMP_TO_GROUND', strokeOpacity: 0.9,
         });
-        core.path = path;
         map.append(core);
+        core.coordinates = pathPoints;
         trajectoryRef.current.push(core);
+
+        // Dashed effect: small segments
+        const dash = new Polyline3DElement({
+          strokeColor: '#ffffff', strokeWidth: 1,
+          altitudeMode: ft.altitude > 100 ? 'ABSOLUTE' : 'CLAMP_TO_GROUND', strokeOpacity: 0.3,
+        });
+        map.append(dash);
+        dash.coordinates = pathPoints.filter((_: any, i: number) => i % 3 === 0);
+        trajectoryRef.current.push(dash);
       } catch (err) {
         console.warn('Trajectory polyline fail:', err);
       }
@@ -313,7 +325,7 @@ const Google3DGlobe = memo(() => {
 
     drawTrajectory(followTarget);
 
-    // Initial fly-to only (user can then freely move camera)
+    // Initial fly-to
     const range = followTarget.type === 'satellite' ? 150000 : followTarget.type === 'aircraft' ? 8000 : 3000;
     const tilt = followTarget.type === 'satellite' ? 55 : 72;
     map.center = { lat: followTarget.lat, lng: followTarget.lon, altitude: followTarget.altitude };
@@ -321,7 +333,7 @@ const Google3DGlobe = memo(() => {
     map.tilt = tilt;
     map.heading = (followTarget.heading + 180) % 360;
 
-    // Periodic update: only update telemetry data + trajectory line, NOT camera position
+    // Periodic update: keep camera centered on target but preserve user's heading/tilt/range
     followIntervalRef.current = setInterval(() => {
       const ft = useWorldViewStore.getState().followTarget;
       if (!ft) { if (followIntervalRef.current) clearInterval(followIntervalRef.current); return; }
@@ -343,9 +355,12 @@ const Google3DGlobe = memo(() => {
       const updatedTarget: FollowTarget = { ...ft, lat: updatedLat, lon: updatedLon, altitude: updatedAlt, heading: updatedHdg, speed: updatedSpd };
       useWorldViewStore.getState().setFollowTarget(updatedTarget);
 
+      // Keep camera centered on target — but preserve user's tilt, heading, range (orbit freedom)
+      map.center = { lat: updatedLat, lng: updatedLon, altitude: updatedAlt };
+
       // Redraw trajectory at new position
       drawTrajectory(updatedTarget);
-    }, 3000);
+    }, 2500);
 
     return () => {
       if (followIntervalRef.current) { clearInterval(followIntervalRef.current); followIntervalRef.current = null; }
