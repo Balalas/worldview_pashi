@@ -1,5 +1,5 @@
 import { useEffect, useRef, memo, useCallback } from 'react';
-import { useWorldViewStore, NUCLEAR_SITES } from '@/store/worldview';
+import { useWorldViewStore, NUCLEAR_SITES, FollowTarget } from '@/store/worldview';
 import { CONFLICT_ZONES } from '@/components/map/GlobeContainer';
 import { SUBMARINE_CABLES } from '@/data/submarineCables';
 import { MILITARY_BASES, SPACEPORTS, CHOKEPOINTS, DATACENTERS, CRITICAL_MINERALS } from '@/data/staticLayers';
@@ -113,27 +113,99 @@ function cameraSvg(name: string) {
   </svg>`);
 }
 
+// ── Trajectory helpers ──
+
+/** Generate a projected trajectory path (past + future) from heading & speed */
+function generateTrajectory(
+  lat: number, lon: number, headingDeg: number, speedKmh: number, altitudeM: number,
+  type: 'aircraft' | 'satellite' | 'vessel'
+): { lat: number; lng: number; altitude: number }[] {
+  const points: { lat: number; lng: number; altitude: number }[] = [];
+  const R = 6371; // earth radius km
+  const hdgRad = (headingDeg * Math.PI) / 180;
+
+  // How far to project (in km)
+  const durationHours = type === 'satellite' ? 1.5 : type === 'aircraft' ? 0.5 : 2;
+  const totalDist = speedKmh * durationHours;
+  const steps = 60;
+
+  // Past trajectory (reverse heading)
+  const pastDist = totalDist * 0.3;
+  for (let i = steps / 3; i >= 0; i--) {
+    const d = (pastDist * i) / (steps / 3);
+    const lat2 = Math.asin(
+      Math.sin((lat * Math.PI) / 180) * Math.cos(d / R) +
+      Math.cos((lat * Math.PI) / 180) * Math.sin(d / R) * Math.cos(hdgRad + Math.PI)
+    );
+    const lon2 =
+      ((lon * Math.PI) / 180) +
+      Math.atan2(
+        Math.sin(hdgRad + Math.PI) * Math.sin(d / R) * Math.cos((lat * Math.PI) / 180),
+        Math.cos(d / R) - Math.sin((lat * Math.PI) / 180) * Math.sin(lat2)
+      );
+    points.push({ lat: (lat2 * 180) / Math.PI, lng: (lon2 * 180) / Math.PI, altitude: altitudeM });
+  }
+
+  // Future trajectory
+  for (let i = 1; i <= steps; i++) {
+    const d = (totalDist * i) / steps;
+    const lat2 = Math.asin(
+      Math.sin((lat * Math.PI) / 180) * Math.cos(d / R) +
+      Math.cos((lat * Math.PI) / 180) * Math.sin(d / R) * Math.cos(hdgRad)
+    );
+    const lon2 =
+      ((lon * Math.PI) / 180) +
+      Math.atan2(
+        Math.sin(hdgRad) * Math.sin(d / R) * Math.cos((lat * Math.PI) / 180),
+        Math.cos(d / R) - Math.sin((lat * Math.PI) / 180) * Math.sin(lat2)
+      );
+    points.push({ lat: (lat2 * 180) / Math.PI, lng: (lon2 * 180) / Math.PI, altitude: altitudeM });
+  }
+
+  return points;
+}
+
 // ── Component ──
 
 const Google3DGlobe = memo(() => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
+  const trajectoryRef = useRef<any[]>([]); // separate ref for trajectory polylines
+  const followIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const initRef = useRef(false);
 
-  const { layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, setDetailPanel, setActiveLivestream, mapCenter } = useWorldViewStore();
+  const { layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, setDetailPanel, setActiveLivestream, mapCenter, followTarget, setFollowTarget } = useWorldViewStore();
+
+  // Start following a target with cinematic camera
+  const startFollow = useCallback((target: FollowTarget) => {
+    setFollowTarget(target);
+    setDetailPanel({ type: target.type, data: null }); // will be set in the click handler
+  }, [setFollowTarget, setDetailPanel]);
+
+  // Stop following
+  const stopFollow = useCallback(() => {
+    setFollowTarget(null);
+    if (followIntervalRef.current) {
+      clearInterval(followIntervalRef.current);
+      followIntervalRef.current = null;
+    }
+    // Clear trajectory lines
+    trajectoryRef.current.forEach(p => { try { p.remove(); } catch {} });
+    trajectoryRef.current = [];
+  }, [setFollowTarget]);
 
   // Fly camera to a CCTV location at street level (3D, not Street View)
   const flyToCamera = useCallback((cam: PublicCamera) => {
+    stopFollow();
     const map = mapRef.current;
     if (!map) return;
     map.center = { lat: cam.lat, lng: cam.lon, altitude: 50 };
     map.range = 300;
     map.tilt = 75;
     map.heading = cam.heading || 0;
-    // Open the camera detail panel
     setDetailPanel({ type: 'camera', data: cam });
-  }, [setDetailPanel]);
+  }, [setDetailPanel, stopFollow]);
 
   const initMap = useCallback(async () => {
     if (!containerRef.current || initRef.current) return;
@@ -169,6 +241,109 @@ const Google3DGlobe = memo(() => {
     mapRef.current.range = altitude * 4;
     mapRef.current.tilt = 55;
   }, [mapCenter]);
+
+  // ── Cinematic follow effect ──
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !followTarget) return;
+
+    // Draw trajectory polyline
+    (async () => {
+      try {
+        // Clear old trajectory
+        trajectoryRef.current.forEach(p => { try { p.remove(); } catch {} });
+        trajectoryRef.current = [];
+
+        const { Polyline3DElement } = await (google.maps as any).importLibrary('maps3d');
+        const path = generateTrajectory(
+          followTarget.lat, followTarget.lon, followTarget.heading, followTarget.speed, followTarget.altitude, followTarget.type
+        );
+
+        // Trajectory line (dashed effect with two lines)
+        const trailColor = followTarget.type === 'aircraft' ? '#00ff88' : followTarget.type === 'satellite' ? '#00d4ff' : '#4488ff';
+
+        const glow = new Polyline3DElement({
+          strokeColor: trailColor,
+          strokeWidth: 6,
+          altitudeMode: followTarget.altitude > 100 ? 'ABSOLUTE' : 'CLAMP_TO_GROUND',
+          strokeOpacity: 0.2,
+        });
+        glow.path = path;
+        map.append(glow);
+        trajectoryRef.current.push(glow);
+
+        const core = new Polyline3DElement({
+          strokeColor: trailColor,
+          strokeWidth: 2,
+          altitudeMode: followTarget.altitude > 100 ? 'ABSOLUTE' : 'CLAMP_TO_GROUND',
+          strokeOpacity: 0.8,
+        });
+        core.path = path;
+        map.append(core);
+        trajectoryRef.current.push(core);
+      } catch (err) {
+        console.warn('Trajectory polyline fail:', err);
+      }
+    })();
+
+    // Cinematic camera: orbit around target while following
+    let angle = followTarget.heading;
+    const range = followTarget.type === 'satellite' ? 200000 : followTarget.type === 'aircraft' ? 15000 : 5000;
+    const tilt = followTarget.type === 'satellite' ? 45 : 65;
+
+    // Initial fly-to
+    map.center = { lat: followTarget.lat, lng: followTarget.lon, altitude: followTarget.altitude };
+    map.range = range;
+    map.tilt = tilt;
+    map.heading = (followTarget.heading + 30) % 360; // offset for cinematic angle
+
+    // Slow orbit
+    followIntervalRef.current = setInterval(() => {
+      const ft = useWorldViewStore.getState().followTarget;
+      if (!ft) {
+        if (followIntervalRef.current) clearInterval(followIntervalRef.current);
+        return;
+      }
+
+      // Find updated position from live data
+      const state = useWorldViewStore.getState();
+      let updatedLat = ft.lat, updatedLon = ft.lon, updatedAlt = ft.altitude, updatedHdg = ft.heading;
+
+      if (ft.type === 'aircraft') {
+        const ac = state.aircraft.find(a => a.callsign === ft.id);
+        if (ac) { updatedLat = ac.lat; updatedLon = ac.lon; updatedAlt = Math.max(ac.altitudeFt * 0.3048, 500); updatedHdg = ac.heading; }
+      } else if (ft.type === 'satellite') {
+        const sat = state.satellites.find(s => s.name === ft.id);
+        if (sat) { updatedLat = sat.lat; updatedLon = sat.lon; updatedAlt = Math.min(sat.alt * 1000, 600000); }
+      } else if (ft.type === 'vessel') {
+        const v = state.vessels.find(v => v.id === ft.id);
+        if (v) { updatedLat = v.lat; updatedLon = v.lon; updatedHdg = v.heading; }
+      }
+
+      angle = (angle + 0.3) % 360; // slow orbit
+
+      map.center = { lat: updatedLat, lng: updatedLon, altitude: updatedAlt };
+      map.heading = angle;
+      map.tilt = tilt;
+      map.range = range;
+
+      // Update the followTarget position for trajectory refresh
+      useWorldViewStore.getState().setFollowTarget({
+        ...ft,
+        lat: updatedLat,
+        lon: updatedLon,
+        altitude: updatedAlt,
+        heading: updatedHdg,
+      });
+    }, 2000);
+
+    return () => {
+      if (followIntervalRef.current) {
+        clearInterval(followIntervalRef.current);
+        followIntervalRef.current = null;
+      }
+    };
+  }, [followTarget?.id, followTarget?.type]);
 
   // ── Render markers ──
   useEffect(() => {
@@ -211,10 +386,19 @@ const Google3DGlobe = memo(() => {
       aircraft.forEach(ac => {
         if (!layers.militaryFlights && ac.isMilitary) return;
         const color = ac.isMilitary ? '#ff6b35' : '#00ff88';
+        const alt = Math.max(ac.altitudeFt * 0.3048, 500);
         addMarker(ac.lat, ac.lon,
           aircraftSvg(ac.heading, color, ac.callsign),
-          Math.max(ac.altitudeFt * 0.3048, 500), true,
-          () => setDetailPanel({ type: 'aircraft', data: ac })
+          alt, true,
+          () => {
+            setDetailPanel({ type: 'aircraft', data: ac });
+            setFollowTarget({
+              type: 'aircraft', id: ac.callsign,
+              lat: ac.lat, lon: ac.lon,
+              heading: ac.heading, altitude: alt,
+              speed: ac.speedKts * 1.852,
+            });
+          }
         );
       });
     }
@@ -225,10 +409,19 @@ const Google3DGlobe = memo(() => {
         const isISS = sat.name.includes('ISS');
         const isMil = sat.name.includes('COSMOS') || sat.name.includes('USA-') || sat.name.includes('MUOS');
         const color = isMil ? '#ff6b35' : isISS ? '#ff6600' : '#00d4ff';
+        const alt = Math.min(sat.alt * 1000, 600000);
         addMarker(sat.lat, sat.lon,
           satelliteSvg(color, sat.name, isISS),
-          Math.min(sat.alt * 1000, 600000), true,
-          () => setDetailPanel({ type: 'satellite', data: sat })
+          alt, true,
+          () => {
+            setDetailPanel({ type: 'satellite', data: sat });
+            setFollowTarget({
+              type: 'satellite', id: sat.name,
+              lat: sat.lat, lon: sat.lon,
+              heading: 0, altitude: alt,
+              speed: sat.velocity * 3600,
+            });
+          }
         );
       });
     }
@@ -240,7 +433,7 @@ const Google3DGlobe = memo(() => {
         addMarker(eq.lat, eq.lon,
           quakeSvg(eq.magnitude, color),
           0, true,
-          () => setDetailPanel({ type: 'earthquake', data: eq })
+          () => { stopFollow(); setDetailPanel({ type: 'earthquake', data: eq }); }
         );
       });
     }
@@ -263,7 +456,7 @@ const Google3DGlobe = memo(() => {
         addMarker(v.lat, v.lon,
           iconSvg('🌋', color, v.name),
           v.elevation, true,
-          () => setDetailPanel({ type: 'volcano', data: v })
+          () => { stopFollow(); setDetailPanel({ type: 'volcano', data: v }); }
         );
       });
     }
@@ -275,7 +468,15 @@ const Google3DGlobe = memo(() => {
         addMarker(v.lat, v.lon,
           vesselSvg(v.heading, colors[v.type] || '#4488ff', v.name, v.type),
           0, false,
-          () => setDetailPanel({ type: 'vessel', data: v })
+          () => {
+            setDetailPanel({ type: 'vessel', data: v });
+            setFollowTarget({
+              type: 'vessel', id: v.id,
+              lat: v.lat, lon: v.lon,
+              heading: v.heading, altitude: 0,
+              speed: v.speedKnots * 1.852,
+            });
+          }
         );
       });
     }
@@ -287,7 +488,7 @@ const Google3DGlobe = memo(() => {
         addMarker(p.lat, p.lon,
           iconSvg('✊', color, p.country),
           0, true,
-          () => setDetailPanel({ type: 'protest', data: p })
+          () => { stopFollow(); setDetailPanel({ type: 'protest', data: p }); }
         );
       });
     }
@@ -299,7 +500,7 @@ const Google3DGlobe = memo(() => {
         addMarker(o.lat, o.lon,
           iconSvg(icons[o.type] || '⚠', '#ff6b35', o.type.toUpperCase()),
           0, true,
-          () => setDetailPanel({ type: 'outage', data: o })
+          () => { stopFollow(); setDetailPanel({ type: 'outage', data: o }); }
         );
       });
     }
@@ -311,7 +512,7 @@ const Google3DGlobe = memo(() => {
         addMarker(w.lat, w.lon,
           iconSvg(w.isExtreme ? '⚠️' : '🌡', color, `${Math.round(w.temp)}°C`, w.city),
           0, false,
-          () => setDetailPanel({ type: 'weather', data: w })
+          () => { stopFollow(); setDetailPanel({ type: 'weather', data: w }); }
         );
       });
     }
@@ -359,16 +560,26 @@ const Google3DGlobe = memo(() => {
       });
     }
 
-  }, [layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, setDetailPanel, setActiveLivestream, flyToCamera]);
+  }, [layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, setDetailPanel, setActiveLivestream, flyToCamera, setFollowTarget, stopFollow]);
 
   return (
-    <div ref={containerRef} className="w-full h-full bg-background">
+    <div ref={containerRef} className="w-full h-full bg-background relative">
       <div className="w-full h-full flex items-center justify-center">
         <div className="text-center">
           <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2" />
           <span className="text-[11px] font-display tracking-wider text-muted-foreground">LOADING 3D GLOBE...</span>
         </div>
       </div>
+      {/* Stop follow button */}
+      {followTarget && (
+        <button
+          onClick={stopFollow}
+          className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-black/80 border border-primary/50 text-primary px-4 py-2 rounded font-mono text-xs tracking-wider hover:bg-primary/20 transition-colors flex items-center gap-2"
+        >
+          <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+          TRACKING: {followTarget.id} — CLICK TO STOP
+        </button>
+      )}
     </div>
   );
 });
