@@ -81,6 +81,17 @@ export interface OutageEvent {
   link?: string;
 }
 
+export interface FireEvent {
+  id: string;
+  title: string;
+  lat: number;
+  lon: number;
+  date: string;
+  source: string;
+  link?: string;
+  category: 'wildfire' | 'volcano' | 'storm' | 'flood' | 'earthquake' | 'drought' | 'landslide' | 'other';
+}
+
 export interface NewsItem {
   id: string;
   title: string;
@@ -94,7 +105,7 @@ export interface NewsItem {
 }
 
 export interface DetailPanel {
-  type: 'aircraft' | 'satellite' | 'earthquake' | 'volcano' | 'weather' | 'cable' | 'vessel' | 'protest' | 'outage' | 'camera' | 'none';
+  type: 'aircraft' | 'satellite' | 'earthquake' | 'volcano' | 'weather' | 'cable' | 'vessel' | 'protest' | 'outage' | 'camera' | 'fire' | 'none';
   data: any;
 }
 
@@ -166,6 +177,9 @@ export interface WorldViewState {
 
   outages: OutageEvent[];
   setOutages: (o: OutageEvent[]) => void;
+
+  fires: FireEvent[];
+  setFires: (f: FireEvent[]) => void;
 
   news: NewsItem[];
   setNews: (n: NewsItem[]) => void;
@@ -251,6 +265,9 @@ export const useWorldViewStore = create<WorldViewState>((set) => ({
 
   outages: [],
   setOutages: (outages) => set({ outages }),
+
+  fires: [],
+  setFires: (fires) => set({ fires }),
 
   news: [],
   setNews: (news) => set({ news }),

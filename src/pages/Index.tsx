@@ -13,12 +13,13 @@ import { fetchEarthquakes, fetchLiveNews, fetchLiveAircraft } from '@/services/d
 import { generateRealisticSatellites, fetchISSPosition } from '@/services/satelliteService';
 import { fetchGlobalWeather, ACTIVE_VOLCANOES } from '@/services/weatherService';
 import { generateVessels, extractProtestsFromNews, extractOutagesFromNews, fetchCyberNews } from '@/services/vesselService';
+import { fetchActiveFiresEONET } from '@/services/fireService';
 
 const GlobeContainer = lazy(() => import('@/components/map/GlobeContainer'));
 const Google3DGlobe = lazy(() => import('@/components/map/Google3DGlobe'));
 
 const Index = () => {
-  const { setAircraft, setSatellites, setEarthquakes, setNews, setLastRefresh, setNewsLoading, setWeatherAlerts, setVolcanoes, setVessels, setProtests, setOutages, toggleLayer, closeDetailPanel, mapMode, setFollowTarget } = useWorldViewStore();
+  const { setAircraft, setSatellites, setEarthquakes, setNews, setLastRefresh, setNewsLoading, setWeatherAlerts, setVolcanoes, setVessels, setProtests, setOutages, setFires, toggleLayer, closeDetailPanel, mapMode, setFollowTarget } = useWorldViewStore();
 
   useEffect(() => {
     // Initialize satellites
@@ -53,6 +54,9 @@ const Index = () => {
     // Set volcanoes
     setVolcanoes(ACTIVE_VOLCANOES);
 
+    // Fetch active fires from NASA EONET
+    fetchActiveFiresEONET().then(setFires);
+
     // Refresh intervals
     const aircraftInterval = setInterval(() => {
       fetchLiveAircraft().then((a) => {
@@ -80,6 +84,8 @@ const Index = () => {
 
     const weatherInterval = setInterval(() => fetchGlobalWeather().then(setWeatherAlerts), 600000);
 
+    const fireInterval = setInterval(() => fetchActiveFiresEONET().then(setFires), 600000);
+
     return () => {
       clearInterval(aircraftInterval);
       clearInterval(satInterval);
@@ -87,6 +93,7 @@ const Index = () => {
       clearInterval(eqInterval);
       clearInterval(newsInterval);
       clearInterval(weatherInterval);
+      clearInterval(fireInterval);
     };
   }, []);
 
