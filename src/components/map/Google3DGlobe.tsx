@@ -166,6 +166,39 @@ function generateTrajectory(
   return points;
 }
 
+// ── Major cities for traffic simulation ──
+const TRAFFIC_CITIES = [
+  { name: 'New York', lat: 40.7128, lon: -74.006 },
+  { name: 'London', lat: 51.5074, lon: -0.1278 },
+  { name: 'Paris', lat: 48.8566, lon: 2.3522 },
+  { name: 'Tokyo', lat: 35.6762, lon: 139.6503 },
+  { name: 'Dubai', lat: 25.2048, lon: 55.2708 },
+  { name: 'Sydney', lat: -33.8688, lon: 151.2093 },
+  { name: 'Mumbai', lat: 19.076, lon: 72.8777 },
+  { name: 'São Paulo', lat: -23.5505, lon: -46.6333 },
+  { name: 'Los Angeles', lat: 34.0522, lon: -118.2437 },
+  { name: 'Istanbul', lat: 41.0082, lon: 28.9784 },
+  { name: 'Moscow', lat: 55.7558, lon: 37.6173 },
+  { name: 'Beijing', lat: 39.9042, lon: 116.4074 },
+  { name: 'Cairo', lat: 30.0444, lon: 31.2357 },
+  { name: 'Berlin', lat: 52.52, lon: 13.405 },
+  { name: 'Singapore', lat: 1.3521, lon: 103.8198 },
+  { name: 'Lagos', lat: 6.5244, lon: 3.3792 },
+  { name: 'Mexico City', lat: 19.4326, lon: -99.1332 },
+  { name: 'Chicago', lat: 41.8781, lon: -87.6298 },
+  { name: 'Seoul', lat: 37.5665, lon: 126.978 },
+  { name: 'Bangkok', lat: 13.7563, lon: 100.5018 },
+];
+
+function carSvg(color: string, heading: number) {
+  return svgEl(`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+    <g transform="translate(8,8) rotate(${heading})">
+      <rect x="-2.5" y="-5" width="5" height="10" rx="1.5" fill="${color}" opacity="0.85"/>
+      <rect x="-2" y="-4" width="4" height="2" rx="0.5" fill="#ffffff30"/>
+    </g>
+  </svg>`);
+}
+
 // ── Component ──
 
 const Google3DGlobe = memo(() => {
@@ -243,41 +276,32 @@ const Google3DGlobe = memo(() => {
     mapRef.current.tilt = 55;
   }, [mapCenter]);
 
-  // ── Cinematic follow effect ──
+  // ── Follow effect: fly-to on click, then update trajectory + telemetry only ──
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !followTarget) return;
 
     // Draw trajectory polyline
-    (async () => {
+    const drawTrajectory = async (ft: FollowTarget) => {
       try {
-        // Clear old trajectory
         trajectoryRef.current.forEach(p => { try { p.remove(); } catch {} });
         trajectoryRef.current = [];
 
         const { Polyline3DElement } = await (google.maps as any).importLibrary('maps3d');
-        const path = generateTrajectory(
-          followTarget.lat, followTarget.lon, followTarget.heading, followTarget.speed, followTarget.altitude, followTarget.type
-        );
-
-        // Trajectory line (dashed effect with two lines)
-        const trailColor = followTarget.type === 'aircraft' ? '#00ff88' : followTarget.type === 'satellite' ? '#00d4ff' : '#4488ff';
+        const path = generateTrajectory(ft.lat, ft.lon, ft.heading, ft.speed, ft.altitude, ft.type);
+        const trailColor = ft.type === 'aircraft' ? '#00ff88' : ft.type === 'satellite' ? '#00d4ff' : '#4488ff';
 
         const glow = new Polyline3DElement({
-          strokeColor: trailColor,
-          strokeWidth: 6,
-          altitudeMode: followTarget.altitude > 100 ? 'ABSOLUTE' : 'CLAMP_TO_GROUND',
-          strokeOpacity: 0.2,
+          strokeColor: trailColor, strokeWidth: 6,
+          altitudeMode: ft.altitude > 100 ? 'ABSOLUTE' : 'CLAMP_TO_GROUND', strokeOpacity: 0.2,
         });
         glow.path = path;
         map.append(glow);
         trajectoryRef.current.push(glow);
 
         const core = new Polyline3DElement({
-          strokeColor: trailColor,
-          strokeWidth: 2,
-          altitudeMode: followTarget.altitude > 100 ? 'ABSOLUTE' : 'CLAMP_TO_GROUND',
-          strokeOpacity: 0.8,
+          strokeColor: trailColor, strokeWidth: 2,
+          altitudeMode: ft.altitude > 100 ? 'ABSOLUTE' : 'CLAMP_TO_GROUND', strokeOpacity: 0.8,
         });
         core.path = path;
         map.append(core);
@@ -285,27 +309,23 @@ const Google3DGlobe = memo(() => {
       } catch (err) {
         console.warn('Trajectory polyline fail:', err);
       }
-    })();
+    };
 
-    // Locked chase camera: behind target looking along heading
+    drawTrajectory(followTarget);
+
+    // Initial fly-to only (user can then freely move camera)
     const range = followTarget.type === 'satellite' ? 150000 : followTarget.type === 'aircraft' ? 8000 : 3000;
     const tilt = followTarget.type === 'satellite' ? 55 : 72;
-
-    // Initial fly-to — camera behind target
     map.center = { lat: followTarget.lat, lng: followTarget.lon, altitude: followTarget.altitude };
     map.range = range;
     map.tilt = tilt;
-    map.heading = (followTarget.heading + 180) % 360; // look from behind
+    map.heading = (followTarget.heading + 180) % 360;
 
-    // Lock-on update loop
+    // Periodic update: only update telemetry data + trajectory line, NOT camera position
     followIntervalRef.current = setInterval(() => {
       const ft = useWorldViewStore.getState().followTarget;
-      if (!ft) {
-        if (followIntervalRef.current) clearInterval(followIntervalRef.current);
-        return;
-      }
+      if (!ft) { if (followIntervalRef.current) clearInterval(followIntervalRef.current); return; }
 
-      // Find updated position from live data
       const state = useWorldViewStore.getState();
       let updatedLat = ft.lat, updatedLon = ft.lon, updatedAlt = ft.altitude, updatedHdg = ft.heading, updatedSpd = ft.speed;
 
@@ -320,30 +340,111 @@ const Google3DGlobe = memo(() => {
         if (v) { updatedLat = v.lat; updatedLon = v.lon; updatedHdg = v.heading; updatedSpd = v.speedKnots * 1.852; }
       }
 
-      // Chase cam: always behind and slightly above, looking along heading
-      map.center = { lat: updatedLat, lng: updatedLon, altitude: updatedAlt };
-      map.heading = (updatedHdg + 180) % 360;
-      map.tilt = tilt;
-      map.range = range;
+      const updatedTarget: FollowTarget = { ...ft, lat: updatedLat, lon: updatedLon, altitude: updatedAlt, heading: updatedHdg, speed: updatedSpd };
+      useWorldViewStore.getState().setFollowTarget(updatedTarget);
 
-      // Update the followTarget position for telemetry
-      useWorldViewStore.getState().setFollowTarget({
-        ...ft,
-        lat: updatedLat,
-        lon: updatedLon,
-        altitude: updatedAlt,
-        heading: updatedHdg,
-        speed: updatedSpd,
-      });
-    }, 1500);
+      // Redraw trajectory at new position
+      drawTrajectory(updatedTarget);
+    }, 3000);
 
     return () => {
-      if (followIntervalRef.current) {
-        clearInterval(followIntervalRef.current);
-        followIntervalRef.current = null;
-      }
+      if (followIntervalRef.current) { clearInterval(followIntervalRef.current); followIntervalRef.current = null; }
     };
   }, [followTarget?.id, followTarget?.type]);
+
+  // ── Simulated city traffic when zoomed in ──
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const trafficMarkersRef: any[] = [];
+    let trafficInterval: ReturnType<typeof setInterval> | null = null;
+    let lastRange = Infinity;
+
+    const spawnTraffic = async () => {
+      // Remove old traffic
+      trafficMarkersRef.forEach(m => { try { m.remove(); } catch {} });
+      trafficMarkersRef.length = 0;
+
+      const range = map.range;
+      if (!range || range > 5000) return; // Only show when zoomed in close
+
+      const centerLat = map.center?.lat ?? 0;
+      const centerLng = map.center?.lng ?? 0;
+
+      // Find nearby cities
+      const nearbyCities = TRAFFIC_CITIES.filter(c => {
+        const dlat = c.lat - centerLat;
+        const dlon = c.lon - centerLng;
+        return Math.sqrt(dlat * dlat + dlon * dlon) < 1.5; // within ~150km
+      });
+
+      if (nearbyCities.length === 0) return;
+
+      try {
+        const lib = await (google.maps as any).importLibrary('maps3d');
+        const carCount = range < 1000 ? 60 : range < 2500 ? 35 : 15;
+        const colors = ['#e8e8e8', '#cccccc', '#ffdd44', '#ff4444', '#4488ff', '#222222', '#888888', '#ffffff'];
+
+        nearbyCities.forEach(city => {
+          const spread = range < 1000 ? 0.008 : range < 2500 ? 0.02 : 0.04;
+          for (let i = 0; i < carCount; i++) {
+            const lat = city.lat + (Math.random() - 0.5) * spread;
+            const lon = city.lon + (Math.random() - 0.5) * spread;
+            const heading = Math.random() * 360;
+            const color = colors[Math.floor(Math.random() * colors.length)];
+            const marker = new lib.Marker3DElement({
+              position: { lat, lng: lon, altitude: 0 },
+              altitudeMode: 'CLAMP_TO_GROUND',
+              sizePreserved: false,
+            });
+            const template = document.createElement('template');
+            template.content.append(carSvg(color, heading));
+            marker.append(template);
+            map.append(marker);
+            trafficMarkersRef.push(marker);
+          }
+        });
+      } catch {}
+    };
+
+    // Animate traffic: reposition cars slightly every 2 seconds
+    const animateTraffic = () => {
+      trafficMarkersRef.forEach(marker => {
+        try {
+          const pos = marker.position;
+          if (!pos) return;
+          const jitter = 0.0001;
+          marker.position = {
+            lat: pos.lat + (Math.random() - 0.5) * jitter,
+            lng: pos.lng + (Math.random() - 0.5) * jitter,
+            altitude: 0,
+          };
+        } catch {}
+      });
+    };
+
+    // Check range periodically
+    const rangeCheck = setInterval(() => {
+      const range = map.range ?? Infinity;
+      const rangeChanged = (range < 5000 && lastRange >= 5000) || (range >= 5000 && lastRange < 5000) ||
+        (range < 1000 && lastRange >= 1000) || (range >= 1000 && lastRange < 1000);
+      if (rangeChanged) {
+        spawnTraffic();
+      }
+      lastRange = range;
+      if (range < 5000) animateTraffic();
+    }, 2000);
+
+    // Initial spawn
+    setTimeout(spawnTraffic, 2000);
+
+    return () => {
+      clearInterval(rangeCheck);
+      if (trafficInterval) clearInterval(trafficInterval);
+      trafficMarkersRef.forEach(m => { try { m.remove(); } catch {} });
+    };
+  }, []);
 
   // ── Render markers ──
   useEffect(() => {
