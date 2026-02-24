@@ -2,6 +2,7 @@ import { useEffect, useRef, memo, useCallback } from 'react';
 import { useWorldViewStore, NUCLEAR_SITES } from '@/store/worldview';
 import { CONFLICT_ZONES } from '@/components/map/GlobeContainer';
 import { SUBMARINE_CABLES } from '@/data/submarineCables';
+import { MILITARY_BASES, SPACEPORTS, CHOKEPOINTS, DATACENTERS, CRITICAL_MINERALS } from '@/data/staticLayers';
 
 declare const google: any;
 
@@ -281,7 +282,7 @@ const Google3DGlobe = memo(() => {
               strokeWidth: 3,
               altitudeMode: 'CLAMP_TO_GROUND',
             });
-            polyline.coordinates = cable.coordinates.map(([lat, lon]) => ({ lat, lng: lon, altitude: 0 }));
+            polyline.coordinates = cable.coordinates.map(([lat, lon]: [number, number]) => ({ lat, lng: lon, altitude: 0 }));
             map.append(polyline);
             markersRef.current.push(polyline);
           });
@@ -290,6 +291,64 @@ const Google3DGlobe = memo(() => {
         }
       })();
     }
+
+    // Military bases (static)
+    MILITARY_BASES.forEach((base) => {
+      addMarker3D(base.lat, base.lon,
+        `<div style="text-align:center;filter:drop-shadow(0 0 4px #ff6b35);">
+          <div style="font-size:12px;">🎖</div>
+          <div style="font-size:6px;font-family:monospace;color:#ff6b35;text-shadow:0 0 3px #000;white-space:nowrap;">${base.name}</div>
+        </div>`,
+        0
+      );
+    });
+
+    // Spaceports
+    SPACEPORTS.forEach((sp) => {
+      addMarker3D(sp.lat, sp.lon,
+        `<div style="text-align:center;filter:drop-shadow(0 0 4px #00d4ff);">
+          <div style="font-size:12px;">🚀</div>
+          <div style="font-size:6px;font-family:monospace;color:#00d4ff;text-shadow:0 0 3px #000;white-space:nowrap;">${sp.name}</div>
+        </div>`,
+        0
+      );
+    });
+
+    // Chokepoints
+    CHOKEPOINTS.forEach((cp) => {
+      addMarker3D(cp.lat, cp.lon,
+        `<div style="text-align:center;">
+          <div style="font-size:11px;">⚓</div>
+          <div style="font-size:6px;font-family:monospace;color:#ff0088;text-shadow:0 0 3px #000;white-space:nowrap;">${cp.name}</div>
+          <div style="font-size:5px;font-family:monospace;color:#ff008880;text-shadow:0 0 2px #000;">${cp.flow}</div>
+        </div>`,
+        0
+      );
+    });
+
+    // Datacenters
+    if (layers.datacenters) {
+      DATACENTERS.forEach((dc) => {
+        addMarker3D(dc.lat, dc.lon,
+          `<div style="text-align:center;filter:drop-shadow(0 0 4px #5ab4ff);">
+            <div style="font-size:11px;">🖥</div>
+            <div style="font-size:6px;font-family:monospace;color:#5ab4ff;text-shadow:0 0 3px #000;white-space:nowrap;">${dc.name}</div>
+          </div>`,
+          0
+        );
+      });
+    }
+
+    // Critical minerals
+    CRITICAL_MINERALS.forEach((m) => {
+      addMarker3D(m.lat, m.lon,
+        `<div style="text-align:center;filter:drop-shadow(0 0 3px #ffb000);">
+          <div style="font-size:10px;">💎</div>
+          <div style="font-size:5px;font-family:monospace;color:#ffb000;text-shadow:0 0 2px #000;white-space:nowrap;">${m.mineral}</div>
+        </div>`,
+        0
+      );
+    });
   }, [layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, setDetailPanel]);
 
   return (

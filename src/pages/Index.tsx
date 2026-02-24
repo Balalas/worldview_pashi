@@ -4,6 +4,9 @@ import LeftPanel from '@/components/panels/LeftPanel';
 import RightPanel from '@/components/panels/RightPanel';
 import BottomFeed from '@/components/panels/BottomFeed';
 import MapContainer from '@/components/map/MapContainer';
+import HudOverlay from '@/components/hud/HudOverlay';
+import GlobeControls from '@/components/hud/GlobeControls';
+import SearchBar from '@/components/hud/SearchBar';
 import { useWorldViewStore, LAYER_SHORTCUTS } from '@/store/worldview';
 import { fetchEarthquakes, fetchLiveNews, fetchLiveAircraft } from '@/services/dataServices';
 import { generateRealisticSatellites, fetchISSPosition } from '@/services/satelliteService';
@@ -131,9 +134,12 @@ const Index = () => {
                 <GlobeContainer />
               </Suspense>
             )}
-            <div className="absolute inset-0 pointer-events-none overflow-hidden z-10">
-              <div className="w-full h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent animate-scan-line" />
-            </div>
+            {/* HUD Overlay */}
+            <HudOverlay />
+            {/* Search Bar */}
+            <SearchBar />
+            {/* Globe Controls */}
+            {mapMode === 'google3d' && <GlobeControls />}
           </div>
           <div className="h-[220px]">
             <BottomFeed />
