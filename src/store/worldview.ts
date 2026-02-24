@@ -98,6 +98,16 @@ export interface DetailPanel {
   data: any;
 }
 
+export interface FollowTarget {
+  type: 'aircraft' | 'satellite' | 'vessel';
+  id: string; // callsign, name, or vessel id
+  lat: number;
+  lon: number;
+  heading: number;
+  altitude: number; // meters
+  speed: number; // km/h or knots depending on type
+}
+
 export interface CountryInstability {
   country: string;
   flag: string;
@@ -196,6 +206,9 @@ export interface WorldViewState {
 
   activeRegion: string;
   setActiveRegion: (region: string) => void;
+
+  followTarget: FollowTarget | null;
+  setFollowTarget: (target: FollowTarget | null) => void;
 }
 
 export const useWorldViewStore = create<WorldViewState>((set) => ({
@@ -278,6 +291,9 @@ export const useWorldViewStore = create<WorldViewState>((set) => ({
 
   activeRegion: 'GLOBAL',
   setActiveRegion: (activeRegion) => set({ activeRegion }),
+
+  followTarget: null,
+  setFollowTarget: (followTarget) => set({ followTarget }),
 }));
 
 // Keyboard shortcuts
