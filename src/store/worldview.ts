@@ -157,6 +157,69 @@ export const REGION_PRESETS: RegionPreset[] = [
   { label: 'PACIFIC', emoji: '🌊', lat: 0, lon: -160, zoom: 3 },
 ];
 
+export const LANDMARK_PRESETS: RegionPreset[] = [
+  // Wonders & Icons
+  { label: 'GREAT WALL', emoji: '🏯', lat: 40.4319, lon: 116.5704, zoom: 12 },
+  { label: 'PYRAMIDS', emoji: '🔺', lat: 29.9792, lon: 31.1342, zoom: 15 },
+  { label: 'MACHU PICCHU', emoji: '🏔️', lat: -13.1631, lon: -72.5450, zoom: 15 },
+  { label: 'TAJ MAHAL', emoji: '🕌', lat: 27.1751, lon: 78.0421, zoom: 17 },
+  { label: 'COLOSSEUM', emoji: '🏛️', lat: 41.8902, lon: 12.4922, zoom: 17 },
+  { label: 'PETRA', emoji: '🏜️', lat: 30.3285, lon: 35.4444, zoom: 15 },
+  { label: 'CHRIST REDEEMER', emoji: '✝️', lat: -22.9519, lon: -43.2105, zoom: 16 },
+  { label: 'CHICHEN ITZA', emoji: '🛕', lat: 20.6843, lon: -88.5678, zoom: 16 },
+  // Cities & Skylines
+  { label: 'NEW YORK', emoji: '🗽', lat: 40.6892, lon: -74.0445, zoom: 14 },
+  { label: 'LONDON', emoji: '🇬🇧', lat: 51.5014, lon: -0.1419, zoom: 14 },
+  { label: 'PARIS', emoji: '🗼', lat: 48.8584, lon: 2.2945, zoom: 16 },
+  { label: 'TOKYO', emoji: '🗼', lat: 35.6586, lon: 139.7454, zoom: 14 },
+  { label: 'DUBAI', emoji: '🏙️', lat: 25.1972, lon: 55.2744, zoom: 15 },
+  { label: 'SYDNEY', emoji: '🦘', lat: -33.8568, lon: 151.2153, zoom: 16 },
+  { label: 'MOSCOW', emoji: '🏰', lat: 55.7539, lon: 37.6208, zoom: 15 },
+  { label: 'HONG KONG', emoji: '🌃', lat: 22.2783, lon: 114.1747, zoom: 14 },
+  { label: 'SINGAPORE', emoji: '🌴', lat: 1.2834, lon: 103.8607, zoom: 15 },
+  { label: 'SAN FRANCISCO', emoji: '🌉', lat: 37.8199, lon: -122.4783, zoom: 15 },
+  { label: 'ISTANBUL', emoji: '🕌', lat: 41.0082, lon: 28.9784, zoom: 14 },
+  { label: 'ROME', emoji: '🏛️', lat: 41.9028, lon: 12.4964, zoom: 14 },
+  { label: 'BEIJING', emoji: '🏯', lat: 39.9163, lon: 116.3972, zoom: 15 },
+  { label: 'CAIRO', emoji: '🏛️', lat: 30.0444, lon: 31.2357, zoom: 13 },
+  // Natural Wonders
+  { label: 'GRAND CANYON', emoji: '🏜️', lat: 36.1069, lon: -112.1129, zoom: 13 },
+  { label: 'NIAGARA FALLS', emoji: '💧', lat: 43.0962, lon: -79.0377, zoom: 15 },
+  { label: 'MT EVEREST', emoji: '🏔️', lat: 27.9881, lon: 86.9250, zoom: 14 },
+  { label: 'MT FUJI', emoji: '🗻', lat: 35.3606, lon: 138.7274, zoom: 13 },
+  { label: 'VICTORIA FALLS', emoji: '💧', lat: -17.9243, lon: 25.8572, zoom: 15 },
+  { label: 'ULURU', emoji: '🪨', lat: -25.3444, lon: 131.0369, zoom: 14 },
+  { label: 'AURORA / TROMSØ', emoji: '🌌', lat: 69.6496, lon: 18.9560, zoom: 12 },
+  { label: 'AMAZON RIVER', emoji: '🌿', lat: -3.1190, lon: -60.0217, zoom: 10 },
+  { label: 'SAHARA DESERT', emoji: '🏜️', lat: 23.4162, lon: 25.6628, zoom: 6 },
+  { label: 'GREAT BARRIER REEF', emoji: '🐠', lat: -18.2871, lon: 147.6992, zoom: 8 },
+  { label: 'YELLOWSTONE', emoji: '♨️', lat: 44.4280, lon: -110.5885, zoom: 11 },
+  { label: 'DEAD SEA', emoji: '🌊', lat: 31.5, lon: 35.5, zoom: 11 },
+  // Military & Strategic
+  { label: 'PENTAGON', emoji: '⭐', lat: 38.8719, lon: -77.0563, zoom: 17 },
+  { label: 'AREA 51', emoji: '👽', lat: 37.2431, lon: -115.7930, zoom: 13 },
+  { label: 'KREMLIN', emoji: '🏰', lat: 55.7520, lon: 37.6175, zoom: 17 },
+  { label: 'DMZ KOREA', emoji: '⚠️', lat: 37.9567, lon: 126.6778, zoom: 12 },
+  { label: 'DIEGO GARCIA', emoji: '🏝️', lat: -7.3195, lon: 72.4229, zoom: 12 },
+  { label: 'RAMSTEIN AFB', emoji: '✈️', lat: 49.4369, lon: 7.6003, zoom: 14 },
+  { label: 'GUANTÁNAMO', emoji: '🔒', lat: 19.9023, lon: -75.0961, zoom: 13 },
+  // Space & Tech
+  { label: 'CAPE CANAVERAL', emoji: '🚀', lat: 28.3922, lon: -80.6077, zoom: 14 },
+  { label: 'BAIKONUR', emoji: '🚀', lat: 45.9646, lon: 63.3052, zoom: 12 },
+  { label: 'CERN', emoji: '⚛️', lat: 46.2330, lon: 6.0557, zoom: 14 },
+  { label: 'SILICON VALLEY', emoji: '💻', lat: 37.3875, lon: -122.0575, zoom: 12 },
+  // Historical
+  { label: 'ACROPOLIS', emoji: '🏛️', lat: 37.9715, lon: 23.7267, zoom: 17 },
+  { label: 'ANGKOR WAT', emoji: '🛕', lat: 13.4125, lon: 103.8670, zoom: 16 },
+  { label: 'STONEHENGE', emoji: '🪨', lat: 51.1789, lon: -1.8262, zoom: 16 },
+  { label: 'POMPEII', emoji: '🌋', lat: 40.7484, lon: 14.4848, zoom: 16 },
+  { label: 'EASTER ISLAND', emoji: '🗿', lat: -27.1127, lon: -109.3497, zoom: 13 },
+  { label: 'FORBIDDEN CITY', emoji: '🏯', lat: 39.9163, lon: 116.3972, zoom: 17 },
+  { label: 'VERSAILLES', emoji: '👑', lat: 48.8049, lon: 2.1204, zoom: 16 },
+  { label: 'AUSCHWITZ', emoji: '🕯️', lat: 50.0343, lon: 19.1784, zoom: 16 },
+  { label: 'HIROSHIMA', emoji: '☮️', lat: 34.3955, lon: 132.4536, zoom: 16 },
+];
+
 export interface WorldViewState {
   layers: Record<LayerType, boolean>;
   toggleLayer: (layer: LayerType) => void;
