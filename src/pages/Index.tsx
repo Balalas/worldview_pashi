@@ -25,6 +25,7 @@ import { fetchActiveFiresEONET } from '@/services/fireService';
 
 const GlobeContainer = lazy(() => import('@/components/map/GlobeContainer'));
 const Google3DGlobe = lazy(() => import('@/components/map/Google3DGlobe'));
+const CesiumGlobe = lazy(() => import('@/components/map/CesiumGlobe'));
 
 // Auto-refreshing DOT snapshot image component
 const DotSnapshotImage = memo(({ snapshotUrl, name }: { snapshotUrl: string; name: string }) => {
@@ -283,6 +284,17 @@ const Index = () => {
               >
                 {mapMode === '2d' ? (
                   <MapContainer />
+                ) : mapMode === 'cesium' ? (
+                  <Suspense fallback={
+                    <div className="w-full h-full flex items-center justify-center bg-background">
+                      <div className="text-center">
+                        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                        <span className="text-[11px] font-display tracking-wider text-muted-foreground">LOADING CESIUM...</span>
+                      </div>
+                    </div>
+                  }>
+                    <CesiumGlobe />
+                  </Suspense>
                 ) : mapMode === 'google3d' ? (
                   <Suspense fallback={
                     <div className="w-full h-full flex items-center justify-center bg-background">
@@ -362,7 +374,7 @@ const Index = () => {
             {/* Search Bar */}
             <SearchBar />
             {/* Globe Controls */}
-            {mapMode === 'google3d' && <GlobeControls />}
+            {(mapMode === 'google3d' || mapMode === 'cesium') && <GlobeControls />}
             {/* Style Presets Bar */}
             <StylePresetsBar />
             {/* Style Parameters Panel */}
