@@ -267,12 +267,18 @@ const Index = () => {
             </div>
             {/* Tint overlay for style effects */}
             {STYLE_FILTERS[visualStyle].tint && (
-              <div className="absolute inset-0 pointer-events-none z-10" style={{ backgroundColor: STYLE_FILTERS[visualStyle].tint }} />
+              <div className="absolute inset-0 pointer-events-none z-10" style={{ backgroundColor: STYLE_FILTERS[visualStyle].tint, mixBlendMode: visualStyle === 'nvg' ? 'multiply' : 'normal' }} />
             )}
             {/* Scanline overlay for CRT/NVG */}
             {STYLE_FILTERS[visualStyle].scanlines && (
-              <div className="absolute inset-0 pointer-events-none z-10 opacity-[0.06]"
-                style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, hsl(var(--primary)) 2px, hsl(var(--primary)) 3px)' }}
+              <div className="absolute inset-0 pointer-events-none z-10 opacity-[0.08]"
+                style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 1px, rgba(0,0,0,0.3) 1px, rgba(0,0,0,0.3) 2px)' }}
+              />
+            )}
+            {/* Vignette overlay */}
+            {STYLE_FILTERS[visualStyle].vignette && (
+              <div className="absolute inset-0 pointer-events-none z-10"
+                style={{ background: 'radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.6) 100%)' }}
               />
             )}
             {/* Street View Overlay — fills main map when camera selected */}

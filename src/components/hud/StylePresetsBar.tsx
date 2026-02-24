@@ -14,37 +14,43 @@ const PRESETS: { id: VisualStyle; label: string; icon: string }[] = [
 /** CSS filter + overlay config per style */
 export const STYLE_FILTERS: Record<VisualStyle, {
   filter: string;
-  overlay?: string; // CSS background for overlay div
+  overlay?: string;
   mixBlend?: string;
   scanlines?: boolean;
-  tint?: string; // color for a tint overlay
+  tint?: string;
+  vignette?: boolean;
 }> = {
   normal: { filter: 'none' },
   crt: {
-    filter: 'contrast(1.15) saturate(0.85) brightness(0.9)',
+    filter: 'contrast(1.3) saturate(0.7) brightness(0.8) sepia(0.15)',
     scanlines: true,
-    tint: 'hsla(40, 100%, 50%, 0.04)',
+    tint: 'hsla(40, 100%, 40%, 0.08)',
+    vignette: true,
   },
   nvg: {
-    filter: 'brightness(1.4) contrast(1.3) saturate(0)',
-    tint: 'hsla(120, 100%, 40%, 0.25)',
+    filter: 'brightness(1.6) contrast(1.5) saturate(0)',
+    tint: 'hsla(120, 100%, 30%, 0.35)',
     scanlines: true,
+    vignette: true,
   },
   flir: {
-    filter: 'grayscale(1) contrast(1.6) brightness(1.1) invert(1)',
-    tint: 'hsla(200, 20%, 50%, 0.05)',
+    filter: 'grayscale(1) contrast(2.0) brightness(1.2) invert(1)',
+    tint: 'hsla(200, 30%, 40%, 0.06)',
+    vignette: true,
   },
   anime: {
-    filter: 'saturate(1.8) contrast(1.15) brightness(1.05)',
-    tint: 'hsla(280, 100%, 60%, 0.03)',
+    filter: 'saturate(2.2) contrast(1.2) brightness(1.1) hue-rotate(-5deg)',
+    tint: 'hsla(280, 100%, 60%, 0.04)',
   },
   noir: {
-    filter: 'grayscale(0.9) contrast(1.4) brightness(0.85)',
-    tint: 'hsla(0, 0%, 0%, 0.1)',
+    filter: 'grayscale(1) contrast(1.6) brightness(0.75)',
+    tint: 'hsla(0, 0%, 0%, 0.15)',
+    vignette: true,
   },
   snow: {
-    filter: 'brightness(1.3) contrast(0.9) saturate(0.3) hue-rotate(10deg)',
-    tint: 'hsla(200, 60%, 90%, 0.08)',
+    filter: 'brightness(1.4) contrast(0.85) saturate(0.2) hue-rotate(15deg)',
+    tint: 'hsla(200, 80%, 95%, 0.12)',
+    vignette: true,
   },
 };
 
