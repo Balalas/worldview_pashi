@@ -3,6 +3,7 @@ import { useWorldViewStore, NUCLEAR_SITES } from '@/store/worldview';
 import { CONFLICT_ZONES } from '@/components/map/GlobeContainer';
 import { SUBMARINE_CABLES } from '@/data/submarineCables';
 import { MILITARY_BASES, SPACEPORTS, CHOKEPOINTS, DATACENTERS, CRITICAL_MINERALS } from '@/data/staticLayers';
+import { PUBLIC_CAMERAS } from '@/data/publicCameras';
 
 declare const google: any;
 
@@ -34,7 +35,7 @@ const Google3DGlobe = memo(() => {
   const markersRef = useRef<any[]>([]);
   const initRef = useRef(false);
 
-  const { layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, setDetailPanel, mapCenter } = useWorldViewStore();
+  const { layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, setDetailPanel, setActiveLivestream, mapCenter } = useWorldViewStore();
 
   const initMap = useCallback(async () => {
     if (!containerRef.current || initRef.current) return;
@@ -349,7 +350,24 @@ const Google3DGlobe = memo(() => {
         0
       );
     });
-  }, [layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, setDetailPanel]);
+
+    // Public CCTV cameras
+    if (layers.cameras) {
+      const catIcons: Record<string, string> = { traffic: '🚦', city: '🏙', nature: '🌿', port: '⚓', airport: '✈️', landmark: '🏛', weather: '🌤', beach: '🏖' };
+      PUBLIC_CAMERAS.forEach((cam) => {
+        addMarker3D(cam.lat, cam.lon,
+          `<div style="cursor:pointer;text-align:center;filter:drop-shadow(0 0 4px #00ff88);">
+            <div style="width:18px;height:18px;background:#00ff8830;border:1.5px solid #00ff88;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto;">
+              <span style="font-size:10px;">📹</span>
+            </div>
+            <div style="font-size:6px;font-family:monospace;color:#00ff88;text-shadow:0 0 3px #000;white-space:nowrap;margin-top:1px;">${catIcons[cam.category] || '📷'} ${cam.name}</div>
+          </div>`,
+          0,
+          () => setActiveLivestream(cam.embedUrl)
+        );
+      });
+    }
+  }, [layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, setDetailPanel, setActiveLivestream]);
 
   return (
     <div ref={containerRef} className="w-full h-full bg-background">
