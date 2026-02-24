@@ -5,6 +5,7 @@ import RightPanel from '@/components/panels/RightPanel';
 import BottomFeed from '@/components/panels/BottomFeed';
 import MapContainer from '@/components/map/MapContainer';
 import HudOverlay from '@/components/hud/HudOverlay';
+import TrackingHud from '@/components/hud/TrackingHud';
 import GlobeControls from '@/components/hud/GlobeControls';
 import SearchBar from '@/components/hud/SearchBar';
 import { useWorldViewStore, LAYER_SHORTCUTS } from '@/store/worldview';
@@ -17,7 +18,7 @@ const GlobeContainer = lazy(() => import('@/components/map/GlobeContainer'));
 const Google3DGlobe = lazy(() => import('@/components/map/Google3DGlobe'));
 
 const Index = () => {
-  const { setAircraft, setSatellites, setEarthquakes, setNews, setLastRefresh, setNewsLoading, setWeatherAlerts, setVolcanoes, setVessels, setProtests, setOutages, toggleLayer, closeDetailPanel, mapMode } = useWorldViewStore();
+  const { setAircraft, setSatellites, setEarthquakes, setNews, setLastRefresh, setNewsLoading, setWeatherAlerts, setVolcanoes, setVessels, setProtests, setOutages, toggleLayer, closeDetailPanel, mapMode, setFollowTarget } = useWorldViewStore();
 
   useEffect(() => {
     // Initialize satellites
@@ -94,13 +95,13 @@ const Index = () => {
     const handler = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       const key = e.key.toLowerCase();
-      if (key === 'escape') { closeDetailPanel(); return; }
+      if (key === 'escape') { setFollowTarget(null); closeDetailPanel(); return; }
       const layer = LAYER_SHORTCUTS[key];
       if (layer) toggleLayer(layer);
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [toggleLayer, closeDetailPanel]);
+  }, [toggleLayer, closeDetailPanel, setFollowTarget]);
 
   return (
     <div className="h-screen w-screen flex flex-col bg-void overflow-hidden">
@@ -136,6 +137,8 @@ const Index = () => {
             )}
             {/* HUD Overlay */}
             <HudOverlay />
+            {/* AC-130 Tracking HUD */}
+            <TrackingHud />
             {/* Search Bar */}
             <SearchBar />
             {/* Globe Controls */}

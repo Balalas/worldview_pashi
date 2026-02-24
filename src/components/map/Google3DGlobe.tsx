@@ -286,18 +286,17 @@ const Google3DGlobe = memo(() => {
       }
     })();
 
-    // Cinematic camera: orbit around target while following
-    let angle = followTarget.heading;
-    const range = followTarget.type === 'satellite' ? 200000 : followTarget.type === 'aircraft' ? 15000 : 5000;
-    const tilt = followTarget.type === 'satellite' ? 45 : 65;
+    // Locked chase camera: behind target looking along heading
+    const range = followTarget.type === 'satellite' ? 150000 : followTarget.type === 'aircraft' ? 8000 : 3000;
+    const tilt = followTarget.type === 'satellite' ? 55 : 72;
 
-    // Initial fly-to
+    // Initial fly-to — camera behind target
     map.center = { lat: followTarget.lat, lng: followTarget.lon, altitude: followTarget.altitude };
     map.range = range;
     map.tilt = tilt;
-    map.heading = (followTarget.heading + 30) % 360; // offset for cinematic angle
+    map.heading = (followTarget.heading + 180) % 360; // look from behind
 
-    // Slow orbit
+    // Lock-on update loop
     followIntervalRef.current = setInterval(() => {
       const ft = useWorldViewStore.getState().followTarget;
       if (!ft) {
@@ -307,35 +306,35 @@ const Google3DGlobe = memo(() => {
 
       // Find updated position from live data
       const state = useWorldViewStore.getState();
-      let updatedLat = ft.lat, updatedLon = ft.lon, updatedAlt = ft.altitude, updatedHdg = ft.heading;
+      let updatedLat = ft.lat, updatedLon = ft.lon, updatedAlt = ft.altitude, updatedHdg = ft.heading, updatedSpd = ft.speed;
 
       if (ft.type === 'aircraft') {
         const ac = state.aircraft.find(a => a.callsign === ft.id);
-        if (ac) { updatedLat = ac.lat; updatedLon = ac.lon; updatedAlt = Math.max(ac.altitudeFt * 0.3048, 500); updatedHdg = ac.heading; }
+        if (ac) { updatedLat = ac.lat; updatedLon = ac.lon; updatedAlt = Math.max(ac.altitudeFt * 0.3048, 500); updatedHdg = ac.heading; updatedSpd = ac.speedKts * 1.852; }
       } else if (ft.type === 'satellite') {
         const sat = state.satellites.find(s => s.name === ft.id);
-        if (sat) { updatedLat = sat.lat; updatedLon = sat.lon; updatedAlt = Math.min(sat.alt * 1000, 600000); }
+        if (sat) { updatedLat = sat.lat; updatedLon = sat.lon; updatedAlt = Math.min(sat.alt * 1000, 600000); updatedSpd = sat.velocity * 3600; }
       } else if (ft.type === 'vessel') {
         const v = state.vessels.find(v => v.id === ft.id);
-        if (v) { updatedLat = v.lat; updatedLon = v.lon; updatedHdg = v.heading; }
+        if (v) { updatedLat = v.lat; updatedLon = v.lon; updatedHdg = v.heading; updatedSpd = v.speedKnots * 1.852; }
       }
 
-      angle = (angle + 0.3) % 360; // slow orbit
-
+      // Chase cam: always behind and slightly above, looking along heading
       map.center = { lat: updatedLat, lng: updatedLon, altitude: updatedAlt };
-      map.heading = angle;
+      map.heading = (updatedHdg + 180) % 360;
       map.tilt = tilt;
       map.range = range;
 
-      // Update the followTarget position for trajectory refresh
+      // Update the followTarget position for telemetry
       useWorldViewStore.getState().setFollowTarget({
         ...ft,
         lat: updatedLat,
         lon: updatedLon,
         altitude: updatedAlt,
         heading: updatedHdg,
+        speed: updatedSpd,
       });
-    }, 2000);
+    }, 1500);
 
     return () => {
       if (followIntervalRef.current) {
@@ -570,16 +569,6 @@ const Google3DGlobe = memo(() => {
           <span className="text-[11px] font-display tracking-wider text-muted-foreground">LOADING 3D GLOBE...</span>
         </div>
       </div>
-      {/* Stop follow button */}
-      {followTarget && (
-        <button
-          onClick={stopFollow}
-          className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-black/80 border border-primary/50 text-primary px-4 py-2 rounded font-mono text-xs tracking-wider hover:bg-primary/20 transition-colors flex items-center gap-2"
-        >
-          <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-          TRACKING: {followTarget.id} — CLICK TO STOP
-        </button>
-      )}
     </div>
   );
 });
