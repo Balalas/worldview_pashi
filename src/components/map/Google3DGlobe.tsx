@@ -208,6 +208,7 @@ const Google3DGlobe = memo(() => {
   const mapRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
   const trajectoryRef = useRef<any[]>([]); // separate ref for trajectory polylines
+  const activeCamConeRef = useRef<any[]>([]); // highlighted FOV cone for active camera
   const followIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const initRef = useRef(false);
 
@@ -231,11 +232,75 @@ const Google3DGlobe = memo(() => {
     trajectoryRef.current = [];
   }, [setFollowTarget]);
 
+  // Draw highlighted FOV cone for the active camera
+  const drawActiveCamCone = useCallback(async (cam: PublicCamera) => {
+    const map = mapRef.current;
+    if (!map) return;
+    // Clear previous highlighted cone
+    activeCamConeRef.current.forEach(el => { try { el.remove(); } catch {} });
+    activeCamConeRef.current = [];
+
+    try {
+      const { Polygon3DElement, Polyline3DElement } = await (google.maps as any).importLibrary('maps3d');
+      const heading = cam.heading ?? 0;
+      const fovDeg = 70; // wider highlight cone
+      const distKm = 0.12; // 120m range — much larger
+      const R = 6371;
+      const latRad = (cam.lat * Math.PI) / 180;
+      const lonRad = (cam.lon * Math.PI) / 180;
+
+      const calcPt = (angleDeg: number, d: number) => {
+        const a = (angleDeg * Math.PI) / 180;
+        const lat2 = Math.asin(Math.sin(latRad) * Math.cos(d / R) + Math.cos(latRad) * Math.sin(d / R) * Math.cos(a));
+        const lon2 = lonRad + Math.atan2(Math.sin(a) * Math.sin(d / R) * Math.cos(latRad), Math.cos(d / R) - Math.sin(latRad) * Math.sin(lat2));
+        return { lat: (lat2 * 180) / Math.PI, lng: (lon2 * 180) / Math.PI, altitude: 3 };
+      };
+
+      // Bright filled cone
+      const conePoints = [{ lat: cam.lat, lng: cam.lon, altitude: 3 }];
+      const arcSteps = 12;
+      for (let i = 0; i <= arcSteps; i++) {
+        conePoints.push(calcPt(heading - fovDeg / 2 + (fovDeg * i) / arcSteps, distKm));
+      }
+      conePoints.push({ lat: cam.lat, lng: cam.lon, altitude: 3 });
+
+      const cone = new Polygon3DElement({
+        fillColor: '#fbbf2480',
+        strokeColor: '#fbbf24',
+        strokeWidth: 2,
+        altitudeMode: 'RELATIVE_TO_GROUND',
+      });
+      if ('path' in cone) cone.path = conePoints;
+      else (cone as any).outerCoordinates = conePoints;
+      map.append(cone);
+      activeCamConeRef.current.push(cone);
+
+      // Center direction line
+      const centerLine = new Polyline3DElement({
+        strokeColor: '#fbbf24',
+        strokeWidth: 3,
+        altitudeMode: 'RELATIVE_TO_GROUND',
+      });
+      centerLine.path = [
+        { lat: cam.lat, lng: cam.lon, altitude: 3 },
+        calcPt(heading, distKm * 1.2),
+      ];
+      map.append(centerLine);
+      activeCamConeRef.current.push(centerLine);
+    } catch (err) {
+      console.warn('Active cam cone fail:', err);
+    }
+  }, []);
+
   // Fly camera to a CCTV location — immediately show street-level 3D + start livestream
   const flyToCamera = useCallback((cam: PublicCamera) => {
     stopFollow();
     const map = mapRef.current;
     if (!map) return;
+
+    // Draw highlighted FOV cone
+    drawActiveCamCone(cam);
+
     // Cinematic fly to street-level POV
     if (typeof map.flyCameraTo === 'function') {
       map.flyCameraTo({
@@ -255,7 +320,7 @@ const Google3DGlobe = memo(() => {
     }
     setDetailPanel({ type: 'camera', data: cam });
     setActiveLivestream(cam.feedType === 'snapshot' ? (cam.snapshotUrl || 'snapshot') : cam.embedUrl);
-  }, [setDetailPanel, stopFollow, setActiveLivestream]);
+  }, [setDetailPanel, stopFollow, setActiveLivestream, drawActiveCamCone]);
 
   const initMap = useCallback(async () => {
     if (!containerRef.current || initRef.current) return;
