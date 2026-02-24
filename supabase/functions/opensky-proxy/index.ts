@@ -19,20 +19,37 @@ Deno.serve(async (req) => {
 
     const openSkyUrl = `https://opensky-network.org/api/states/all?lamin=${lamin}&lamax=${lamax}&lomin=${lomin}&lomax=${lomax}`;
     
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
-    
-    const response = await fetch(openSkyUrl, {
-      headers: { 'Accept': 'application/json' },
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
+    // Try with 25s timeout first, then retry with smaller area
+    let response: Response | null = null;
+    for (const attempt of [0, 1]) {
+      const controller = new AbortController();
+      const timeoutMs = attempt === 0 ? 25000 : 20000;
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      
+      // On retry, use a smaller bounding box (Central Europe)
+      const url = attempt === 0 ? openSkyUrl : 
+        `https://opensky-network.org/api/states/all?lamin=45&lamax=55&lomin=5&lomax=20`;
+      
+      try {
+        response = await fetch(url, {
+          headers: { 'Accept': 'application/json' },
+          signal: controller.signal,
+        });
+        clearTimeout(timer);
+        if (response.ok) break;
+      } catch (e) {
+        clearTimeout(timer);
+        console.warn(`Attempt ${attempt + 1} failed:`, e instanceof Error ? e.message : e);
+        if (attempt === 1) throw e;
+      }
+    }
 
-    if (!response.ok) {
-      console.error(`OpenSky API error: ${response.status}`);
+    if (!response || !response.ok) {
+      const status = response?.status || 502;
+      console.error(`OpenSky API error: ${status}`);
       return new Response(
-        JSON.stringify({ success: false, error: `OpenSky returned ${response.status}` }),
-        { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: `OpenSky returned ${status}` }),
+        { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
