@@ -251,7 +251,7 @@ const Google3DGlobe = memo(() => {
       const { Map3DElement, MapMode } = await (google.maps as any).importLibrary('maps3d');
       const map = new Map3DElement({
         center: { lat: 20, lng: 0, altitude: 0 },
-        range: 25000000,
+        range: 200000000,
         tilt: 30,
         heading: 0,
         mode: MapMode.SATELLITE,
