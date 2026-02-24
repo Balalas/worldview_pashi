@@ -103,14 +103,14 @@ function iconSvg(icon: string, color: string, label: string, sublabel?: string) 
 
 function cameraSvg(name: string) {
   return svgEl(`<svg xmlns="http://www.w3.org/2000/svg" width="80" height="44" viewBox="0 0 80 44">
-    <circle cx="40" cy="14" r="12" fill="#00ff8830" stroke="#00ff88" stroke-width="1.5"/>
+    <circle cx="40" cy="14" r="12" fill="#fbbf2430" stroke="#fbbf24" stroke-width="1.5"/>
     <text x="40" y="18" text-anchor="middle" font-size="12">📹</text>
-    <circle cx="40" cy="14" r="14" fill="none" stroke="#00ff88" stroke-width="0.5" opacity="0.4">
+    <circle cx="40" cy="14" r="14" fill="none" stroke="#fbbf24" stroke-width="0.5" opacity="0.4">
       <animate attributeName="r" values="14;20;14" dur="2s" repeatCount="indefinite"/>
       <animate attributeName="opacity" values="0.4;0;0.4" dur="2s" repeatCount="indefinite"/>
     </circle>
     <rect x="2" y="28" width="76" height="13" rx="2" fill="#000" fill-opacity="0.7"/>
-    <text x="40" y="38" text-anchor="middle" font-family="monospace" font-size="7" fill="#00ff88">${name.substring(0,14)}</text>
+    <text x="40" y="38" text-anchor="middle" font-family="monospace" font-size="7" fill="#fbbf24">${name.substring(0,14)}</text>
   </svg>`);
 }
 
@@ -234,9 +234,10 @@ const Google3DGlobe = memo(() => {
     stopFollow();
     const map = mapRef.current;
     if (!map) return;
-    map.center = { lat: cam.lat, lng: cam.lon, altitude: 50 };
-    map.range = 300;
-    map.tilt = 75;
+    // True 3D POV: eye-level altitude (5m), very close range, near-horizontal tilt
+    map.center = { lat: cam.lat, lng: cam.lon, altitude: 5 };
+    map.range = 50;
+    map.tilt = 87;
     map.heading = cam.heading || 0;
     setDetailPanel({ type: 'camera', data: cam });
     // Auto-start the livestream
