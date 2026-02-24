@@ -101,7 +101,8 @@ function iconSvg(icon: string, color: string, label: string, sublabel?: string) 
   </svg>`);
 }
 
-function cameraSvg(name: string) {
+function cameraSvg(name: string, official?: boolean) {
+  const badge = official ? `<rect x="52" y="2" width="22" height="9" rx="2" fill="#fbbf24" fill-opacity="0.9"/><text x="63" y="9" text-anchor="middle" font-family="monospace" font-size="6" fill="#000" font-weight="bold">DOT</text>` : '';
   return svgEl(`<svg xmlns="http://www.w3.org/2000/svg" width="80" height="44" viewBox="0 0 80 44">
     <circle cx="40" cy="14" r="12" fill="#fbbf2430" stroke="#fbbf24" stroke-width="1.5"/>
     <text x="40" y="18" text-anchor="middle" font-size="12">📹</text>
@@ -109,6 +110,7 @@ function cameraSvg(name: string) {
       <animate attributeName="r" values="14;20;14" dur="2s" repeatCount="indefinite"/>
       <animate attributeName="opacity" values="0.4;0;0.4" dur="2s" repeatCount="indefinite"/>
     </circle>
+    ${badge}
     <rect x="2" y="28" width="76" height="13" rx="2" fill="#000" fill-opacity="0.7"/>
     <text x="40" y="38" text-anchor="middle" font-family="monospace" font-size="7" fill="#fbbf24">${name.substring(0,14)}</text>
   </svg>`);
@@ -240,8 +242,8 @@ const Google3DGlobe = memo(() => {
     map.tilt = 87;
     map.heading = cam.heading || 0;
     setDetailPanel({ type: 'camera', data: cam });
-    // Auto-start the livestream
-    setActiveLivestream(cam.embedUrl);
+    // Auto-start: for snapshot cameras, use a marker URL; for embeds, use the embed URL
+    setActiveLivestream(cam.feedType === 'snapshot' ? (cam.snapshotUrl || 'snapshot') : cam.embedUrl);
   }, [setDetailPanel, stopFollow, setActiveLivestream]);
 
   const initMap = useCallback(async () => {
@@ -686,7 +688,7 @@ const Google3DGlobe = memo(() => {
     if (layers.cameras) {
       PUBLIC_CAMERAS.forEach(cam => {
         addMarker(cam.lat, cam.lon,
-          cameraSvg(cam.name),
+          cameraSvg(cam.name, cam.official),
           0, true,
           () => flyToCamera(cam)
         );
