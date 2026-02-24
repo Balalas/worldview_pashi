@@ -48,7 +48,6 @@ const Google3DGlobe = memo(() => {
         tilt: 30,
         heading: 0,
         mode: MapMode.SATELLITE,
-        defaultLabelsDisabled: false,
       });
 
       map.style.width = '100%';
