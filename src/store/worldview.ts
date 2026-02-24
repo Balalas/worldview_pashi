@@ -326,6 +326,9 @@ export interface WorldViewState {
   leftPanelOpen: boolean;
   toggleLeftPanel: () => void;
 
+  bottomPanelCollapsed: boolean;
+  toggleBottomPanel: () => void;
+
   bottomTab: BottomPanelTab;
   setBottomTab: (tab: BottomPanelTab) => void;
 
@@ -430,6 +433,9 @@ export const useWorldViewStore = create<WorldViewState>((set) => ({
 
   leftPanelOpen: true,
   toggleLeftPanel: () => set((s) => ({ leftPanelOpen: !s.leftPanelOpen })),
+
+  bottomPanelCollapsed: false,
+  toggleBottomPanel: () => set((s) => ({ bottomPanelCollapsed: !s.bottomPanelCollapsed })),
 
   bottomTab: 'news',
   setBottomTab: (bottomTab) => set({ bottomTab }),

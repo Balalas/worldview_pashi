@@ -1,5 +1,5 @@
-import { useEffect, useRef, memo, useCallback } from 'react';
-import { useWorldViewStore, NUCLEAR_SITES, FollowTarget } from '@/store/worldview';
+import { useEffect, useRef, memo, useCallback, useState } from 'react';
+import { useWorldViewStore, NUCLEAR_SITES, FollowTarget, LANDMARK_PRESETS } from '@/store/worldview';
 import { CONFLICT_ZONES } from '@/components/map/GlobeContainer';
 import { SUBMARINE_CABLES } from '@/data/submarineCables';
 import { MILITARY_BASES, SPACEPORTS, CHOKEPOINTS, DATACENTERS, CRITICAL_MINERALS } from '@/data/staticLayers';
@@ -169,12 +169,21 @@ function generateTrajectory(
 }
 
 
-function carSvg(color: string, _heading: number) {
-  return svgEl(`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14">
-    <rect x="1" y="1" width="12" height="12" fill="none" stroke="${color}" stroke-width="1.5" opacity="0.85"/>
-    <line x1="7" y1="0" x2="7" y2="14" stroke="${color}" stroke-width="0.7" opacity="0.5"/>
-    <line x1="0" y1="7" x2="14" y2="7" stroke="${color}" stroke-width="0.7" opacity="0.5"/>
-    <rect x="5" y="5" width="4" height="4" fill="${color}" opacity="0.6"/>
+function carSvg(color: string, heading: number) {
+  return svgEl(`<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20">
+    <g transform="rotate(${heading}, 10, 10)">
+      <rect x="6" y="2" width="8" height="16" rx="3" fill="${color}" opacity="0.92" stroke="#000" stroke-width="0.5"/>
+      <rect x="7" y="4" width="6" height="3" rx="1" fill="#000" opacity="0.45"/>
+      <rect x="7" y="12" width="6" height="2" rx="0.5" fill="#000" opacity="0.3"/>
+      <circle cx="7.5" cy="2.5" r="1.2" fill="#ffffaa" opacity="0.9">
+        <animate attributeName="opacity" values="0.9;0.5;0.9" dur="1.5s" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="12.5" cy="2.5" r="1.2" fill="#ffffaa" opacity="0.9">
+        <animate attributeName="opacity" values="0.9;0.5;0.9" dur="1.5s" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="7.5" cy="17" r="0.9" fill="#ff3333" opacity="0.8"/>
+      <circle cx="12.5" cy="17" r="0.9" fill="#ff3333" opacity="0.8"/>
+    </g>
   </svg>`);
 }
 
@@ -1030,14 +1039,105 @@ const Google3DGlobe = memo(() => {
 
   }, [layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, fires, setDetailPanel, setActiveLivestream, flyToCamera, setFollowTarget, stopFollow, layerSubFilters]);
 
+  // ── Auto-orbit idle camera ──
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const orbitIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const orbitIdxRef = useRef(0);
+  const [mapReady, setMapReady] = useState(false);
+
+  // Mark map ready once initMap succeeds
+  useEffect(() => {
+    if (mapRef.current) setMapReady(true);
+    const check = setInterval(() => {
+      if (mapRef.current) { setMapReady(true); clearInterval(check); }
+    }, 500);
+    return () => clearInterval(check);
+  }, []);
+
+  // Auto-orbit: after 25s idle, start flying between landmarks
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+
+    const ORBIT_LOCATIONS = LANDMARK_PRESETS.filter(l =>
+      ['NEW YORK', 'TOKYO', 'DUBAI', 'PARIS', 'SYDNEY', 'PYRAMIDS', 'GRAND CANYON', 'SINGAPORE', 'LONDON', 'SAN FRANCISCO', 'HONG KONG', 'ROME', 'MT FUJI', 'ISTANBUL'].includes(l.label)
+    );
+
+    const startOrbit = () => {
+      if (followTarget || orbitIntervalRef.current) return;
+      const flyNext = () => {
+        const loc = ORBIT_LOCATIONS[orbitIdxRef.current % ORBIT_LOCATIONS.length];
+        orbitIdxRef.current++;
+        if (typeof map.flyCameraAround === 'function') {
+          map.flyCameraAround({
+            camera: {
+              center: { lat: loc.lat, lng: loc.lon, altitude: 0 },
+              range: Math.max(2000, Math.pow(2, 22 - loc.zoom) * 2),
+              tilt: 60,
+              heading: Math.random() * 360,
+            },
+            durationMillis: 18000,
+            rounds: 0.4,
+          });
+        } else if (typeof map.flyCameraTo === 'function') {
+          map.flyCameraTo({
+            endCamera: {
+              center: { lat: loc.lat, lng: loc.lon, altitude: 0 },
+              range: Math.max(2000, Math.pow(2, 22 - loc.zoom) * 2),
+              tilt: 60,
+              heading: Math.random() * 360,
+            },
+            durationMillis: 5000,
+          });
+        }
+      };
+      flyNext();
+      orbitIntervalRef.current = setInterval(flyNext, 20000);
+    };
+
+    const stopOrbit = () => {
+      if (orbitIntervalRef.current) {
+        clearInterval(orbitIntervalRef.current);
+        orbitIntervalRef.current = null;
+      }
+    };
+
+    const resetIdle = () => {
+      stopOrbit();
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = setTimeout(startOrbit, 25000);
+    };
+
+    // Listen for user interaction
+    const events = ['click', 'mousedown', 'wheel', 'touchstart', 'keydown'];
+    const container = containerRef.current;
+    events.forEach(e => container?.addEventListener(e, resetIdle, { passive: true }));
+
+    // Start idle timer initially
+    idleTimerRef.current = setTimeout(startOrbit, 25000);
+
+    return () => {
+      stopOrbit();
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      events.forEach(e => container?.removeEventListener(e, resetIdle));
+    };
+  }, [mapReady, followTarget]);
+
   return (
     <div ref={containerRef} className="w-full h-full bg-background relative">
-      <div className="w-full h-full flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-          <span className="text-[11px] font-display tracking-wider text-muted-foreground">LOADING 3D GLOBE...</span>
+      {!mapReady && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/95 backdrop-blur-sm animate-fade-in">
+          <div className="text-center">
+            <div className="relative w-16 h-16 mx-auto mb-3">
+              <div className="absolute inset-0 border-2 border-primary/20 rounded-full" />
+              <div className="absolute inset-0 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              <div className="absolute inset-2 border border-primary/10 border-b-transparent rounded-full animate-spin" style={{ animationDirection: 'reverse', animationDuration: '1.5s' }} />
+            </div>
+            <span className="text-[11px] font-display tracking-[0.25em] text-primary glow-green">INITIALIZING 3D GLOBE</span>
+            <div className="text-[8px] font-data text-muted-foreground/60 mt-1 tracking-wider">GOOGLE MAPS 3D TILES</div>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 });
