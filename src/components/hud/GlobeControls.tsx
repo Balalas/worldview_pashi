@@ -23,8 +23,9 @@ const LANDMARK_CATEGORIES: Record<Exclude<CategoryKey, 'regions'>, string[]> = {
 };
 
 const GlobeControls = memo(() => {
-  const { setMapCenter } = useWorldViewStore();
+  const { setMapCenter, bottomPanelCollapsed } = useWorldViewStore();
   const [activeCategory, setActiveCategory] = useState<CategoryKey>('regions');
+  const [expanded, setExpanded] = useState(false);
 
   const flyTo = useCallback((lat: number, lon: number, zoom: number) => {
     setMapCenter({ lat, lon, zoom });
@@ -39,48 +40,49 @@ const GlobeControls = memo(() => {
   const items = getItems();
 
   return (
-    <div className="absolute bottom-16 right-3 flex flex-col gap-1 pointer-events-auto z-30" style={{ maxHeight: 'calc(100vh - 200px)' }}>
+    <div className={`absolute left-1/2 -translate-x-1/2 z-30 pointer-events-auto transition-all duration-300 ${bottomPanelCollapsed ? 'bottom-[62px]' : 'bottom-[238px]'}`}>
+      {/* Expanded landmark list */}
+      {expanded && (
+        <div className="mb-1 flex flex-wrap items-center justify-center gap-0.5 max-w-[420px] mx-auto animate-fade-in">
+          {items.map((r) => (
+            <button
+              key={r.label}
+              onClick={() => flyTo(r.lat, r.lon, r.zoom)}
+              className="flex items-center gap-0.5 px-1.5 py-0.5 text-[7px] font-data tracking-wider text-muted-foreground hover:text-primary hover:bg-primary/10 rounded transition-colors whitespace-nowrap bg-background/20 backdrop-blur-sm border border-border/20"
+            >
+              <span>{r.emoji}</span>
+              <span>{r.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
-      {/* Category Tabs */}
-      <div className="flex flex-wrap gap-0.5 bg-background/80 backdrop-blur-sm border border-border rounded p-1 max-w-[140px]">
+      {/* Category bar */}
+      <div className="flex items-center justify-center gap-0.5 bg-background/20 backdrop-blur-sm border border-border/20 rounded-lg p-0.5 px-1">
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="text-[7px] font-data text-muted-foreground/60 hover:text-primary px-1 transition-colors"
+          title="Toggle landmarks"
+        >
+          {expanded ? '▾' : '▸'}
+        </button>
         {CATEGORIES.map(c => (
           <button
             key={c.key}
-            onClick={() => setActiveCategory(c.key)}
-            className={`px-1 py-0.5 text-[7px] font-data tracking-wider rounded transition-colors whitespace-nowrap ${
-              activeCategory === c.key
-                ? 'bg-primary/20 text-primary'
-                : 'text-muted-foreground hover:text-primary hover:bg-primary/10'
+            onClick={() => { setActiveCategory(c.key); if (!expanded) setExpanded(true); }}
+            className={`px-1.5 py-0.5 text-[7px] font-data tracking-wider rounded transition-colors whitespace-nowrap ${
+              activeCategory === c.key && expanded
+                ? 'bg-primary/15 text-primary'
+                : 'text-muted-foreground/60 hover:text-primary hover:bg-primary/10'
             }`}
           >
             {c.label}
           </button>
         ))}
       </div>
-
-      {/* Landmark List */}
-      <div className="flex flex-col gap-0.5 bg-background/80 backdrop-blur-sm border border-border rounded p-1 mt-0.5 overflow-y-auto scrollbar-thin max-h-[280px]">
-        {items.map((r) => (
-          <button
-            key={r.label}
-            onClick={() => flyTo(r.lat, r.lon, r.zoom)}
-            className="flex items-center gap-1 px-1.5 py-0.5 text-[8px] font-data tracking-wider text-muted-foreground hover:text-primary hover:bg-primary/10 rounded transition-colors whitespace-nowrap"
-          >
-            <span>{r.emoji}</span>
-            <span>{r.label}</span>
-          </button>
-        ))}
-      </div>
     </div>
   );
 });
-
-const ControlBtn = ({ icon, title, onClick }: { icon: string; title: string; onClick: () => void }) => (
-  <button onClick={onClick} title={title}
-    className="w-7 h-7 flex items-center justify-center text-sm font-data text-muted-foreground hover:text-primary hover:bg-primary/10 rounded transition-colors">
-    {icon}
-  </button>
-);
 
 GlobeControls.displayName = 'GlobeControls';
 export default GlobeControls;
