@@ -361,8 +361,8 @@ const Index = () => {
         {/* Right Panel — compact floating box */}
         {!isScreensaver && <RightPanel />}
 
-        {/* Globe Controls */}
-        {mapMode === 'google3d' && (
+        {/* Globe Controls — landmark navigation */}
+        {!isScreensaver && (
           <div className="pointer-events-auto">
             <GlobeControls />
           </div>
