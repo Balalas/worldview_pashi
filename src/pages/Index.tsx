@@ -21,7 +21,6 @@ import { generateVessels, extractProtestsFromNews, extractOutagesFromNews, fetch
 import { fetchActiveFiresEONET } from '@/services/fireService';
 
 const Google3DGlobe = lazy(() => import('@/components/map/Google3DGlobe'));
-const CesiumGlobe = lazy(() => import('@/components/map/CesiumGlobe'));
 
 // Visual mode shortcuts: 1-7
 const VISUAL_SHORTCUTS: Record<string, VisualStyle> = {
@@ -303,10 +302,6 @@ const Index = () => {
           >
             {mapMode === '2d' ? (
               <MapContainer />
-            ) : mapMode === 'cesium' ? (
-              <Suspense fallback={<MapLoader label="CESIUM" />}>
-                <CesiumGlobe />
-              </Suspense>
             ) : mapMode === 'google3d' ? (
               <Suspense fallback={<MapLoader label="GOOGLE 3D" />}>
                 <Google3DGlobe />
@@ -367,7 +362,7 @@ const Index = () => {
         {!isScreensaver && <RightPanel />}
 
         {/* Globe Controls */}
-        {(mapMode === 'google3d' || mapMode === 'cesium') && (
+        {mapMode === 'google3d' && (
           <div className="pointer-events-auto">
             <GlobeControls />
           </div>
