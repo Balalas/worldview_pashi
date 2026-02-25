@@ -108,11 +108,11 @@ export function computeStyleConfig(style: VisualStyle, params: Record<string, nu
 }
 
 const StylePresetsBar = memo(() => {
-  const { visualStyle, setVisualStyle } = useWorldViewStore();
+  const { visualStyle, setVisualStyle, bottomPanelCollapsed } = useWorldViewStore();
 
   return (
-    <div className="absolute bottom-0 left-1/2 -translate-x-1/2 z-30 pointer-events-auto mb-1">
-      <div className="flex items-center gap-0.5 bg-background/80 backdrop-blur-md border border-border rounded-lg p-1">
+    <div className={`absolute left-1/2 -translate-x-1/2 z-30 pointer-events-auto transition-all duration-300 ${bottomPanelCollapsed ? 'bottom-[34px]' : 'bottom-[210px]'}`}>
+      <div className="flex items-center gap-0.5 bg-background/30 backdrop-blur-sm border border-border/30 rounded-lg p-1">
         <span className="text-[8px] font-display tracking-[0.15em] text-muted-foreground px-2 hidden md:block">STYLE PRESETS</span>
         {PRESETS.map(p => (
           <button
