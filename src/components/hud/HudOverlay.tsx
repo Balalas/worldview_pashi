@@ -33,7 +33,7 @@ const HudOverlay = memo(() => {
         <div className="flex items-center gap-3 bg-background/30 backdrop-blur-sm border border-primary/8 rounded-sm px-3 py-0.5">
           <span className="text-[7px] font-data text-muted-foreground/50 tabular-nums">JD {dayOfYear}</span>
           <span className="text-[7px] text-primary/20">│</span>
-          <span className="text-[7px] font-data text-primary/50">{mapMode === 'cesium' ? 'CESIUM 3D' : mapMode === 'google3d' ? 'GOOGLE 3D' : 'LEAFLET 2D'}</span>
+          <span className="text-[7px] font-data text-primary/50">{mapMode === 'google3d' ? 'GOOGLE 3D' : 'LEAFLET 2D'}</span>
           <span className="text-[7px] text-primary/20">│</span>
           <span className="text-[7px] font-data text-muted-foreground/50">WGS84</span>
         </div>

@@ -128,7 +128,7 @@ export interface CountryInstability {
 }
 
 export type BottomPanelTab = 'news' | 'livestream' | 'radio' | 'pizza' | 'weather' | 'stats';
-export type MapMode = '2d' | 'google3d' | 'cesium';
+export type MapMode = '2d' | 'google3d';
 export type DashboardMode = 'WORLD' | 'TECH' | 'FINANCE';
 export type VisualStyle = 'normal' | 'crt' | 'nvg' | 'flir' | 'anime' | 'noir' | 'snow';
 export type DetectionMode = 'full' | 'sparse';
@@ -463,7 +463,7 @@ export const useWorldViewStore = create<WorldViewState>((set) => ({
   newsLoading: false,
   setNewsLoading: (newsLoading) => set({ newsLoading }),
 
-  mapMode: 'cesium',
+  mapMode: 'google3d',
   setMapMode: (mapMode) => set({ mapMode }),
 
   dashboardMode: 'WORLD',
