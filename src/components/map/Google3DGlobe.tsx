@@ -536,7 +536,7 @@ const Google3DGlobe = memo(() => {
       map.heading = (followTarget.heading + 180) % 360;
     }
 
-    // Periodic update: keep camera centered on target but preserve user's heading/tilt/range
+    // Periodic update: keep camera centered on target smoothly
     followIntervalRef.current = setInterval(() => {
       const ft = useWorldViewStore.getState().followTarget;
       if (!ft) { if (followIntervalRef.current) clearInterval(followIntervalRef.current); return; }
@@ -558,12 +558,24 @@ const Google3DGlobe = memo(() => {
       const updatedTarget: FollowTarget = { ...ft, lat: updatedLat, lon: updatedLon, altitude: updatedAlt, heading: updatedHdg, speed: updatedSpd };
       useWorldViewStore.getState().setFollowTarget(updatedTarget);
 
-      // Keep camera centered on target — but preserve user's tilt, heading, range (orbit freedom)
-      map.center = { lat: updatedLat, lng: updatedLon, altitude: updatedAlt };
+      // Smooth camera follow using flyCameraTo for interpolation
+      if (typeof map.flyCameraTo === 'function') {
+        map.flyCameraTo({
+          endCamera: {
+            center: { lat: updatedLat, lng: updatedLon, altitude: updatedAlt },
+            range: map.range ?? range,
+            tilt: map.tilt ?? tilt,
+            heading: map.heading ?? 0,
+          },
+          durationMillis: 1800,
+        });
+      } else {
+        map.center = { lat: updatedLat, lng: updatedLon, altitude: updatedAlt };
+      }
 
       // Redraw trajectory at new position
       drawTrajectory(updatedTarget);
-    }, 2500);
+    }, 2000);
 
     return () => {
       if (followIntervalRef.current) { clearInterval(followIntervalRef.current); followIntervalRef.current = null; }
@@ -712,20 +724,47 @@ const Google3DGlobe = memo(() => {
     };
   }, [layerSubFilters.showTraffic, layerSubFilters.trafficDensity]);
 
-  // ── Render markers ──
+  // ── Render markers (double-buffered to prevent flicker) ──
+  const pendingMarkersRef = useRef<any[]>([]);
+  const renderGenRef = useRef(0);
+
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
-    markersRef.current.forEach(m => { try { m.remove(); } catch {} });
-    markersRef.current = [];
+    const thisGen = ++renderGenRef.current;
+    const newMarkers: any[] = [];
+    let addedCount = 0;
+    let expectedCount = 0;
+    let flushed = false;
+
+    // Flush: swap old markers for new once all are ready
+    const tryFlush = () => {
+      if (flushed || thisGen !== renderGenRef.current) return;
+      if (addedCount < expectedCount) return;
+      flushed = true;
+      // Remove old markers
+      markersRef.current.forEach(m => { try { m.remove(); } catch {} });
+      markersRef.current = newMarkers;
+    };
+
+    // Fallback: flush after timeout even if some markers failed
+    const flushTimer = setTimeout(() => {
+      if (!flushed && thisGen === renderGenRef.current) {
+        flushed = true;
+        markersRef.current.forEach(m => { try { m.remove(); } catch {} });
+        markersRef.current = newMarkers;
+      }
+    }, 2000);
 
     const addMarker = async (
       lat: number, lng: number, svg: SVGElement,
       altitude = 0, sizePreserved = false, onClick?: () => void
     ) => {
+      if (thisGen !== renderGenRef.current) return;
       try {
         const lib = await (google.maps as any).importLibrary('maps3d');
+        if (thisGen !== renderGenRef.current) return;
         const MarkerClass = onClick ? lib.Marker3DInteractiveElement : lib.Marker3DElement;
         const marker = new MarkerClass({
           position: { lat, lng, altitude },
@@ -742,9 +781,12 @@ const Google3DGlobe = memo(() => {
           });
         }
         map.append(marker);
-        markersRef.current.push(marker);
+        newMarkers.push(marker);
       } catch (err) {
         console.warn('Marker fail:', err);
+      } finally {
+        addedCount++;
+        tryFlush();
       }
     };
 
@@ -936,7 +978,7 @@ const Google3DGlobe = memo(() => {
             const polyline = new Polyline3DElement({ strokeColor: cable.color, strokeWidth: 3, altitudeMode: 'CLAMP_TO_GROUND' });
             polyline.path = cable.coordinates.map(([lat, lon]: [number, number]) => ({ lat, lng: lon, altitude: 0 }));
             map.append(polyline);
-            markersRef.current.push(polyline);
+            newMarkers.push(polyline);
           });
         } catch {}
       })();
@@ -968,7 +1010,7 @@ const Google3DGlobe = memo(() => {
             const polyline = new Polyline3DElement({ strokeColor: pipe.color + 'BB', strokeWidth: 4, altitudeMode: 'CLAMP_TO_GROUND' });
             polyline.path = pipe.coordinates.map(([lat, lon]) => ({ lat, lng: lon, altitude: 0 }));
             map.append(polyline);
-            markersRef.current.push(polyline);
+            newMarkers.push(polyline);
             // Add label marker at midpoint
             const mid = pipe.coordinates[Math.floor(pipe.coordinates.length / 2)];
             addMarker(mid[0], mid[1], iconSvg('🛢️', pipe.color, pipe.name.substring(0, 14), pipe.capacity), 0, true);
@@ -1037,7 +1079,7 @@ const Google3DGlobe = memo(() => {
               (cone as any).outerCoordinates = conePoints;
             }
             map.append(cone);
-            markersRef.current.push(cone);
+            newMarkers.push(cone);
           });
         } catch (err) {
           console.warn('Camera FOV cone fail:', err);
@@ -1045,6 +1087,10 @@ const Google3DGlobe = memo(() => {
       })();
     }
 
+    // Set expected count hint (not exact due to async polylines/cones, but flush timer handles that)
+    expectedCount = 999999; // rely on flush timer for final swap
+    // Trigger flush timer-based swap
+    return () => { clearTimeout(flushTimer); };
   }, [layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, fires, setDetailPanel, setActiveLivestream, flyToCamera, setFollowTarget, stopFollow, layerSubFilters]);
 
   // ── Auto-orbit idle camera ──
