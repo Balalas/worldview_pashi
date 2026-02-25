@@ -1,6 +1,6 @@
 import { useEffect, useRef, memo, useCallback, useState } from 'react';
 import { useWorldViewStore, NUCLEAR_SITES, FollowTarget, LANDMARK_PRESETS } from '@/store/worldview';
-import { CONFLICT_ZONES } from '@/components/map/GlobeContainer';
+import { CONFLICT_ZONES } from '@/data/conflictZones';
 import { SUBMARINE_CABLES } from '@/data/submarineCables';
 import { MILITARY_BASES, SPACEPORTS, CHOKEPOINTS, DATACENTERS, CRITICAL_MINERALS } from '@/data/staticLayers';
 import { PUBLIC_CAMERAS, PublicCamera } from '@/data/publicCameras';
@@ -250,7 +250,38 @@ const CesiumGlobe = memo(() => {
       return entity;
     };
 
-    // Aircraft
+    // Helper: generate great-circle arc positions with altitude profile
+    const generateFlightArc = (lat: number, lon: number, heading: number, altMeters: number, rangeDeg: number = 8) => {
+      const positions: number[] = [];
+      const cruiseAlt = Math.max(altMeters, 500);
+      const steps = 40;
+      const headingRad = Cesium.Math.toRadians(heading);
+      
+      for (let i = -steps / 2; i <= steps / 2; i++) {
+        const t = i / (steps / 2); // -1 to 1
+        const frac = (t + 1) / 2; // 0 to 1
+        const dist = t * rangeDeg;
+        
+        // Great circle offset
+        const dLat = dist * Math.cos(headingRad);
+        const dLon = dist * Math.sin(headingRad) / Math.cos(Cesium.Math.toRadians(lat));
+        
+        // Altitude profile: climb → cruise → descent
+        let altProfile: number;
+        if (frac < 0.15) {
+          altProfile = cruiseAlt * (frac / 0.15) * 0.3; // climb
+        } else if (frac > 0.85) {
+          altProfile = cruiseAlt * ((1 - frac) / 0.15) * 0.3; // descent
+        } else {
+          altProfile = cruiseAlt; // cruise
+        }
+        
+        positions.push(lon + dLon, lat + dLat, Math.max(altProfile, 200));
+      }
+      return positions;
+    };
+
+    // Aircraft with great-circle trajectory arcs
     if (layers.aircraft) {
       let filtered = aircraft.filter(ac => {
         if (!layers.militaryFlights && ac.isMilitary) return false;
@@ -264,14 +295,33 @@ const CesiumGlobe = memo(() => {
       filtered.forEach(ac => {
         const color = ac.isMilitary ? '#ff6b35' : '#00ff88';
         const alt = Math.max(ac.altitudeFt * 0.3048, 500);
-        addPoint(ac.lat, ac.lon, color, ac.isMilitary ? 8 : 6, `✈ ${ac.callsign}`, alt, () => {
+        
+        // Aircraft dot
+        addPoint(ac.lat, ac.lon, color, ac.isMilitary ? 9 : 7, `✈ ${ac.callsign}`, alt, () => {
           setDetailPanel({ type: 'aircraft', data: ac });
           setFollowTarget({ type: 'aircraft', id: ac.callsign, lat: ac.lat, lon: ac.lon, heading: ac.heading, altitude: alt, speed: ac.speedKts * 1.852 });
         });
+
+        // Dashed trajectory arc (great-circle with altitude profile)
+        if (ac.heading && ac.speedKts > 50 && !ac.onGround) {
+          const arcPositions = generateFlightArc(ac.lat, ac.lon, ac.heading, alt, ac.isMilitary ? 5 : 6);
+          const arcEntity = viewer.entities.add({
+            polyline: {
+              positions: Cesium.Cartesian3.fromDegreesArrayHeights(arcPositions),
+              width: ac.isMilitary ? 2 : 1.5,
+              material: new Cesium.PolylineDashMaterialProperty({
+                color: Cesium.Color.fromCssColorString(color).withAlpha(0.35),
+                dashLength: 12,
+                dashPattern: 255,
+              }),
+            },
+          });
+          entitiesRef.current.push(arcEntity);
+        }
       });
     }
 
-    // Satellites
+    // Satellites with orbital path rings
     if (layers.satellites) {
       satellites.forEach(sat => {
         const isISS = sat.name.includes('ISS');
@@ -284,10 +334,35 @@ const CesiumGlobe = memo(() => {
         if (!isISS && !isMil && !isStarlink && !isDebris && !layerSubFilters.showCommSats) return;
         const color = isStarlink ? '#a855f7' : isMil ? '#ff6b35' : isISS ? '#ff6600' : isDebris ? '#666666' : '#00d4ff';
         const alt = sat.alt * 1000;
+        
+        // Satellite point
         addPoint(sat.lat, sat.lon, color, isISS ? 12 : 5, isISS ? '🛰 ISS' : sat.name.substring(0, 12), alt, () => {
           setDetailPanel({ type: 'satellite', data: sat });
           setFollowTarget({ type: 'satellite', id: sat.name, lat: sat.lat, lon: sat.lon, heading: 0, altitude: alt, speed: sat.velocity * 3600 });
         });
+
+        // Orbital track for ISS and military sats
+        if (isISS || isMil) {
+          const orbitPositions: number[] = [];
+          const incl = isISS ? 51.6 : 65 + Math.random() * 30;
+          for (let deg = 0; deg <= 360; deg += 3) {
+            const rad = Cesium.Math.toRadians(deg);
+            const oLat = Math.asin(Math.sin(Cesium.Math.toRadians(incl)) * Math.sin(rad));
+            const oLon = Cesium.Math.toRadians(sat.lon) + Math.atan2(Math.cos(Cesium.Math.toRadians(incl)) * Math.sin(rad), Math.cos(rad));
+            orbitPositions.push(Cesium.Math.toDegrees(oLon), Cesium.Math.toDegrees(oLat), alt);
+          }
+          const orbitEntity = viewer.entities.add({
+            polyline: {
+              positions: Cesium.Cartesian3.fromDegreesArrayHeights(orbitPositions),
+              width: isISS ? 1.5 : 1,
+              material: new Cesium.PolylineDashMaterialProperty({
+                color: Cesium.Color.fromCssColorString(color).withAlpha(0.2),
+                dashLength: 8,
+              }),
+            },
+          });
+          entitiesRef.current.push(orbitEntity);
+        }
       });
     }
 

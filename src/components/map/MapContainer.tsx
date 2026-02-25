@@ -2,7 +2,7 @@ import { useEffect, useRef, memo } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useWorldViewStore, NUCLEAR_SITES } from '@/store/worldview';
-import { CONFLICT_ZONES } from '@/components/map/GlobeContainer';
+import { CONFLICT_ZONES } from '@/data/conflictZones';
 import { SUBMARINE_CABLES } from '@/data/submarineCables';
 import { PUBLIC_CAMERAS } from '@/data/publicCameras';
 import { COUNTRY_META } from '@/data/countryMeta';

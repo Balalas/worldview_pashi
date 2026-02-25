@@ -128,7 +128,7 @@ export interface CountryInstability {
 }
 
 export type BottomPanelTab = 'news' | 'livestream' | 'radio' | 'pizza' | 'weather' | 'stats';
-export type MapMode = '2d' | '3d' | 'google3d' | 'cesium';
+export type MapMode = '2d' | 'google3d' | 'cesium';
 export type DashboardMode = 'WORLD' | 'TECH' | 'FINANCE';
 export type VisualStyle = 'normal' | 'crt' | 'nvg' | 'flir' | 'anime' | 'noir' | 'snow';
 export type DetectionMode = 'full' | 'sparse';
