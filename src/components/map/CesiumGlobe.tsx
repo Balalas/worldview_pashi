@@ -47,15 +47,14 @@ const CesiumGlobe = memo(() => {
     });
 
     // Add Google Photorealistic 3D Tiles + OSM Buildings
+    let hasGoogleTiles = false;
     const add3DTiles = async () => {
       try {
         const googleTileset = await Cesium.createGooglePhotorealistic3DTileset();
         viewer.scene.primitives.add(googleTileset);
-        // Keep globe visible for atmosphere/lighting — Google tiles render on top
-        // Make globe translucent so it doesn't z-fight with tiles at close zoom
-        viewer.scene.globe.translucency.enabled = true;
-        viewer.scene.globe.translucency.frontFaceAlpha = 0.0;
-        viewer.scene.globe.translucency.backFaceAlpha = 0.0;
+        hasGoogleTiles = true;
+        // Google tiles have baked lighting — hide globe surface but keep atmosphere
+        viewer.scene.globe.show = false;
       } catch (err) {
         console.warn('Google 3D Tiles failed, falling back to OSM Buildings:', err);
         try {
@@ -68,7 +67,7 @@ const CesiumGlobe = memo(() => {
     };
     add3DTiles();
 
-    // Scene settings — realistic lighting with sun & moon
+    // Scene settings — sun, moon, atmosphere
     try {
       viewer.scene.globe.enableLighting = true;
       viewer.scene.globe.dynamicAtmosphereLighting = true;
@@ -77,24 +76,24 @@ const CesiumGlobe = memo(() => {
       viewer.scene.fog.enabled = true;
       viewer.scene.fog.density = 0.0001;
       viewer.scene.skyBox.show = true;
-      
-      // Enable sun and moon
+
+      // Sun and moon visible in the sky
       viewer.scene.sun = new Cesium.Sun();
       viewer.scene.sun.show = true;
       viewer.scene.moon = new Cesium.Moon();
       viewer.scene.moon.show = true;
-      
-      // Real-time clock for accurate sun/moon positioning
+
+      // Real-time clock for accurate positioning
       viewer.clock.shouldAnimate = true;
       viewer.clock.currentTime = Cesium.JulianDate.now();
 
-      // Use Cesium's built-in sun light (SunLight) for realistic day/night
-      viewer.scene.light = new Cesium.SunLight();
+      // Atmosphere glow stays visible even when globe is hidden
+      viewer.scene.skyAtmosphere.show = true;
     } catch (e) {
       console.warn('Lighting setup error:', e);
     }
 
-    // Darker background for night side
+    // Dark base color for non-Google-tiles fallback
     viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString('#0a0a0a');
 
     // Set initial camera position — global view
