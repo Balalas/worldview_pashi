@@ -18,7 +18,7 @@ function loadGoogleMaps(): Promise<void> {
   if (googleMapsLoadPromise) return googleMapsLoadPromise;
   googleMapsLoadPromise = new Promise((resolve, reject) => {
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&v=alpha&libraries=maps3d`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&v=beta&libraries=maps3d`;
     script.async = true;
     script.defer = true;
     script.onload = () => { googleMapsLoaded = true; resolve(); };
