@@ -23,7 +23,6 @@ import { fetchGlobalWeather, ACTIVE_VOLCANOES } from '@/services/weatherService'
 import { generateVessels, extractProtestsFromNews, extractOutagesFromNews, fetchCyberNews } from '@/services/vesselService';
 import { fetchActiveFiresEONET } from '@/services/fireService';
 
-const GlobeContainer = lazy(() => import('@/components/map/GlobeContainer'));
 const Google3DGlobe = lazy(() => import('@/components/map/Google3DGlobe'));
 const CesiumGlobe = lazy(() => import('@/components/map/CesiumGlobe'));
 
@@ -297,11 +296,7 @@ const Index = () => {
               <Suspense fallback={<MapLoader label="GOOGLE 3D" />}>
                 <Google3DGlobe />
               </Suspense>
-            ) : (
-              <Suspense fallback={<MapLoader label="GLOBE" />}>
-                <GlobeContainer />
-              </Suspense>
-            )}
+            ) : null}
           </div>
         </div>
 

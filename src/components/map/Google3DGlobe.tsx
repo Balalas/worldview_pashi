@@ -1,6 +1,6 @@
 import { useEffect, useRef, memo, useCallback, useState } from 'react';
 import { useWorldViewStore, NUCLEAR_SITES, FollowTarget, LANDMARK_PRESETS } from '@/store/worldview';
-import { CONFLICT_ZONES } from '@/components/map/GlobeContainer';
+import { CONFLICT_ZONES } from '@/data/conflictZones';
 import { SUBMARINE_CABLES } from '@/data/submarineCables';
 import { MILITARY_BASES, SPACEPORTS, CHOKEPOINTS, DATACENTERS, CRITICAL_MINERALS } from '@/data/staticLayers';
 import { PUBLIC_CAMERAS, PublicCamera } from '@/data/publicCameras';
