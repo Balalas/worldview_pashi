@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useState } from 'react';
 import { useWorldViewStore, VisualStyle } from '@/store/worldview';
 
 const PRESETS: { id: VisualStyle; label: string; icon: string }[] = [
@@ -21,17 +21,49 @@ export interface StyleConfig {
   scanlineOpacity?: number;
 }
 
-/**
- * Computes the live CSS filter string + overlay config from store params.
- * Each style maps its sliders into real CSS filter values.
- */
+const STYLE_PARAMS: Record<VisualStyle, { label: string; key: string; default: number }[]> = {
+  normal: [],
+  crt: [
+    { label: 'Pixelation', key: 'pixelation', default: 30 },
+    { label: 'Distortion', key: 'distortion', default: 20 },
+    { label: 'Instability', key: 'instability', default: 50 },
+  ],
+  nvg: [
+    { label: 'Gain', key: 'gain', default: 60 },
+    { label: 'Bloom', key: 'bloom', default: 70 },
+    { label: 'Scanlines', key: 'scanlines', default: 100 },
+    { label: 'Pixelation', key: 'pixelation', default: 20 },
+  ],
+  flir: [
+    { label: 'Sensitivity', key: 'sensitivity', default: 80 },
+    { label: 'Bloom', key: 'bloom', default: 70 },
+    { label: 'WHOT/BHOT', key: 'whot', default: 60 },
+    { label: 'Pixelation', key: 'pixelation', default: 10 },
+  ],
+  anime: [
+    { label: 'Saturation', key: 'saturation', default: 80 },
+    { label: 'Bloom', key: 'bloom', default: 50 },
+    { label: 'Edge Detect', key: 'edge', default: 30 },
+  ],
+  noir: [
+    { label: 'Contrast', key: 'contrast', default: 70 },
+    { label: 'Grain', key: 'grain', default: 40 },
+    { label: 'Vignette', key: 'vignette', default: 60 },
+  ],
+  snow: [
+    { label: 'Intensity', key: 'intensity', default: 50 },
+    { label: 'Bloom', key: 'bloom', default: 40 },
+    { label: 'Frost', key: 'frost', default: 30 },
+  ],
+};
+
 export function computeStyleConfig(style: VisualStyle, params: Record<string, number>): StyleConfig {
   const p = (key: string, def: number) => params[key] ?? def;
 
   switch (style) {
     case 'crt': {
-      const bloom = p('bloom', 100) / 100;       // 0-1 maps to brightness boost
-      const sharpen = p('sharpen', 56) / 100;     // contrast boost
+      const bloom = p('bloom', 100) / 100;
+      const sharpen = p('sharpen', 56) / 100;
       const pixelation = p('pixelation', 30) / 100;
       const distortion = p('distortion', 20) / 100;
       const instability = p('instability', 50) / 100;
@@ -108,26 +140,62 @@ export function computeStyleConfig(style: VisualStyle, params: Record<string, nu
 }
 
 const StylePresetsBar = memo(() => {
-  const { visualStyle, setVisualStyle, bottomPanelCollapsed } = useWorldViewStore();
+  const { visualStyle, setVisualStyle, bottomPanelCollapsed, filterParams, setFilterParam } = useWorldViewStore();
+  const [openSettings, setOpenSettings] = useState<VisualStyle | null>(null);
+
+  const handlePresetClick = (id: VisualStyle) => {
+    setVisualStyle(id);
+    const params = STYLE_PARAMS[id];
+    if (params.length > 0) {
+      setOpenSettings(id);
+    } else {
+      setOpenSettings(null);
+    }
+  };
+
+  const activeParams = openSettings ? STYLE_PARAMS[openSettings] : [];
+  const getValue = (key: string, def: number) => filterParams[key] ?? def;
 
   return (
     <div className={`absolute left-1/2 -translate-x-1/2 z-30 pointer-events-auto transition-all duration-300 ${bottomPanelCollapsed ? 'bottom-[34px]' : 'bottom-[210px]'}`}>
+      {/* Inline settings popup above the active preset */}
+      {openSettings && activeParams.length > 0 && (
+        <div className="mb-1 bg-background/40 backdrop-blur-sm border border-border/30 rounded-lg p-2 w-[180px] mx-auto animate-fade-in">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[8px] font-display tracking-[0.15em] text-primary">{openSettings.toUpperCase()}</span>
+            <button onClick={() => setOpenSettings(null)} className="text-muted-foreground hover:text-foreground text-[10px] leading-none">✕</button>
+          </div>
+          <div className="space-y-1.5">
+            {activeParams.map(p => (
+              <div key={p.key}>
+                <div className="flex items-center justify-between mb-0.5">
+                  <span className="text-[8px] font-data text-muted-foreground">{p.label}</span>
+                  <span className="text-[8px] font-data text-primary/80">{getValue(p.key, p.default)}%</span>
+                </div>
+                <input
+                  type="range" min="0" max="100" value={getValue(p.key, p.default)}
+                  onChange={e => setFilterParam(p.key, Number(e.target.value))}
+                  className="w-full h-0.5 appearance-none bg-muted rounded cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2 [&::-webkit-slider-thumb]:h-2 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:shadow-[0_0_4px_rgba(0,255,136,0.4)]"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Preset buttons */}
       <div className="flex items-center gap-0.5 bg-background/30 backdrop-blur-sm border border-border/30 rounded-lg p-1">
-        <span className="text-[8px] font-display tracking-[0.15em] text-muted-foreground px-2 hidden md:block">STYLE PRESETS</span>
         {PRESETS.map(p => (
           <button
             key={p.id}
-            onClick={() => setVisualStyle(p.id)}
-            className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-md transition-all min-w-[52px] ${
+            onClick={() => handlePresetClick(p.id)}
+            className={`flex flex-col items-center gap-0.5 px-2.5 py-1 rounded-md transition-all min-w-[40px] ${
               visualStyle === p.id
                 ? 'bg-primary/15 border border-primary/40 shadow-[0_0_8px_rgba(0,255,136,0.15)]'
                 : 'hover:bg-muted/40 border border-transparent'
             }`}
           >
             <span className="text-sm leading-none">{p.icon}</span>
-            <span className={`text-[8px] font-display tracking-wider ${
-              visualStyle === p.id ? 'text-primary' : 'text-muted-foreground'
-            }`}>{p.label}</span>
           </button>
         ))}
       </div>

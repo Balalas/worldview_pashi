@@ -373,6 +373,9 @@ export interface WorldViewState {
 
   leftPanelFloating: boolean;
   toggleLeftPanelFloating: () => void;
+
+  isScreensaver: boolean;
+  setScreensaver: (v: boolean) => void;
 }
 
 export const useWorldViewStore = create<WorldViewState>((set) => ({
@@ -488,6 +491,9 @@ export const useWorldViewStore = create<WorldViewState>((set) => ({
 
   leftPanelFloating: true,
   toggleLeftPanelFloating: () => set((s) => ({ leftPanelFloating: !s.leftPanelFloating })),
+
+  isScreensaver: false,
+  setScreensaver: (isScreensaver) => set({ isScreensaver }),
 }));
 
 // Keyboard shortcuts
