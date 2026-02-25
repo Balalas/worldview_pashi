@@ -49,14 +49,15 @@ const CesiumGlobe = memo(() => {
     // Add Google Photorealistic 3D Tiles + OSM Buildings
     const add3DTiles = async () => {
       try {
-        // Google Photorealistic 3D Tiles — shows real-world buildings, terrain, vegetation
         const googleTileset = await Cesium.createGooglePhotorealistic3DTileset();
         viewer.scene.primitives.add(googleTileset);
-        // Hide the default globe since Google tiles cover everything
-        viewer.scene.globe.show = false;
+        // Keep globe visible for atmosphere/lighting — Google tiles render on top
+        // Make globe translucent so it doesn't z-fight with tiles at close zoom
+        viewer.scene.globe.translucency.enabled = true;
+        viewer.scene.globe.translucency.frontFaceAlpha = 0.0;
+        viewer.scene.globe.translucency.backFaceAlpha = 0.0;
       } catch (err) {
         console.warn('Google 3D Tiles failed, falling back to OSM Buildings:', err);
-        // Fallback: Cesium OSM Buildings (free via Ion)
         try {
           const osmBuildings = await Cesium.createOsmBuildingsAsync();
           viewer.scene.primitives.add(osmBuildings);
@@ -70,9 +71,11 @@ const CesiumGlobe = memo(() => {
     // Scene settings — realistic lighting with sun & moon
     try {
       viewer.scene.globe.enableLighting = true;
-      viewer.scene.globe.atmosphereLightIntensity = 8.0;
+      viewer.scene.globe.dynamicAtmosphereLighting = true;
+      viewer.scene.globe.dynamicAtmosphereLightingFromSun = true;
+      viewer.scene.globe.atmosphereLightIntensity = 3.0;
       viewer.scene.fog.enabled = true;
-      viewer.scene.fog.density = 0.0002;
+      viewer.scene.fog.density = 0.0001;
       viewer.scene.skyBox.show = true;
       
       // Enable sun and moon
@@ -84,16 +87,12 @@ const CesiumGlobe = memo(() => {
       // Real-time clock for accurate sun/moon positioning
       viewer.clock.shouldAnimate = true;
       viewer.clock.currentTime = Cesium.JulianDate.now();
-      
-      // Dynamic lighting from actual sun position
-      viewer.scene.globe.dynamicAtmosphereLighting = true;
-      viewer.scene.globe.dynamicAtmosphereLightingFromSun = true;
-      
-      // Lens flare for cinematic sun glow
-      viewer.scene.postProcessStages.add(
-        Cesium.PostProcessStageLibrary.createLensFlareStage()
-      );
-    } catch {}
+
+      // Use Cesium's built-in sun light (SunLight) for realistic day/night
+      viewer.scene.light = new Cesium.SunLight();
+    } catch (e) {
+      console.warn('Lighting setup error:', e);
+    }
 
     // Darker background for night side
     viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString('#0a0a0a');
