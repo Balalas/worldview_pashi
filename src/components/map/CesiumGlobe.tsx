@@ -67,13 +67,32 @@ const CesiumGlobe = memo(() => {
     };
     add3DTiles();
 
-    // Scene settings
+    // Scene settings — realistic lighting with sun & moon
     try {
       viewer.scene.globe.enableLighting = true;
       viewer.scene.globe.atmosphereLightIntensity = 8.0;
       viewer.scene.fog.enabled = true;
       viewer.scene.fog.density = 0.0002;
       viewer.scene.skyBox.show = true;
+      
+      // Enable sun and moon
+      viewer.scene.sun = new Cesium.Sun();
+      viewer.scene.sun.show = true;
+      viewer.scene.moon = new Cesium.Moon();
+      viewer.scene.moon.show = true;
+      
+      // Real-time clock for accurate sun/moon positioning
+      viewer.clock.shouldAnimate = true;
+      viewer.clock.currentTime = Cesium.JulianDate.now();
+      
+      // Dynamic lighting from actual sun position
+      viewer.scene.globe.dynamicAtmosphereLighting = true;
+      viewer.scene.globe.dynamicAtmosphereLightingFromSun = true;
+      
+      // Lens flare for cinematic sun glow
+      viewer.scene.postProcessStages.add(
+        Cesium.PostProcessStageLibrary.createLensFlareStage()
+      );
     } catch {}
 
     // Darker background for night side
