@@ -1,4 +1,4 @@
-import { useEffect, lazy, Suspense, memo, useState, useCallback } from 'react';
+import { useEffect, lazy, Suspense, memo, useState, useCallback, useRef } from 'react';
 import TopBar from '@/components/panels/TopBar';
 import LeftPanel from '@/components/panels/LeftPanel';
 import RightPanel from '@/components/panels/RightPanel';
@@ -10,12 +10,9 @@ import StreetViewOverlay from '@/components/map/StreetViewOverlay';
 import GlobeControls from '@/components/hud/GlobeControls';
 import SearchBar from '@/components/hud/SearchBar';
 import StylePresetsBar, { computeStyleConfig } from '@/components/hud/StylePresetsBar';
-import StyleParametersPanel from '@/components/hud/StyleParametersPanel';
-import HolographicTV from '@/components/hud/HolographicTV';
 import WeatherRadarOverlay from '@/components/map/WeatherRadarOverlay';
 import TacticalAlerts from '@/components/hud/TacticalAlerts';
 import MinimapRadar from '@/components/hud/MinimapRadar';
-import ThreatGauge from '@/components/hud/ThreatGauge';
 import { useWorldViewStore, LAYER_SHORTCUTS, LANDMARK_PRESETS, VisualStyle } from '@/store/worldview';
 import { fetchEarthquakes, fetchLiveNews, fetchLiveAircraft } from '@/services/dataServices';
 import { generateRealisticSatellites, fetchISSPosition } from '@/services/satelliteService';
@@ -146,8 +143,26 @@ const CctvPip = memo(() => {
 CctvPip.displayName = 'CctvPip';
 
 const Index = () => {
-  const { setAircraft, setSatellites, setEarthquakes, setNews, setLastRefresh, setNewsLoading, setWeatherAlerts, setVolcanoes, setVessels, setProtests, setOutages, setFires, toggleLayer, closeDetailPanel, mapMode, setFollowTarget, visualStyle, setVisualStyle, filterParams, bottomPanelCollapsed, setMapCenter } = useWorldViewStore();
+  const { setAircraft, setSatellites, setEarthquakes, setNews, setLastRefresh, setNewsLoading, setWeatherAlerts, setVolcanoes, setVessels, setProtests, setOutages, setFires, toggleLayer, closeDetailPanel, mapMode, setFollowTarget, visualStyle, setVisualStyle, filterParams, bottomPanelCollapsed, setMapCenter, isScreensaver, setScreensaver } = useWorldViewStore();
   const styleConfig = computeStyleConfig(visualStyle, filterParams);
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const IDLE_TIMEOUT = 25000; // 25 seconds
+
+  // Idle / Screensaver detection
+  useEffect(() => {
+    const resetIdle = () => {
+      if (isScreensaver) setScreensaver(false);
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = setTimeout(() => setScreensaver(true), IDLE_TIMEOUT);
+    };
+    const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'];
+    events.forEach(e => window.addEventListener(e, resetIdle));
+    idleTimerRef.current = setTimeout(() => setScreensaver(true), IDLE_TIMEOUT);
+    return () => {
+      events.forEach(e => window.removeEventListener(e, resetIdle));
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    };
+  }, [isScreensaver, setScreensaver]);
 
   useEffect(() => {
     // Initialize satellites
@@ -335,27 +350,21 @@ const Index = () => {
 
       {/* Floating UI layer — all panels overlay on top of full-screen map */}
       <div className="absolute inset-0 pointer-events-none z-20">
-        {/* HUD Overlay */}
-        <HudOverlay />
+        {/* HUD elements hidden during screensaver */}
+        {!isScreensaver && (
+          <>
+            <HudOverlay />
+            <TrackingHud />
+            <TopBar />
+            <div className="pointer-events-auto">
+              <SearchBar />
+            </div>
+            <LeftPanel />
+          </>
+        )}
 
-        {/* Tracking HUD */}
-        <TrackingHud />
-
-        {/* Top Bar */}
-        <TopBar />
-
-        {/* Search Bar */}
-        <div className="pointer-events-auto">
-          <SearchBar />
-        </div>
-
-        {/* Left Panel — floating */}
-        <LeftPanel />
-
-        {/* Right Panel — floating */}
-        <div className="absolute top-0 right-0 h-full pointer-events-auto">
-          <RightPanel />
-        </div>
+        {/* Right Panel — compact floating box */}
+        {!isScreensaver && <RightPanel />}
 
         {/* Globe Controls */}
         {(mapMode === 'google3d' || mapMode === 'cesium') && (
@@ -365,41 +374,39 @@ const Index = () => {
         )}
 
         {/* Style Presets Bar */}
-        <div className="pointer-events-auto">
-          <StylePresetsBar />
-        </div>
-
-        {/* Style Parameters Panel */}
-        <StyleParametersPanel />
+        {!isScreensaver && (
+          <div className="pointer-events-auto">
+            <StylePresetsBar />
+          </div>
+        )}
 
         {/* CCTV PiP */}
         <CctvPip />
 
-        {/* Holographic TV */}
-        <div className="pointer-events-auto">
-          <HolographicTV />
-        </div>
-
         {/* Tactical Alerts */}
-        <div className="pointer-events-auto">
-          <TacticalAlerts />
-        </div>
+        {!isScreensaver && (
+          <div className="pointer-events-auto">
+            <TacticalAlerts />
+          </div>
+        )}
 
         {/* Minimap Radar */}
-        <MinimapRadar />
-
-        {/* Threat Gauge */}
-        <ThreatGauge />
+        {!isScreensaver && <MinimapRadar />}
 
         {/* Bottom Feed — floating ticker */}
-        <div className={`absolute bottom-0 left-0 right-0 pointer-events-auto ${bottomPanelCollapsed ? 'h-[26px]' : 'h-[200px]'}`}
-          style={{ transition: 'height 0.3s cubic-bezier(0.16,1,0.3,1)' }}
-        >
-          <BottomFeed />
-        </div>
+        {!isScreensaver && (
+          <div className={`absolute bottom-0 left-0 right-0 pointer-events-auto ${bottomPanelCollapsed ? 'h-[26px]' : 'h-[200px]'}`}
+            style={{ transition: 'height 0.3s cubic-bezier(0.16,1,0.3,1)' }}
+          >
+            <BottomFeed />
+          </div>
+        )}
 
         {/* Keyboard shortcut hints */}
-        <KeyboardHints />
+        {!isScreensaver && <KeyboardHints />}
+
+        {/* Screensaver overlay */}
+        {isScreensaver && <ScreensaverOverlay />}
       </div>
     </div>
   );
@@ -438,5 +445,62 @@ const KeyboardHints = memo(() => {
   );
 });
 KeyboardHints.displayName = 'KeyboardHints';
+
+const ScreensaverOverlay = memo(() => {
+  return (
+    <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none animate-fade-in">
+      {/* Holographic logo */}
+      <div className="relative">
+        {/* Outer glow */}
+        <div className="absolute -inset-12 rounded-full opacity-20"
+          style={{
+            background: 'radial-gradient(ellipse, hsl(var(--primary) / 0.4), transparent)',
+            filter: 'blur(30px)',
+            animation: 'pulse 4s ease-in-out infinite',
+          }}
+        />
+        {/* Logo text */}
+        <div className="relative text-center" style={{ animation: 'float-logo 6s ease-in-out infinite' }}>
+          <div className="text-3xl font-display tracking-[0.5em] text-primary/80 font-bold"
+            style={{
+              textShadow: '0 0 20px hsl(var(--primary) / 0.4), 0 0 60px hsl(var(--primary) / 0.15)',
+            }}
+          >
+            WORLDVIEW
+          </div>
+          <div className="text-[9px] font-data tracking-[0.4em] text-primary/40 mt-2">
+            GLOBAL INTELLIGENCE PLATFORM
+          </div>
+          {/* Scanline effect over logo */}
+          <div className="absolute inset-0 pointer-events-none"
+            style={{
+              backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, hsl(var(--primary) / 0.03) 2px, hsl(var(--primary) / 0.03) 4px)',
+              animation: 'scanline-scroll 8s linear infinite',
+            }}
+          />
+        </div>
+        {/* Reflection */}
+        <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 w-[60%] h-4 rounded-full opacity-15"
+          style={{
+            background: 'radial-gradient(ellipse, hsl(var(--primary) / 0.5), transparent)',
+            filter: 'blur(8px)',
+          }}
+        />
+      </div>
+
+      <style>{`
+        @keyframes float-logo {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-8px); }
+        }
+        @keyframes scanline-scroll {
+          0% { background-position: 0 0; }
+          100% { background-position: 0 100px; }
+        }
+      `}</style>
+    </div>
+  );
+});
+ScreensaverOverlay.displayName = 'ScreensaverOverlay';
 
 export default Index;

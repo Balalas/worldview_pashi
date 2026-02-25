@@ -65,6 +65,45 @@ const LAYER_SUB_OPTIONS: Partial<Record<LayerType, SubOption[]>> = {
   ],
 };
 
+const LandmarksDropdown = memo(() => {
+  const [open, setOpen] = useState(false);
+  const { setMapCenter } = useWorldViewStore();
+  const categories = [
+    { label: 'CITIES', items: LANDMARK_PRESETS.filter(l => ['NEW YORK','LONDON','PARIS','TOKYO','DUBAI','SYDNEY','MOSCOW','HONG KONG','SINGAPORE','SAN FRANCISCO','ISTANBUL','ROME','BEIJING','CAIRO'].includes(l.label)) },
+    { label: 'WONDERS', items: LANDMARK_PRESETS.filter(l => ['GREAT WALL','PYRAMIDS','MACHU PICCHU','TAJ MAHAL','COLOSSEUM','PETRA','CHRIST REDEEMER','CHICHEN ITZA'].includes(l.label)) },
+    { label: 'NATURE', items: LANDMARK_PRESETS.filter(l => ['GRAND CANYON','NIAGARA FALLS','MT EVEREST','MT FUJI','VICTORIA FALLS','ULURU','AMAZON RIVER','SAHARA DESERT','GREAT BARRIER REEF','YELLOWSTONE'].includes(l.label)) },
+    { label: 'MILITARY', items: LANDMARK_PRESETS.filter(l => ['PENTAGON','AREA 51','KREMLIN','DMZ KOREA','DIEGO GARCIA','RAMSTEIN AFB','GUANTÁNAMO'].includes(l.label)) },
+    { label: 'SPACE', items: LANDMARK_PRESETS.filter(l => ['CAPE CANAVERAL','BAIKONUR','CERN','SILICON VALLEY'].includes(l.label)) },
+  ];
+
+  return (
+    <div>
+      <button onClick={() => setOpen(!open)} className="w-full flex items-center justify-between text-[8px] font-display tracking-[0.2em] text-muted-foreground/60 hover:text-foreground transition-colors">
+        <span>✈ FLY TO</span>
+        <span className="text-[7px]">{open ? '▾' : '▸'}</span>
+      </button>
+      {open && (
+        <div className="mt-1.5 max-h-[200px] overflow-y-auto space-y-1.5 animate-fade-in">
+          {categories.map(cat => (
+            <div key={cat.label}>
+              <div className="text-[7px] font-data text-muted-foreground/40 tracking-wider mb-0.5">{cat.label}</div>
+              <div className="flex flex-wrap gap-0.5">
+                {cat.items.map(lm => (
+                  <button key={lm.label} onClick={() => { setMapCenter({ lat: lm.lat, lon: lm.lon, zoom: lm.zoom }); }}
+                    className="px-1.5 py-0.5 text-[7px] font-data text-muted-foreground/60 hover:text-primary hover:bg-primary/5 rounded transition-colors truncate">
+                    {lm.emoji} {lm.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+});
+LandmarksDropdown.displayName = 'LandmarksDropdown';
+
 const LeftPanel = memo(() => {
   const { layers, toggleLayer, leftPanelOpen, activeRegion, setActiveRegion, setMapCenter, satellites, aircraft, earthquakes, vessels, protests, outages, layerSubFilters, setSubFilter, toggleSubFilter } = useWorldViewStore();
   const [expandedLayer, setExpandedLayer] = useState<LayerType | null>(null);
@@ -194,6 +233,11 @@ const LeftPanel = memo(() => {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              {/* Landmarks / Fly-To Dropdown */}
+              <div className="px-2 pb-2 border-t border-border/30 pt-2">
+                <LandmarksDropdown />
               </div>
             </>
           ) : (

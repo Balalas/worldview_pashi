@@ -9,7 +9,7 @@ const MinimapRadar = memo(() => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sweepAngleRef = useRef(0);
   const animFrameRef = useRef<number>(0);
-  const { aircraft, satellites, vessels, earthquakes, mapCenter } = useWorldViewStore();
+  const { aircraft, satellites, vessels, earthquakes, mapCenter, bottomPanelCollapsed } = useWorldViewStore();
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -59,13 +59,10 @@ const MinimapRadar = memo(() => {
       // Sweep line
       sweepAngleRef.current += 0.02;
       const sweepAngle = sweepAngleRef.current;
-      // Sweep effect
-      // Fallback: draw sweep as a line + fade arc
       ctx.save();
       ctx.translate(CENTER, CENTER);
       ctx.rotate(sweepAngle);
 
-      // Sweep fade arc
       const sweepGrad = ctx.createLinearGradient(0, 0, RADIUS, 0);
       sweepGrad.addColorStop(0, 'hsla(150, 100%, 50%, 0.02)');
       sweepGrad.addColorStop(1, 'hsla(150, 100%, 50%, 0.15)');
@@ -76,7 +73,6 @@ const MinimapRadar = memo(() => {
       ctx.closePath();
       ctx.fill();
 
-      // Sweep line
       ctx.strokeStyle = 'hsla(150, 100%, 50%, 0.4)';
       ctx.lineWidth = 1;
       ctx.beginPath();
@@ -95,13 +91,9 @@ const MinimapRadar = memo(() => {
         ctx.fill();
       };
 
-      // Aircraft — green dots
       aircraft.slice(0, 50).forEach(a => plotDot(a.lat, a.lon, a.isMilitary ? 'hsl(20, 100%, 54%)' : 'hsl(150, 100%, 50%)', 1.5));
-      // Satellites — cyan dots
       satellites.slice(0, 30).forEach(s => plotDot(s.lat, s.lon, 'hsl(195, 100%, 50%)', 1));
-      // Vessels — blue dots
       vessels.slice(0, 30).forEach(v => plotDot(v.lat, v.lon, 'hsl(220, 100%, 64%)', 1.2));
-      // Earthquakes — purple dots
       earthquakes.slice(0, 10).forEach(e => plotDot(e.lat, e.lon, 'hsl(270, 100%, 64%)', 2));
 
       // Center dot
@@ -125,7 +117,7 @@ const MinimapRadar = memo(() => {
   }, [aircraft, satellites, vessels, earthquakes, mapCenter]);
 
   return (
-    <div className="absolute bottom-56 right-3 z-30 pointer-events-none">
+    <div className={`absolute left-3 z-30 pointer-events-none transition-all duration-300 ${bottomPanelCollapsed ? 'bottom-[34px]' : 'bottom-[210px]'}`}>
       <div className="relative">
         <canvas
           ref={canvasRef}
@@ -139,7 +131,6 @@ const MinimapRadar = memo(() => {
         <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 text-[6px] font-data text-primary/40">S</span>
         <span className="absolute top-1/2 -translate-y-1/2 left-1 text-[6px] font-data text-primary/40">W</span>
         <span className="absolute top-1/2 -translate-y-1/2 right-1 text-[6px] font-data text-primary/40">E</span>
-        {/* Label */}
         <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 text-[7px] font-data text-primary/50 tracking-[0.2em] whitespace-nowrap">
           RADAR
         </div>
