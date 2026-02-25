@@ -24,6 +24,9 @@ const CesiumGlobe = memo(() => {
     followTarget, setFollowTarget, layerSubFilters
   } = useWorldViewStore();
 
+  const weatherLayersRef = useRef<Cesium.ImageryLayer[]>([]);
+  const weatherFrameRef = useRef<ReturnType<typeof setInterval>>(null);
+
   // Initialize Cesium viewer
   useEffect(() => {
     if (!containerRef.current || viewerRef.current) return;
@@ -83,9 +86,10 @@ const CesiumGlobe = memo(() => {
       viewer.scene.moon = new Cesium.Moon();
       viewer.scene.moon.show = true;
 
-      // Real-time clock for accurate positioning
+      // Real-time clock for accurate sun/moon positioning
       viewer.clock.shouldAnimate = true;
       viewer.clock.currentTime = Cesium.JulianDate.now();
+      viewer.clock.multiplier = 1; // real-time speed
 
       // Atmosphere glow stays visible even when globe is hidden
       viewer.scene.skyAtmosphere.show = true;
@@ -586,6 +590,108 @@ const CesiumGlobe = memo(() => {
       events.forEach(e => containerRef.current?.removeEventListener(e, resetIdle));
     };
   }, [ready, followTarget]);
+
+  // Real-time weather tiles (RainViewer) as globe imagery layers
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || !ready) return;
+
+    const showClouds = layers.weather && layerSubFilters.showClouds;
+    const showRadar = layers.weather && layerSubFilters.showRadar;
+    const opacity = layerSubFilters.cloudOpacity / 100;
+
+    // Clear old weather layers
+    weatherLayersRef.current.forEach(l => {
+      try { viewer.imageryLayers.remove(l, true); } catch {}
+    });
+    weatherLayersRef.current = [];
+    if (weatherFrameRef.current) clearInterval(weatherFrameRef.current);
+
+    if (!showClouds && !showRadar) return;
+
+    const RAINVIEWER_API = 'https://api.rainviewer.com/public/weather-maps.json';
+
+    const addWeatherLayer = async () => {
+      try {
+        const res = await fetch(RAINVIEWER_API);
+        const data = await res.json();
+
+        let frames: { time: number; path: string }[] = [];
+        if (showClouds) {
+          frames = data.satellite?.infrared || [];
+        } else if (showRadar) {
+          frames = [...(data.radar?.past || []), ...(data.radar?.nowcast || [])];
+        }
+        if (frames.length === 0) return;
+
+        let frameIdx = frames.length - 1;
+        const colorScheme = showRadar ? 4 : 0;
+
+        const applyFrame = (idx: number) => {
+          const frame = frames[idx];
+          if (!frame) return;
+
+          // Remove old layers
+          weatherLayersRef.current.forEach(l => {
+            try { viewer.imageryLayers.remove(l, true); } catch {}
+          });
+          weatherLayersRef.current = [];
+
+          const tileUrl = showClouds
+            ? `https://tilecache.rainviewer.com${frame.path}/256/{z}/{x}/{y}/0/0_0.png`
+            : `https://tilecache.rainviewer.com${frame.path}/256/{z}/{x}/{y}/${colorScheme}/1_1.png`;
+
+          const provider = new Cesium.UrlTemplateImageryProvider({
+            url: tileUrl,
+            minimumLevel: 0,
+            maximumLevel: 6,
+            credit: 'RainViewer',
+          });
+
+          const layer = viewer.imageryLayers.addImageryProvider(provider);
+          layer.alpha = opacity;
+          layer.brightness = showClouds ? 1.5 : 1.2;
+          layer.contrast = 1.1;
+          weatherLayersRef.current.push(layer);
+        };
+
+        applyFrame(frameIdx);
+
+        // Animate through frames
+        if (frames.length > 1) {
+          weatherFrameRef.current = setInterval(() => {
+            frameIdx = (frameIdx + 1) % frames.length;
+            applyFrame(frameIdx);
+          }, 2000);
+        }
+      } catch (err) {
+        console.warn('RainViewer Cesium overlay failed:', err);
+      }
+    };
+
+    addWeatherLayer();
+    const refreshInterval = setInterval(addWeatherLayer, 600000);
+
+    return () => {
+      clearInterval(refreshInterval);
+      if (weatherFrameRef.current) clearInterval(weatherFrameRef.current);
+      weatherLayersRef.current.forEach(l => {
+        try { viewer.imageryLayers.remove(l, true); } catch {}
+      });
+      weatherLayersRef.current = [];
+    };
+  }, [ready, layers.weather, layerSubFilters.showClouds, layerSubFilters.showRadar, layerSubFilters.cloudOpacity]);
+
+  // Keep Cesium clock synced to real time
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || !ready) return;
+    const syncInterval = setInterval(() => {
+      viewer.clock.currentTime = Cesium.JulianDate.now();
+    }, 60000); // sync every minute
+    return () => clearInterval(syncInterval);
+  }, [ready]);
+
 
   return (
     <div className="w-full h-full relative bg-background">
