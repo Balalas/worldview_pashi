@@ -24,6 +24,8 @@ const MapContainer = memo(() => {
 
     const map = L.map(mapRef.current, {
       center: [20, 0], zoom: 3, zoomControl: false, attributionControl: true, preferCanvas: true,
+      doubleClickZoom: false,
+      maxBoundsViscosity: 1.0,
     });
 
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
