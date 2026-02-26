@@ -1,6 +1,6 @@
 import { memo, useState, useRef, useEffect, useCallback } from 'react';
 import { useWorldViewStore, MARKET_DATA, NewsItem, BottomPanelTab } from '@/store/worldview';
-import { PIZZA_INDEX_DATA, LIVESTREAM_FEEDS, LivestreamFeed } from '@/services/dataServices';
+import { PENTAGON_PIZZA_DATA, LIVESTREAM_FEEDS, LivestreamFeed } from '@/services/dataServices';
 import { ACTIVE_VOLCANOES } from '@/services/weatherService';
 import { SUBMARINE_CABLES } from '@/data/submarineCables';
 import { RADIO_STATIONS, RadioStation } from '@/data/radioStations';
@@ -249,42 +249,58 @@ const WorldStatsPanel = memo(() => {
   );
 });
 
-const PizzaIndexPanel = memo(() => (
-  <div className="h-full overflow-y-auto p-3">
-    <div className="flex items-center gap-2 mb-3">
-      <h2 className="text-[10px] font-display tracking-[0.2em] text-muted-foreground">PURCHASING POWER PARITY — BIG MAC INDEX</h2>
-      <span className="text-[9px] font-data text-text-secondary">● {PIZZA_INDEX_DATA.length} COUNTRIES</span>
-    </div>
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2">
-      {PIZZA_INDEX_DATA.map((entry) => (
-        <div key={entry.country} className={`bg-card-bg/60 rounded border p-2 ${entry.overUnder === 'over' ? 'border-alert-high/30' : entry.overUnder === 'base' ? 'border-primary/30' : 'border-alert-info/30'}`}>
-          <div className="flex items-center gap-1.5 mb-1">
-            <span className="text-sm">{entry.flag}</span>
-            <span className="text-[10px] font-display tracking-wide text-foreground truncate">{entry.country}</span>
-          </div>
-          <div className="flex items-baseline gap-1">
-            <span className="text-[14px] font-data font-bold text-data-text">${entry.usdPrice.toFixed(2)}</span>
-            <span className="text-[8px] font-data text-text-muted-custom">USD</span>
-          </div>
-          <div className="text-[9px] font-data text-text-secondary mt-0.5">{entry.localPrice}</div>
-          <div className="mt-1.5">
-            <div className="flex items-center justify-between">
-              <span className="text-[8px] font-display tracking-wider text-muted-foreground">INDEX</span>
-              <span className={`text-[11px] font-data font-bold ${entry.index > 105 ? 'text-alert-high' : entry.index >= 95 ? 'text-primary' : 'text-alert-info'}`}>{entry.index}</span>
-            </div>
-            <div className="w-full h-1 bg-card-hover rounded-full mt-0.5 overflow-hidden">
-              <div className={`h-full rounded-full ${entry.index > 105 ? 'bg-alert-high' : entry.index >= 95 ? 'bg-primary' : 'bg-alert-info'}`} style={{ width: `${Math.min(entry.index, 150) / 1.5}%` }} />
-            </div>
-            <div className="text-[8px] font-data text-text-muted-custom mt-0.5">
-              {entry.overUnder === 'over' ? `+${entry.index - 100}% overvalued` : entry.overUnder === 'base' ? 'BASELINE' : `${100 - entry.index}% undervalued`}
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  </div>
-));
+const PizzaIndexPanel = memo(() => {
+  const maxOrders = Math.max(...PENTAGON_PIZZA_DATA.map(d => d.orders));
+  const spikeDays = PENTAGON_PIZZA_DATA.filter(d => d.spike);
+  const latestSpike = spikeDays[0];
 
+  return (
+    <div className="h-full overflow-y-auto p-3">
+      <div className="flex items-center gap-2 mb-3">
+        <h2 className="text-[10px] font-display tracking-[0.2em] text-muted-foreground">🍕 PENTAGON PIZZA INDEX — DELIVERY TRACKER</h2>
+        <span className="text-[9px] font-data text-text-secondary">● {PENTAGON_PIZZA_DATA.length} DAYS</span>
+        {latestSpike && (
+          <span className="text-[8px] font-data text-alert-critical animate-pulse-dot ml-auto">⚠ SPIKE DETECTED</span>
+        )}
+      </div>
+      <div className="text-[8px] font-data text-muted-foreground mb-2 leading-relaxed">
+        Late-night pizza deliveries to the Pentagon historically spike before major military operations. 
+        A surge above baseline ({PENTAGON_PIZZA_DATA[0]?.baseline} orders/night) may indicate extended NatSec briefings.
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-2">
+        {PENTAGON_PIZZA_DATA.map((entry) => {
+          const ratio = entry.orders / maxOrders;
+          const borderColor = entry.threatLevel === 'critical' ? 'border-alert-critical/50' : entry.threatLevel === 'high' ? 'border-alert-high/40' : entry.threatLevel === 'elevated' ? 'border-alert-medium/30' : 'border-border';
+          const barColor = entry.threatLevel === 'critical' ? 'bg-alert-critical' : entry.threatLevel === 'high' ? 'bg-alert-high' : entry.threatLevel === 'elevated' ? 'bg-alert-medium' : 'bg-primary/40';
+          return (
+            <div key={entry.date} className={`bg-card-bg/60 rounded border p-2 ${borderColor} ${entry.spike ? 'ring-1 ring-alert-critical/20' : ''}`}>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[9px] font-data text-muted-foreground">{entry.date.slice(5)}</span>
+                {entry.spike && <span className="text-[7px] font-data text-alert-critical bg-alert-critical/10 px-1 rounded">SPIKE</span>}
+              </div>
+              <div className="flex items-baseline gap-1 mb-1">
+                <span className="text-[9px]">🍕</span>
+                <span className={`text-[16px] font-data font-bold ${entry.spike ? 'text-alert-critical' : 'text-data-text'}`}>{entry.orders}</span>
+                <span className="text-[8px] font-data text-text-muted-custom">orders</span>
+              </div>
+              <div className="w-full h-1.5 bg-card-hover rounded-full overflow-hidden mb-1">
+                <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${ratio * 100}%` }} />
+              </div>
+              <div className="h-1 bg-primary/10 rounded-full overflow-hidden mb-1">
+                <div className="h-full bg-primary/30 rounded-full" style={{ width: `${(entry.baseline / maxOrders) * 100}%` }} />
+              </div>
+              <div className="text-[7px] font-data text-text-muted-custom">BASE: {entry.baseline}</div>
+              {entry.note && <div className="text-[7px] font-data text-alert-critical mt-1 leading-tight">{entry.note}</div>}
+              <div className={`text-[7px] font-data mt-0.5 ${entry.threatLevel === 'critical' ? 'text-alert-critical' : entry.threatLevel === 'high' ? 'text-alert-high' : entry.threatLevel === 'elevated' ? 'text-alert-medium' : 'text-muted-foreground'}`}>
+                THREAT: {entry.threatLevel.toUpperCase()}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+});
 const getTimeAgo = (date: Date): string => {
   const diff = Date.now() - date.getTime();
   const mins = Math.floor(diff / 60000);

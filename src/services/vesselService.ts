@@ -105,6 +105,29 @@ const PROTEST_LOCATIONS: { keywords: string[]; lat: number; lon: number; country
   { keywords: ['turkey', 'istanbul', 'ankara'], lat: 41.01, lon: 28.98, country: 'Turkey' },
   { keywords: ['georgia', 'tbilisi'], lat: 41.72, lon: 44.79, country: 'Georgia' },
   { keywords: ['venezuela'], lat: 10.49, lon: -66.88, country: 'Venezuela' },
+  { keywords: ['cyprus', 'nicosia', 'cypriot'], lat: 35.17, lon: 33.36, country: 'Cyprus' },
+  { keywords: ['greece', 'athens', 'greek'], lat: 37.98, lon: 23.73, country: 'Greece' },
+  { keywords: ['lebanon', 'beirut'], lat: 33.89, lon: 35.50, country: 'Lebanon' },
+  { keywords: ['egypt', 'cairo'], lat: 30.04, lon: 31.24, country: 'Egypt' },
+  { keywords: ['tunisia', 'tunis'], lat: 36.81, lon: 10.17, country: 'Tunisia' },
+  { keywords: ['sudan', 'khartoum'], lat: 15.50, lon: 32.56, country: 'Sudan' },
+  { keywords: ['ethiopia', 'addis ababa'], lat: 9.02, lon: 38.75, country: 'Ethiopia' },
+  { keywords: ['myanmar', 'burma', 'yangon'], lat: 16.87, lon: 96.20, country: 'Myanmar' },
+  { keywords: ['syria', 'damascus'], lat: 33.51, lon: 36.29, country: 'Syria' },
+  { keywords: ['iraq', 'baghdad'], lat: 33.31, lon: 44.37, country: 'Iraq' },
+  { keywords: ['afghanistan', 'kabul'], lat: 34.53, lon: 69.17, country: 'Afghanistan' },
+  { keywords: ['ukraine', 'kyiv', 'ukrainian'], lat: 50.45, lon: 30.52, country: 'Ukraine' },
+  { keywords: ['spain', 'madrid', 'barcelona'], lat: 40.42, lon: -3.70, country: 'Spain' },
+  { keywords: ['italy', 'rome', 'milan'], lat: 41.90, lon: 12.50, country: 'Italy' },
+  { keywords: ['indonesia', 'jakarta'], lat: -6.21, lon: 106.85, country: 'Indonesia' },
+  { keywords: ['philippines', 'manila'], lat: 14.60, lon: 120.98, country: 'Philippines' },
+  { keywords: ['chile', 'santiago'], lat: -33.45, lon: -70.67, country: 'Chile' },
+  { keywords: ['peru', 'lima'], lat: -12.05, lon: -77.04, country: 'Peru' },
+  { keywords: ['haiti', 'port-au-prince'], lat: 18.54, lon: -72.34, country: 'Haiti' },
+  { keywords: ['mozambique', 'maputo'], lat: -25.97, lon: 32.57, country: 'Mozambique' },
+  { keywords: ['mali', 'bamako'], lat: 12.64, lon: -8.00, country: 'Mali' },
+  { keywords: ['niger', 'niamey'], lat: 13.51, lon: 2.11, country: 'Niger' },
+  { keywords: ['burkina faso', 'ouagadougou'], lat: 12.37, lon: -1.52, country: 'Burkina Faso' },
 ];
 
 export const extractProtestsFromNews = (news: NewsItem[]): ProtestEvent[] => {
@@ -147,7 +170,21 @@ const CYBER_LOCATIONS: { keywords: string[]; lat: number; lon: number }[] = [
   { keywords: ['australia', 'australian'], lat: -33.87, lon: 151.21 },
   { keywords: ['japan', 'japanese'], lat: 35.68, lon: 139.69 },
   { keywords: ['france', 'french'], lat: 48.86, lon: 2.35 },
-  { keywords: ['microsoft', 'google', 'amazon', 'facebook', 'meta', 'apple'], lat: 37.39, lon: -122.08 },
+  { keywords: ['microsoft', 'google', 'amazon', 'facebook', 'meta', 'apple', 'openai'], lat: 37.39, lon: -122.08 },
+  { keywords: ['cyprus', 'cypriot'], lat: 35.17, lon: 33.36 },
+  { keywords: ['turkey', 'turkish'], lat: 39.93, lon: 32.86 },
+  { keywords: ['brazil', 'brazilian'], lat: -15.79, lon: -47.88 },
+  { keywords: ['south korea', 'korean', 'samsung'], lat: 37.57, lon: 126.98 },
+  { keywords: ['israel', 'israeli', 'mossad'], lat: 32.09, lon: 34.78 },
+  { keywords: ['ukraine', 'ukrainian'], lat: 50.45, lon: 30.52 },
+  { keywords: ['taiwan', 'taiwanese', 'tsmc'], lat: 25.03, lon: 121.57 },
+  { keywords: ['italy', 'italian'], lat: 41.90, lon: 12.50 },
+  { keywords: ['spain', 'spanish'], lat: 40.42, lon: -3.70 },
+  { keywords: ['canada', 'canadian'], lat: 45.42, lon: -75.70 },
+  { keywords: ['indonesia', 'indonesian'], lat: -6.21, lon: 106.85 },
+  { keywords: ['nigeria', 'nigerian'], lat: 9.06, lon: 7.49 },
+  { keywords: ['saudi', 'aramco', 'riyadh'], lat: 24.71, lon: 46.68 },
+  { keywords: ['singapore'], lat: 1.35, lon: 103.82 },
 ];
 
 export const extractOutagesFromNews = (news: NewsItem[]): OutageEvent[] => {
@@ -189,6 +226,10 @@ export const fetchCyberNews = async (): Promise<NewsItem[]> => {
   const cyberFeeds = [
     { url: 'https://feeds.feedburner.com/TheHackersNews', source: 'HackerNews', tier: 2 as const },
     { url: 'https://www.bleepingcomputer.com/feed/', source: 'BleepingPC', tier: 2 as const },
+    { url: 'https://krebsonsecurity.com/feed/', source: 'KrebsSec', tier: 1 as const },
+    { url: 'https://www.darkreading.com/rss.xml', source: 'DarkReading', tier: 2 as const },
+    { url: 'https://threatpost.com/feed/', source: 'ThreatPost', tier: 2 as const },
+    { url: 'https://www.securityweek.com/feed/', source: 'SecWeek', tier: 2 as const },
   ];
 
   const items: NewsItem[] = [];

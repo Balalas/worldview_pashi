@@ -269,7 +269,7 @@ const LeftPanel = memo(() => {
                         <span className="font-display tracking-wide">{item.country}</span>
                       </div>
                       <div className="flex items-center gap-1">
-                        <span className={`font-data text-[10px] font-bold ${item.level === 'critical' ? 'text-alert-critical' : item.level === 'high' ? 'text-alert-high' : 'text-alert-medium'}`}>{item.score}</span>
+                        <span className={`font-data text-[10px] font-bold ${item.level === 'critical' ? 'text-alert-critical' : item.level === 'high' ? 'text-alert-high' : item.level === 'medium' ? 'text-alert-medium' : 'text-alert-info'}`}>{item.score}</span>
                         <span className="text-[8px]">{item.trend === 'up' ? '▲' : item.trend === 'down' ? '▼' : '─'}</span>
                       </div>
                     </div>

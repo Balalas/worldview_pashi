@@ -28,6 +28,12 @@ const RSS_FEEDS = [
   { url: 'https://rss.nytimes.com/services/xml/rss/nyt/World.xml', source: 'NY Times', tier: 1 as const },
   { url: 'https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRFp1ZEdvU0FtVnVHZ0pWVXlnQVAB?hl=en-US&gl=US&ceid=US:en', source: 'Google News', tier: 1 as const },
   { url: 'https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml', source: 'NYT Top', tier: 2 as const },
+  { url: 'https://feeds.reuters.com/reuters/worldNews', source: 'Reuters', tier: 1 as const },
+  { url: 'https://www.aljazeera.com/xml/rss/all.xml', source: 'Al Jazeera', tier: 1 as const },
+  { url: 'https://rss.dw.com/rdf/rss-en-world', source: 'DW', tier: 2 as const },
+  { url: 'https://feeds.washingtonpost.com/rss/world', source: 'WashPost', tier: 1 as const },
+  { url: 'https://feeds.feedburner.com/ndaborsa/world', source: 'NDTV', tier: 2 as const },
+  { url: 'https://www.france24.com/en/rss', source: 'France24', tier: 2 as const },
 ];
 
 const SEVERITY_KEYWORDS: Record<string, NewsItem['severity']> = {
@@ -107,29 +113,33 @@ export const fetchLiveAircraft = async (): Promise<Aircraft[]> => {
   }
 };
 
-// Pizza / Big Mac Index
-export interface PizzaIndexEntry {
-  country: string;
-  flag: string;
-  localPrice: string;
-  usdPrice: number;
-  index: number;
-  overUnder: 'over' | 'under' | 'base';
+// Pentagon Pizza Index — tracks pizza delivery orders to the Pentagon
+// When there's a spike in late-night orders, it historically correlates with military operations
+export interface PentagonPizzaEntry {
+  date: string;
+  orders: number;
+  baseline: number;
+  spike: boolean;
+  note?: string;
+  threatLevel: 'normal' | 'elevated' | 'high' | 'critical';
 }
 
-export const PIZZA_INDEX_DATA: PizzaIndexEntry[] = [
-  { country: 'Switzerland', flag: '🇨🇭', localPrice: 'CHF 6.70', usdPrice: 7.73, index: 133, overUnder: 'over' },
-  { country: 'Norway', flag: '🇳🇴', localPrice: 'NOK 69', usdPrice: 6.52, index: 112, overUnder: 'over' },
-  { country: 'United States', flag: '🇺🇸', localPrice: '$5.69', usdPrice: 5.69, index: 100, overUnder: 'base' },
-  { country: 'Euro area', flag: '🇪🇺', localPrice: '€5.29', usdPrice: 5.82, index: 102, overUnder: 'over' },
-  { country: 'United Kingdom', flag: '🇬🇧', localPrice: '£3.69', usdPrice: 4.68, index: 82, overUnder: 'under' },
-  { country: 'Japan', flag: '🇯🇵', localPrice: '¥450', usdPrice: 2.83, index: 50, overUnder: 'under' },
-  { country: 'China', flag: '🇨🇳', localPrice: '¥24.9', usdPrice: 3.42, index: 60, overUnder: 'under' },
-  { country: 'India', flag: '🇮🇳', localPrice: '₹199', usdPrice: 2.39, index: 42, overUnder: 'under' },
-  { country: 'Brazil', flag: '🇧🇷', localPrice: 'R$17.9', usdPrice: 3.54, index: 62, overUnder: 'under' },
-  { country: 'Turkey', flag: '🇹🇷', localPrice: '₺110', usdPrice: 3.29, index: 58, overUnder: 'under' },
-  { country: 'South Africa', flag: '🇿🇦', localPrice: 'R59.9', usdPrice: 3.13, index: 55, overUnder: 'under' },
-  { country: 'Egypt', flag: '🇪🇬', localPrice: 'EGP 99', usdPrice: 2.02, index: 36, overUnder: 'under' },
+export const PENTAGON_PIZZA_DATA: PentagonPizzaEntry[] = [
+  { date: '2026-02-26', orders: 14, baseline: 8, spike: true, note: 'LATE-NIGHT SURGE DETECTED', threatLevel: 'elevated' },
+  { date: '2026-02-25', orders: 7, baseline: 8, spike: false, threatLevel: 'normal' },
+  { date: '2026-02-24', orders: 22, baseline: 8, spike: true, note: 'CRITICAL SPIKE — JOINT CHIEFS MEETING', threatLevel: 'critical' },
+  { date: '2026-02-23', orders: 9, baseline: 8, spike: false, threatLevel: 'normal' },
+  { date: '2026-02-22', orders: 6, baseline: 8, spike: false, threatLevel: 'normal' },
+  { date: '2026-02-21', orders: 31, baseline: 8, spike: true, note: 'HIGHEST SINCE OPERATION NEPTUNE SPEAR', threatLevel: 'critical' },
+  { date: '2026-02-20', orders: 11, baseline: 8, spike: true, note: 'MODERATE UPTICK — NatSec BRIEFING', threatLevel: 'elevated' },
+  { date: '2026-02-19', orders: 5, baseline: 8, spike: false, threatLevel: 'normal' },
+  { date: '2026-02-18', orders: 7, baseline: 8, spike: false, threatLevel: 'normal' },
+  { date: '2026-02-17', orders: 18, baseline: 8, spike: true, note: 'ELEVATED — CENTCOM ACTIVITY', threatLevel: 'high' },
+  { date: '2026-02-16', orders: 8, baseline: 8, spike: false, threatLevel: 'normal' },
+  { date: '2026-02-15', orders: 6, baseline: 8, spike: false, threatLevel: 'normal' },
+  { date: '2026-02-14', orders: 4, baseline: 8, spike: false, threatLevel: 'normal' },
+  { date: '2026-02-13', orders: 25, baseline: 8, spike: true, note: 'MAJOR SPIKE — SIGINT INTERCEPT CORRELATED', threatLevel: 'critical' },
+  { date: '2026-02-12', orders: 7, baseline: 8, spike: false, threatLevel: 'normal' },
 ];
 
 // Livestream feeds
@@ -144,6 +154,7 @@ export interface LivestreamFeed {
 }
 
 export const LIVESTREAM_FEEDS: LivestreamFeed[] = [
+  // NEWS — Global Coverage
   { id: 'aje', title: 'Al Jazeera English – LIVE', category: 'news', url: 'https://www.youtube.com/embed/gCNeDWCI0vo?autoplay=1&mute=1', isLive: true, source: 'Al Jazeera', region: 'Global' },
   { id: 'sky', title: 'Sky News – LIVE', category: 'news', url: 'https://www.youtube.com/embed/9Auq9mYxFEE?autoplay=1&mute=1', isLive: true, source: 'Sky News', region: 'UK' },
   { id: 'france24', title: 'France 24 – LIVE', category: 'news', url: 'https://www.youtube.com/embed/h3MuIUNCCzI?autoplay=1&mute=1', isLive: true, source: 'France 24', region: 'Europe' },
@@ -154,6 +165,15 @@ export const LIVESTREAM_FEEDS: LivestreamFeed[] = [
   { id: 'ndtv', title: 'NDTV 24x7 – LIVE', category: 'news', url: 'https://www.youtube.com/embed/MNe8MPlMJGk?autoplay=1&mute=1', isLive: true, source: 'NDTV', region: 'India' },
   { id: 'nhk', title: 'NHK WORLD – LIVE', category: 'news', url: 'https://www.youtube.com/embed/f0lYkdA-Bf0?autoplay=1&mute=1', isLive: true, source: 'NHK', region: 'Japan' },
   { id: 'rt', title: 'RT News – LIVE', category: 'news', url: 'https://www.youtube.com/embed/V5T5tEbOlME?autoplay=1&mute=1', isLive: true, source: 'RT', region: 'Russia' },
+  { id: 'bloomberg', title: 'Bloomberg TV – LIVE', category: 'news', url: 'https://www.youtube.com/embed/dp8PhLsUcFE?autoplay=1&mute=1', isLive: true, source: 'Bloomberg', region: 'Global' },
+  { id: 'euronews', title: 'Euronews – LIVE', category: 'news', url: 'https://www.youtube.com/embed/pykpO5kQJ98?autoplay=1&mute=1', isLive: true, source: 'Euronews', region: 'Europe' },
+  { id: 'cnbc', title: 'CNBC – LIVE', category: 'news', url: 'https://www.youtube.com/embed/9NyxcX3rhQs?autoplay=1&mute=1', isLive: true, source: 'CNBC', region: 'US' },
+  { id: 'wion', title: 'WION – LIVE', category: 'news', url: 'https://www.youtube.com/embed/U6PJi0J74Xw?autoplay=1&mute=1', isLive: true, source: 'WION', region: 'India' },
+  { id: 'trt', title: 'TRT World – LIVE', category: 'news', url: 'https://www.youtube.com/embed/CV5Fooi8YJA?autoplay=1&mute=1', isLive: true, source: 'TRT', region: 'Turkey' },
+  { id: 'arirang', title: 'Arirang TV – LIVE', category: 'news', url: 'https://www.youtube.com/embed/KkOCnBj4P0Y?autoplay=1&mute=1', isLive: true, source: 'Arirang', region: 'South Korea' },
+  { id: 'cgtn', title: 'CGTN – LIVE', category: 'news', url: 'https://www.youtube.com/embed/aJqIvvhBKDs?autoplay=1&mute=1', isLive: true, source: 'CGTN', region: 'China' },
+  { id: 'alarabiya', title: 'Al Arabiya – LIVE', category: 'news', url: 'https://www.youtube.com/embed/1Uu4feBLOBo?autoplay=1&mute=1', isLive: true, source: 'Al Arabiya', region: 'Middle East' },
+  // WEBCAMS — Global Cities
   { id: 'nyc-ts', title: 'Times Square – NYC', category: 'traffic', url: 'https://www.youtube.com/embed/AdUw5RdyZxI?autoplay=1&mute=1', isLive: true, source: 'EarthCam', region: 'New York' },
   { id: 'tokyo-shibuya', title: 'Shibuya Crossing – Tokyo', category: 'traffic', url: 'https://www.youtube.com/embed/DjdUEyjx8GM?autoplay=1&mute=1', isLive: true, source: 'LIVE Camera', region: 'Tokyo' },
   { id: 'dublin', title: 'Dublin City – Ireland', category: 'traffic', url: 'https://www.youtube.com/embed/ByED80IKdIU?autoplay=1&mute=1', isLive: true, source: 'SkylineWebcams', region: 'Dublin' },
@@ -166,11 +186,24 @@ export const LIVESTREAM_FEEDS: LivestreamFeed[] = [
   { id: 'rome-pantheon', title: 'Pantheon – Rome', category: 'traffic', url: 'https://www.youtube.com/embed/P8tH9UhvJxM?autoplay=1&mute=1', isLive: true, source: 'SkylineWebcams', region: 'Rome' },
   { id: 'bangkok', title: 'Bangkok Skyline', category: 'traffic', url: 'https://www.youtube.com/embed/gFRtAAmiFbE?autoplay=1&mute=1', isLive: true, source: 'Webcam', region: 'Bangkok' },
   { id: 'istanbul', title: 'Istanbul Bosphorus', category: 'traffic', url: 'https://www.youtube.com/embed/LcqDdFQviR0?autoplay=1&mute=1', isLive: true, source: 'Webcam', region: 'Istanbul' },
+  { id: 'jerusalem', title: 'Jerusalem Old City', category: 'traffic', url: 'https://www.youtube.com/embed/UXZxE9VCSOE?autoplay=1&mute=1', isLive: true, source: 'Webcam', region: 'Jerusalem' },
+  { id: 'kyiv', title: 'Kyiv Independence Square', category: 'traffic', url: 'https://www.youtube.com/embed/2cyQPN5xQKM?autoplay=1&mute=1', isLive: true, source: 'Webcam', region: 'Kyiv' },
+  { id: 'beirut', title: 'Beirut Skyline', category: 'traffic', url: 'https://www.youtube.com/embed/n5FhC7LRUNY?autoplay=1&mute=1', isLive: true, source: 'Webcam', region: 'Beirut' },
+  { id: 'nicosia', title: 'Nicosia – Cyprus', category: 'traffic', url: 'https://www.youtube.com/embed/wWzEHqjOvqU?autoplay=1&mute=1', isLive: true, source: 'Webcam', region: 'Cyprus' },
+  { id: 'moscow-red', title: 'Red Square – Moscow', category: 'traffic', url: 'https://www.youtube.com/embed/ryzJnLjb1ts?autoplay=1&mute=1', isLive: true, source: 'Webcam', region: 'Moscow' },
+  { id: 'singapore-marina', title: 'Marina Bay – Singapore', category: 'traffic', url: 'https://www.youtube.com/embed/pY_FqOSejgU?autoplay=1&mute=1', isLive: true, source: 'Webcam', region: 'Singapore' },
+  { id: 'rio-copacabana', title: 'Copacabana Beach – Rio', category: 'traffic', url: 'https://www.youtube.com/embed/hRCldyV1ays?autoplay=1&mute=1', isLive: true, source: 'Webcam', region: 'Rio de Janeiro' },
+  { id: 'seoul-gangnam', title: 'Gangnam – Seoul', category: 'traffic', url: 'https://www.youtube.com/embed/WCfwXvHYCDo?autoplay=1&mute=1', isLive: true, source: 'Webcam', region: 'Seoul' },
+  // SPACE
   { id: 'iss', title: 'ISS – Earth View', category: 'space', url: 'https://www.youtube.com/embed/P9C25Un7xaM?autoplay=1&mute=1', isLive: true, source: 'NASA', region: 'Space' },
   { id: 'nasa-live', title: 'NASA Live', category: 'space', url: 'https://www.youtube.com/embed/21X5lGlDOfg?autoplay=1&mute=1', isLive: true, source: 'NASA', region: 'Space' },
+  // NATURE
   { id: 'african-water', title: 'African Waterhole', category: 'nature', url: 'https://www.youtube.com/embed/ydYDqZQpim8?autoplay=1&mute=1', isLive: true, source: 'Explore.org', region: 'Africa' },
   { id: 'jellyfish', title: 'Monterey Bay Jellies', category: 'nature', url: 'https://www.youtube.com/embed/P1NaxJRaBaY?autoplay=1&mute=1', isLive: true, source: 'Monterey Bay Aquarium', region: 'California' },
   { id: 'northern-lights', title: 'Northern Lights – Iceland', category: 'nature', url: 'https://www.youtube.com/embed/PVTMCwlY3cQ?autoplay=1&mute=1', isLive: true, source: 'Webcam', region: 'Iceland' },
+  { id: 'yellowstone-geyser', title: 'Yellowstone Geyser', category: 'nature', url: 'https://www.youtube.com/embed/wPJKAIE2EEo?autoplay=1&mute=1', isLive: true, source: 'NPS', region: 'Wyoming' },
+  { id: 'bald-eagle', title: 'Bald Eagle Nest', category: 'nature', url: 'https://www.youtube.com/embed/B4-L2nfGcuE?autoplay=1&mute=1', isLive: true, source: 'Explore.org', region: 'US' },
+  // WEATHER
   { id: 'wx-atlantic', title: 'Atlantic Hurricane Tracker', category: 'weather', url: 'https://www.youtube.com/embed/0PZM1MQbLMA?autoplay=1&mute=1', isLive: true, source: 'Weather Channel', region: 'Atlantic' },
   { id: 'wx-storm', title: 'Storm Chaser LIVE', category: 'weather', url: 'https://www.youtube.com/embed/AhDCZYFKIX0?autoplay=1&mute=1', isLive: true, source: 'Reed Timmer', region: 'US' },
 ];
