@@ -270,7 +270,7 @@ const Index = () => {
   return (
     <div className="h-screen w-screen bg-void overflow-hidden relative">
       {/* Full-screen map — no flex layout, map fills everything */}
-      <div className="absolute inset-0">
+      <div className="absolute inset-0 z-0" style={{ isolation: 'isolate' }}>
         {/* SVG filters for CRT effects */}
         <svg className="absolute w-0 h-0">
           <defs>
