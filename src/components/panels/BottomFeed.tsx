@@ -10,6 +10,14 @@ import { CONFLICT_ZONES } from '@/data/conflictZones';
 import { fetchMarketSnapshot, MarketSnapshot } from '@/services/marketService';
 import { fetchTrendingSignals, TrendingSignal } from '@/services/trendingService';
 import { detectConvergenceZones, ConvergenceZone } from '@/services/convergenceService';
+import { fetchSolarSnapshot, SolarSnapshot } from '@/services/solarWeatherService';
+import { fetchUSGSVolcanoAlerts, VolcanoAlert } from '@/services/volcanoService';
+import { fetchInternetOutages, InternetOutage } from '@/services/internetOutageService';
+import { NUCLEAR_REACTORS, getNuclearStats } from '@/services/nuclearService';
+import { fetchRadiationData, RadiationStation } from '@/services/radioactivityService';
+import { fetchDiseaseOutbreaks, DiseaseOutbreak } from '@/services/diseaseOutbreakService';
+import { ACTIVE_SANCTIONS_REGIMES } from '@/services/sanctionsService';
+import { CABLE_INCIDENTS, getCableIncidentStats } from '@/services/cableCutService';
 import AIInsightsPanel from './AIInsightsPanel';
 import WebcamGrid from './WebcamGrid';
 import RegionalNewsPanel from './RegionalNewsPanel';
@@ -39,12 +47,25 @@ const BottomFeed = memo(() => {
   const [forexRates, setForexRates] = useState<ForexRate[]>([]);
   const [airQuality, setAirQuality] = useState<AirQualityStation[]>([]);
 
+  const [solarData, setSolarData] = useState<SolarSnapshot | null>(null);
+  const [volcanoAlerts, setVolcanoAlerts] = useState<VolcanoAlert[]>([]);
+  const [internetOutages, setInternetOutages] = useState<InternetOutage[]>([]);
+  const [radiationStations, setRadiationStations] = useState<RadiationStation[]>([]);
+  const [diseaseOutbreaks, setDiseaseOutbreaks] = useState<DiseaseOutbreak[]>([]);
+
   useEffect(() => {
     fetchForexRates().then(setForexRates);
     fetchAirQuality().then(setAirQuality);
+    fetchSolarSnapshot().then(setSolarData);
+    fetchUSGSVolcanoAlerts().then(setVolcanoAlerts);
+    fetchInternetOutages().then(setInternetOutages);
+    fetchRadiationData().then(setRadiationStations);
+    fetchDiseaseOutbreaks().then(setDiseaseOutbreaks);
     const forexInterval = setInterval(() => fetchForexRates().then(setForexRates), 60000);
     const aqInterval = setInterval(() => fetchAirQuality().then(setAirQuality), 300000);
-    return () => { clearInterval(forexInterval); clearInterval(aqInterval); };
+    const solarInterval = setInterval(() => fetchSolarSnapshot().then(setSolarData), 300000);
+    const outageInterval = setInterval(() => fetchInternetOutages().then(setInternetOutages), 300000);
+    return () => { clearInterval(forexInterval); clearInterval(aqInterval); clearInterval(solarInterval); clearInterval(outageInterval); };
   }, []);
 
   const allTicker = [
@@ -121,7 +142,38 @@ const BottomFeed = memo(() => {
           </div>
         </div>
 
-        {/* Row 5: AI Insights */}
+        {/* Row 4.5: SIGINT — Solar Weather + Volcano Alerts + Internet Outages + Nuclear */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 border-b border-border">
+          <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
+            <SolarWeatherPanel data={solarData} />
+          </div>
+          <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
+            <VolcanoAlertsPanel alerts={volcanoAlerts} />
+          </div>
+          <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
+            <InternetOutagePanel outages={internetOutages} />
+          </div>
+          <div className="max-h-[380px] overflow-y-auto scrollbar-thin">
+            <NuclearReactorPanel />
+          </div>
+        </div>
+
+        {/* Row 4.6: CBRN — Radioactivity + Disease Outbreaks + Sanctions + Cable Incidents */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 border-b border-border">
+          <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
+            <RadioactivityPanel stations={radiationStations} />
+          </div>
+          <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
+            <DiseaseOutbreakPanel outbreaks={diseaseOutbreaks} />
+          </div>
+          <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
+            <SanctionsPanel />
+          </div>
+          <div className="max-h-[380px] overflow-y-auto scrollbar-thin">
+            <CableIncidentPanel />
+          </div>
+        </div>
+
         <div className="border-b border-border max-h-[450px] overflow-y-auto scrollbar-thin">
           <AIInsightsPanel />
         </div>
@@ -1246,6 +1298,15 @@ const DATA_SOURCES = [
   { name: 'Mempool (Hashrate)', endpoint: 'mempool.space', interval: '2min', icon: '⛏' },
   { name: 'RSS News Feeds', endpoint: 'various', interval: '3min', icon: '📰' },
   { name: 'ISS Position', endpoint: 'api.wheretheiss.at', interval: '10s', icon: '🛰' },
+  { name: 'NOAA Solar Weather', endpoint: 'services.swpc.noaa.gov', interval: '5min', icon: '☀️' },
+  { name: 'NASA DONKI (Flares)', endpoint: 'api.nasa.gov/DONKI', interval: '5min', icon: '🌞' },
+  { name: 'USGS Volcanoes', endpoint: 'volcanoes.usgs.gov', interval: '5min', icon: '🌋' },
+  { name: 'IODA (Internet)', endpoint: 'api.ioda.inetintel.cc', interval: '5min', icon: '🌐' },
+  { name: 'Safecast (Radiation)', endpoint: 'api.safecast.org', interval: '5min', icon: '☢️' },
+  { name: 'WHO Outbreaks', endpoint: 'who.int/feeds', interval: '10min', icon: '🦠' },
+  { name: 'Frankfurter (Forex)', endpoint: 'api.frankfurter.app', interval: '1min', icon: '💱' },
+  { name: 'WAQI (Air Quality)', endpoint: 'api.waqi.info', interval: '5min', icon: '🌫️' },
+  { name: 'RestCountries', endpoint: 'restcountries.com', interval: 'once', icon: '🗺️' },
 ];
 
 const SourcesHealthPanel = memo(() => {
@@ -1345,6 +1406,290 @@ const PredictionsPanel = memo(() => {
   );
 });
 
+// ── Solar Weather Panel ──
+const SolarWeatherPanel = memo(({ data }: { data: SolarSnapshot | null }) => {
+  if (!data) return <div className="p-3 text-center"><span className="text-[10px] font-data text-primary animate-pulse-dot">LOADING SOLAR DATA...</span></div>;
+  const kpColor = (data.kpIndex ?? 0) >= 7 ? 'text-alert-critical' : (data.kpIndex ?? 0) >= 5 ? 'text-alert-high' : (data.kpIndex ?? 0) >= 4 ? 'text-alert-medium' : 'text-signal-aircraft';
+  return (
+    <div className="p-3">
+      <div className="flex items-center gap-2 mb-3">
+        <h2 className="text-[10px] font-display tracking-[0.2em] text-muted-foreground">☀️ SOLAR WEATHER & GEOMAGNETIC</h2>
+        {data.stormLevel !== 'none' && <span className="text-[8px] font-data text-alert-critical animate-pulse-dot ml-auto">⚠ {data.stormLevel.toUpperCase()} STORM</span>}
+      </div>
+      <div className="grid grid-cols-3 gap-2 mb-3">
+        <div className="bg-card-bg/60 rounded border border-border p-2 text-center">
+          <div className={`text-[24px] font-data font-bold ${kpColor}`}>{data.kpIndex?.toFixed(1) ?? '—'}</div>
+          <div className="text-[7px] font-display tracking-wider text-muted-foreground">Kp INDEX</div>
+        </div>
+        <div className="bg-card-bg/60 rounded border border-border p-2 text-center">
+          <div className="text-[18px] font-data font-bold text-data-text">{data.solarWind?.speed ?? '—'}</div>
+          <div className="text-[7px] font-display tracking-wider text-muted-foreground">WIND km/s</div>
+        </div>
+        <div className="bg-card-bg/60 rounded border border-border p-2 text-center">
+          <div className="text-[18px] font-data font-bold text-data-text">{data.flares.length}</div>
+          <div className="text-[7px] font-display tracking-wider text-muted-foreground">FLARES (7D)</div>
+        </div>
+      </div>
+      {data.flares.length > 0 && (
+        <div className="space-y-1">
+          <h3 className="text-[9px] font-display tracking-wider text-muted-foreground">RECENT FLARES</h3>
+          {data.flares.slice(0, 5).map(f => {
+            const isX = f.classType.startsWith('X');
+            const isM = f.classType.startsWith('M');
+            return (
+              <div key={f.id} className={`flex items-center justify-between px-2 py-1 rounded bg-card-bg/60 border ${isX ? 'border-alert-critical/40' : isM ? 'border-alert-high/30' : 'border-border'}`}>
+                <span className="text-[9px] font-display text-foreground">{f.classType}</span>
+                <span className="text-[8px] font-data text-muted-foreground">{new Date(f.peakTime).toLocaleDateString()}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+});
+
+// ── Volcano Alerts Panel ──
+const VolcanoAlertsPanel = memo(({ alerts }: { alerts: VolcanoAlert[] }) => {
+  const activeAlerts = alerts.filter(a => a.alertLevel !== 'normal');
+  return (
+    <div className="p-3">
+      <div className="flex items-center gap-2 mb-3">
+        <h2 className="text-[10px] font-display tracking-[0.2em] text-muted-foreground">🌋 USGS VOLCANO ALERTS</h2>
+        <span className="text-[9px] font-data text-text-secondary">● {alerts.length} MONITORED</span>
+        {activeAlerts.length > 0 && <span className="text-[8px] font-data text-alert-high animate-pulse-dot ml-auto">⚠ {activeAlerts.length} ACTIVE</span>}
+      </div>
+      <div className="space-y-1">
+        {(activeAlerts.length > 0 ? activeAlerts : alerts).slice(0, 10).map(v => {
+          const aColor = v.alertLevel === 'warning' ? 'border-alert-critical/40 text-alert-critical' : v.alertLevel === 'watch' ? 'border-alert-high/30 text-alert-high' : v.alertLevel === 'advisory' ? 'border-alert-medium/30 text-alert-medium' : 'border-border text-signal-aircraft';
+          return (
+            <div key={v.id} className={`flex items-center justify-between px-2 py-1.5 rounded bg-card-bg/60 border ${aColor.split(' ')[0]}`}>
+              <div>
+                <span className="text-[10px] font-display tracking-wide text-foreground">{v.name}</span>
+                <span className="text-[8px] font-data text-text-muted-custom ml-1.5">{v.country}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className={`text-[8px] font-data px-1 py-0.5 rounded bg-card-bg/80 ${aColor.split(' ')[1]}`}>{v.aviationColor}</span>
+                <span className={`text-[7px] font-data font-bold px-1 py-0.5 rounded ${aColor.split(' ')[1]} bg-card-bg/80`}>{v.alertLevel.toUpperCase()}</span>
+              </div>
+            </div>
+          );
+        })}
+        {alerts.length === 0 && <div className="text-center py-4 text-[10px] font-data text-muted-foreground">Loading volcano data...</div>}
+      </div>
+    </div>
+  );
+});
+
+// ── Internet Outage Panel ──
+const InternetOutagePanel = memo(({ outages }: { outages: InternetOutage[] }) => {
+  return (
+    <div className="p-3">
+      <div className="flex items-center gap-2 mb-3">
+        <h2 className="text-[10px] font-display tracking-[0.2em] text-muted-foreground">🌐 INTERNET OUTAGES (IODA)</h2>
+        {outages.length > 0 && <span className="text-[8px] font-data text-alert-critical animate-pulse-dot ml-auto">⚠ {outages.length} DISRUPTIONS</span>}
+      </div>
+      {outages.length === 0 ? (
+        <div className="text-center py-6">
+          <span className="text-2xl mb-2 block">✅</span>
+          <p className="text-[10px] font-data text-signal-aircraft">NO SIGNIFICANT OUTAGES DETECTED</p>
+          <p className="text-[8px] font-data text-muted-foreground mt-1">Global connectivity nominal</p>
+        </div>
+      ) : (
+        <div className="space-y-1">
+          {outages.slice(0, 12).map(o => {
+            const sevColor = o.severity === 'critical' ? 'border-l-alert-critical text-alert-critical' : o.severity === 'major' ? 'border-l-alert-high text-alert-high' : 'border-l-alert-medium text-alert-medium';
+            return (
+              <div key={o.countryCode} className={`bg-card-bg/60 border-l-2 ${sevColor.split(' ')[0]} rounded-r px-2 py-1.5`}>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-display tracking-wide text-foreground">{o.country}</span>
+                  <span className={`text-[11px] font-data font-bold ${sevColor.split(' ')[1]}`}>↓{o.dropPercent}%</span>
+                </div>
+                <div className="w-full h-1 bg-card-hover rounded-full overflow-hidden mt-1">
+                  <div className="h-full bg-signal-aircraft rounded-full" style={{ width: `${o.score}%` }} />
+                </div>
+                <div className="text-[7px] font-data text-muted-foreground mt-0.5">Connectivity: {o.score}% | {o.severity.toUpperCase()}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+});
+
+// ── Nuclear Reactor Panel ──
+const NuclearReactorPanel = memo(() => {
+  const stats = getNuclearStats();
+  return (
+    <div className="p-3">
+      <div className="flex items-center gap-2 mb-3">
+        <h2 className="text-[10px] font-display tracking-[0.2em] text-muted-foreground">☢️ NUCLEAR REACTOR STATUS</h2>
+        <span className="text-[9px] font-data text-text-secondary">● {stats.totalReactors} TRACKED</span>
+      </div>
+      <div className="grid grid-cols-2 gap-2 mb-3">
+        <div className="bg-card-bg/60 rounded border border-border p-2 text-center">
+          <div className="text-[20px] font-data font-bold text-signal-aircraft">{stats.operational}</div>
+          <div className="text-[7px] font-display tracking-wider text-muted-foreground">OPERATIONAL</div>
+        </div>
+        <div className="bg-card-bg/60 rounded border border-border p-2 text-center">
+          <div className="text-[20px] font-data font-bold text-alert-medium">{stats.underConstruction}</div>
+          <div className="text-[7px] font-display tracking-wider text-muted-foreground">UNDER CONSTRUCTION</div>
+        </div>
+      </div>
+      <div className="bg-card-bg/60 rounded border border-border p-2 text-center mb-3">
+        <div className="text-[16px] font-data font-bold text-data-text">{stats.totalCapacityGW} GW</div>
+        <div className="text-[7px] font-display tracking-wider text-muted-foreground">TOTAL CAPACITY</div>
+      </div>
+      <div className="space-y-1 max-h-[180px] overflow-y-auto">
+        {NUCLEAR_REACTORS.filter(r => r.status !== 'operational').map(r => {
+          const sColor = r.status === 'shutdown' ? 'text-alert-high' : r.status === 'under_construction' ? 'text-alert-medium' : 'text-muted-foreground';
+          return (
+            <div key={r.id} className="flex items-center justify-between px-2 py-1 rounded bg-card-bg/60 border border-border">
+              <div>
+                <span className="text-[9px] font-display text-foreground">{r.name}</span>
+                <span className="text-[7px] font-data text-muted-foreground ml-1">{r.country}</span>
+              </div>
+              <span className={`text-[7px] font-data font-bold ${sColor}`}>{r.status.replace(/_/g, ' ').toUpperCase()}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+});
+
+// ── Radioactivity Panel ──
+const RadioactivityPanel = memo(({ stations }: { stations: RadiationStation[] }) => {
+  const elevated = stations.filter(s => s.status !== 'normal');
+  return (
+    <div className="p-3">
+      <div className="flex items-center gap-2 mb-3">
+        <h2 className="text-[10px] font-display tracking-[0.2em] text-muted-foreground">☢️ RADIOACTIVITY MONITOR</h2>
+        <span className="text-[9px] font-data text-text-secondary">● {stations.length} STATIONS</span>
+        {elevated.length > 0 && <span className="text-[8px] font-data text-alert-high animate-pulse-dot ml-auto">⚠ {elevated.length} ELEVATED</span>}
+      </div>
+      <div className="space-y-1">
+        {stations.slice(0, 12).map(s => {
+          const color = s.status === 'alert' ? 'border-l-alert-critical text-alert-critical' : s.status === 'high' ? 'border-l-alert-high text-alert-high' : s.status === 'elevated' ? 'border-l-alert-medium text-alert-medium' : 'border-l-signal-aircraft/30 text-signal-aircraft';
+          return (
+            <div key={s.id} className={`bg-card-bg/60 border-l-2 ${color.split(' ')[0]} rounded-r px-2 py-1.5`}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-display tracking-wide text-foreground">{s.name}</span>
+                  {s.country && <span className="text-[8px] font-data text-muted-foreground ml-1">{s.country}</span>}
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className={`text-[12px] font-data font-bold ${color.split(' ')[1]}`}>{s.doseRate}</span>
+                  <span className="text-[7px] font-data text-muted-foreground">nSv/h</span>
+                </div>
+              </div>
+              <div className="text-[7px] font-data text-muted-foreground mt-0.5">{s.status.toUpperCase()} | Background: 40-200 nSv/h</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+});
+
+// ── Disease Outbreak Panel ──
+const DiseaseOutbreakPanel = memo(({ outbreaks }: { outbreaks: DiseaseOutbreak[] }) => {
+  return (
+    <div className="p-3">
+      <div className="flex items-center gap-2 mb-3">
+        <h2 className="text-[10px] font-display tracking-[0.2em] text-muted-foreground">🦠 DISEASE OUTBREAKS</h2>
+        <span className="text-[9px] font-data text-text-secondary">● {outbreaks.length} ACTIVE</span>
+        {outbreaks.some(o => o.severity === 'emergency') && <span className="text-[8px] font-data text-alert-critical animate-pulse-dot ml-auto">⚠ PHEIC</span>}
+      </div>
+      <div className="space-y-1">
+        {outbreaks.slice(0, 10).map(o => {
+          const sevColor = o.severity === 'emergency' ? 'border-l-alert-critical' : o.severity === 'high' ? 'border-l-alert-high' : o.severity === 'moderate' ? 'border-l-alert-medium' : 'border-l-primary/30';
+          const sevText = o.severity === 'emergency' ? 'text-alert-critical' : o.severity === 'high' ? 'text-alert-high' : o.severity === 'moderate' ? 'text-alert-medium' : 'text-muted-foreground';
+          return (
+            <div key={o.id} className={`bg-card-bg/60 border-l-2 ${sevColor} rounded-r px-2 py-1.5`}>
+              <div className="text-[10px] font-display tracking-wide text-foreground leading-tight">{o.disease}</div>
+              <div className="text-[8px] font-data text-muted-foreground mt-0.5">{o.country}</div>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className={`text-[7px] font-data font-bold ${sevText}`}>{o.severity.toUpperCase()}</span>
+                {o.cases && <span className="text-[7px] font-data text-data-text">{o.cases.toLocaleString()} cases</span>}
+                {o.deaths && <span className="text-[7px] font-data text-alert-critical">{o.deaths.toLocaleString()} deaths</span>}
+                <span className="text-[7px] font-data text-muted-foreground">{o.source}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+});
+
+// ── Sanctions Panel ──
+const SanctionsPanel = memo(() => {
+  return (
+    <div className="p-3">
+      <div className="flex items-center gap-2 mb-3">
+        <h2 className="text-[10px] font-display tracking-[0.2em] text-muted-foreground">🚫 SANCTIONS & WATCHLISTS</h2>
+        <span className="text-[9px] font-data text-text-secondary">● {ACTIVE_SANCTIONS_REGIMES.length} REGIMES</span>
+      </div>
+      <div className="space-y-1.5">
+        {ACTIVE_SANCTIONS_REGIMES.map(r => (
+          <div key={r.regime} className="bg-card-bg/60 rounded border border-border px-2.5 py-2">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] font-display tracking-wide text-foreground">{r.regime}</span>
+              <span className="text-[9px] font-data font-bold text-alert-high">{r.entities.toLocaleString()}</span>
+            </div>
+            <div className="text-[7px] font-data text-muted-foreground">{r.authority}</div>
+            <div className="text-[8px] font-data text-text-secondary mt-0.5">{r.description}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+});
+
+// ── Cable Incident Panel ──
+const CableIncidentPanel = memo(() => {
+  const stats = getCableIncidentStats();
+  return (
+    <div className="p-3">
+      <div className="flex items-center gap-2 mb-3">
+        <h2 className="text-[10px] font-display tracking-[0.2em] text-muted-foreground">🔌 SUBMARINE CABLE INCIDENTS</h2>
+        {stats.activeIncidents > 0 && <span className="text-[8px] font-data text-alert-critical animate-pulse-dot ml-auto">⚠ {stats.activeIncidents} UNRESOLVED</span>}
+      </div>
+      <div className="grid grid-cols-3 gap-2 mb-3">
+        <div className="bg-card-bg/60 rounded border border-border p-2 text-center">
+          <div className="text-[16px] font-data font-bold text-data-text">{stats.totalIncidents}</div>
+          <div className="text-[7px] font-display tracking-wider text-muted-foreground">INCIDENTS</div>
+        </div>
+        <div className="bg-card-bg/60 rounded border border-border p-2 text-center">
+          <div className="text-[16px] font-data font-bold text-alert-critical">{stats.criticalIncidents}</div>
+          <div className="text-[7px] font-display tracking-wider text-muted-foreground">CRITICAL</div>
+        </div>
+        <div className="bg-card-bg/60 rounded border border-border p-2 text-center">
+          <div className="text-[16px] font-data font-bold text-alert-high">{stats.affectedCountries}</div>
+          <div className="text-[7px] font-display tracking-wider text-muted-foreground">COUNTRIES</div>
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        {CABLE_INCIDENTS.map(inc => {
+          const sevColor = inc.severity === 'critical' ? 'border-l-alert-critical' : inc.severity === 'major' ? 'border-l-alert-high' : 'border-l-alert-medium';
+          return (
+            <div key={inc.id} className={`bg-card-bg/60 border-l-2 ${sevColor} rounded-r px-2 py-1.5`}>
+              <div className="flex items-center justify-between">
+                <span className="text-[9px] font-display text-foreground">{inc.cableName}</span>
+                <span className={`text-[7px] font-data font-bold ${inc.restored ? 'text-signal-aircraft' : 'text-alert-critical'}`}>{inc.restored ? 'RESTORED' : 'ACTIVE'}</span>
+              </div>
+              <div className="text-[8px] font-data text-muted-foreground mt-0.5">{inc.location} — {inc.date}</div>
+              <div className="text-[7px] font-data text-text-secondary mt-0.5">{inc.suspectedCause}</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+});
+
 NewsFeed.displayName = 'NewsFeed';
 LivestreamPanel.displayName = 'LivestreamPanel';
 RadioPanel.displayName = 'RadioPanel';
@@ -1360,5 +1705,13 @@ StrategicPosturePanel.displayName = 'StrategicPosturePanel';
 InstabilityIndexPanel.displayName = 'InstabilityIndexPanel';
 StrategicRiskPanel.displayName = 'StrategicRiskPanel';
 CombinedIndexesPanel.displayName = 'CombinedIndexesPanel';
+SolarWeatherPanel.displayName = 'SolarWeatherPanel';
+VolcanoAlertsPanel.displayName = 'VolcanoAlertsPanel';
+InternetOutagePanel.displayName = 'InternetOutagePanel';
+NuclearReactorPanel.displayName = 'NuclearReactorPanel';
+RadioactivityPanel.displayName = 'RadioactivityPanel';
+DiseaseOutbreakPanel.displayName = 'DiseaseOutbreakPanel';
+SanctionsPanel.displayName = 'SanctionsPanel';
+CableIncidentPanel.displayName = 'CableIncidentPanel';
 BottomFeed.displayName = 'BottomFeed';
 export default BottomFeed;
