@@ -30,13 +30,10 @@ const TABS: { key: BottomPanelTab; label: string; icon: string }[] = [
 type NewsFilter = 'ALL' | 'CRITICAL' | 'MILITARY' | 'CONFLICT' | 'PROTEST' | 'CYBER' | 'NUCLEAR' | 'ECONOMIC';
 
 const BottomFeed = memo(() => {
-  const { bottomTab, setBottomTab, bottomPanelCollapsed, toggleBottomPanel, bottomPanelExpanded, setBottomPanelExpanded } = useWorldViewStore();
-
-  const isExpandable = bottomTab === 'indexes' || bottomTab === 'posture' || bottomTab === 'instability' || bottomTab === 'risk' || bottomTab === 'markets' || bottomTab === 'trending' || bottomTab === 'convergence' || bottomTab === 'sources' || bottomTab === 'predictions';
-
   return (
-    <div className="glass-panel border-t border-primary/8 flex flex-col overflow-hidden z-30 h-full">
-      <div className="h-6 border-b border-border flex items-center overflow-hidden bg-card-bg/50 relative">
+    <div className="bg-background border-t border-primary/8">
+      {/* Market ticker */}
+      <div className="h-7 border-b border-border flex items-center overflow-hidden bg-card-bg/50 relative">
         <div className="flex items-center animate-ticker-scroll whitespace-nowrap">
           {[...MARKET_DATA, ...MARKET_DATA].map((m, i) => (
             <span key={i} className="inline-flex items-center gap-1.5 mx-4 text-[10px] font-data">
@@ -46,46 +43,75 @@ const BottomFeed = memo(() => {
             </span>
           ))}
         </div>
-        <div className="absolute right-1 top-0.5 z-10 flex items-center gap-1">
-          {isExpandable && !bottomPanelCollapsed && (
-            <button onClick={() => setBottomPanelExpanded(!bottomPanelExpanded)} className="px-1.5 py-0.5 text-[8px] font-data text-muted-foreground hover:text-primary bg-background/60 backdrop-blur-sm rounded transition-colors">
-              {bottomPanelExpanded ? '⊟' : '⊞'}
-            </button>
-          )}
-          <button onClick={() => { toggleBottomPanel(); if (bottomPanelExpanded) setBottomPanelExpanded(false); }} className="px-1.5 py-0.5 text-[8px] font-data text-muted-foreground hover:text-primary bg-background/60 backdrop-blur-sm rounded transition-colors">
-            {bottomPanelCollapsed ? '▲' : '▼'}
-          </button>
+      </div>
+
+      {/* All sections in grid view */}
+      <div className="space-y-0">
+        {/* Row 1: Intel Feed + Markets */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 border-b border-border">
+          <div className="border-r border-border min-h-[300px]">
+            <NewsFeed />
+          </div>
+          <div className="min-h-[300px]">
+            <MarketsPanel />
+          </div>
+        </div>
+
+        {/* Row 2: Risk Overview + Strategic Posture + Instability */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 border-b border-border">
+          <div className="border-r border-border min-h-[280px]">
+            <StrategicRiskPanel />
+          </div>
+          <div className="border-r border-border min-h-[280px]">
+            <StrategicPosturePanel />
+          </div>
+          <div className="min-h-[280px]">
+            <InstabilityIndexPanel />
+          </div>
+        </div>
+
+        {/* Row 3: Trending + Convergence + Predictions */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 border-b border-border">
+          <div className="border-r border-border min-h-[250px]">
+            <TrendingPanel />
+          </div>
+          <div className="border-r border-border min-h-[250px]">
+            <ConvergencePanel />
+          </div>
+          <div className="min-h-[250px]">
+            <PredictionsPanel />
+          </div>
+        </div>
+
+        {/* Row 4: Combined Indexes + World Stats + Weather */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 border-b border-border">
+          <div className="border-r border-border min-h-[250px]">
+            <CombinedIndexesPanel />
+          </div>
+          <div className="border-r border-border min-h-[250px]">
+            <WorldStatsPanel />
+          </div>
+          <div className="min-h-[250px]">
+            <WeatherPanel />
+          </div>
+        </div>
+
+        {/* Row 5: Livestreams + Radio + Sources + Pizza */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 border-b border-border">
+          <div className="border-r border-border min-h-[250px]">
+            <LivestreamPanel />
+          </div>
+          <div className="border-r border-border min-h-[250px]">
+            <RadioPanel />
+          </div>
+          <div className="border-r border-border min-h-[250px]">
+            <SourcesHealthPanel />
+          </div>
+          <div className="min-h-[250px]">
+            <PizzaIndexPanel />
+          </div>
         </div>
       </div>
-      {!bottomPanelCollapsed && (
-        <>
-          <div className="flex items-center gap-1 px-2 py-1 border-b border-border bg-card-bg/30 overflow-x-auto">
-            {TABS.map((tab) => (
-              <button key={tab.key} onClick={() => { setBottomTab(tab.key); if (tab.key === 'indexes') setBottomPanelExpanded(true); }}
-                className={`flex items-center gap-1.5 px-2.5 py-0.5 text-[10px] font-display tracking-wider rounded transition-colors whitespace-nowrap ${bottomTab === tab.key ? 'bg-primary/10 text-primary border border-primary/20' : 'text-muted-foreground hover:text-foreground'}`}>
-                <span className="text-[9px]">{tab.icon}</span>{tab.label}
-              </button>
-            ))}
-          </div>
-          <div className="flex-1 overflow-hidden">
-            {bottomTab === 'news' && <NewsFeed />}
-            {bottomTab === 'livestream' && <LivestreamPanel />}
-            {bottomTab === 'radio' && <RadioPanel />}
-            {bottomTab === 'markets' && <MarketsPanel />}
-            {bottomTab === 'trending' && <TrendingPanel />}
-            {bottomTab === 'convergence' && <ConvergencePanel />}
-            {bottomTab === 'predictions' && <PredictionsPanel />}
-            {bottomTab === 'sources' && <SourcesHealthPanel />}
-            {bottomTab === 'indexes' && <CombinedIndexesPanel />}
-            {bottomTab === 'posture' && <StrategicPosturePanel />}
-            {bottomTab === 'instability' && <InstabilityIndexPanel />}
-            {bottomTab === 'risk' && <StrategicRiskPanel />}
-            {bottomTab === 'weather' && <WeatherPanel />}
-            {bottomTab === 'stats' && <WorldStatsPanel />}
-            {bottomTab === 'pizza' && <PizzaIndexPanel />}
-          </div>
-        </>
-      )}
     </div>
   );
 });
@@ -111,7 +137,7 @@ const NewsFeed = memo(() => {
   });
 
   return (
-    <div className="h-full overflow-y-auto p-2">
+    <div className="p-2">
       <div className="flex items-center gap-2 mb-2">
         <h2 className="text-[10px] font-display tracking-[0.2em] text-muted-foreground">INTELLIGENCE FEED</h2>
         {newsLoading && <span className="text-[9px] font-data text-primary animate-pulse-dot">FETCHING...</span>}
@@ -170,7 +196,7 @@ const LivestreamPanel = memo(() => {
   const activeStream = LIVESTREAM_FEEDS.find(f => f.id === activeLivestream);
 
   return (
-    <div className="h-full flex overflow-hidden">
+    <div className="flex min-h-[250px]">
       <div className="w-[260px] border-r border-border overflow-y-auto p-2">
         <div className="flex items-center gap-1 mb-2 flex-wrap">
           {cats.map((c) => (
@@ -217,7 +243,7 @@ const LivestreamPanel = memo(() => {
 const WeatherPanel = memo(() => {
   const { weatherAlerts, volcanoes } = useWorldViewStore();
   return (
-    <div className="h-full overflow-y-auto p-3">
+    <div className="p-3">
       <div className="flex items-center gap-4 mb-3">
         <h2 className="text-[10px] font-display tracking-[0.2em] text-muted-foreground">GLOBAL WEATHER & VOLCANIC ACTIVITY</h2>
       </div>
@@ -277,7 +303,7 @@ const WorldStatsPanel = memo(() => {
   ];
 
   return (
-    <div className="h-full overflow-y-auto p-3">
+    <div className="p-3">
       <h2 className="text-[10px] font-display tracking-[0.2em] text-muted-foreground mb-3">GLOBAL MONITORING STATISTICS</h2>
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2">
         {stats.map((s) => (
@@ -298,7 +324,7 @@ const PizzaIndexPanel = memo(() => {
   const latestSpike = spikeDays[0];
 
   return (
-    <div className="h-full overflow-y-auto p-3">
+    <div className="p-3">
       <div className="flex items-center gap-2 mb-3">
         <h2 className="text-[10px] font-display tracking-[0.2em] text-muted-foreground">🍕 PENTAGON PIZZA INDEX — DELIVERY TRACKER</h2>
         <span className="text-[9px] font-data text-text-secondary">● {PENTAGON_PIZZA_DATA.length} DAYS</span>
@@ -412,7 +438,7 @@ const RadioPanel = memo(() => {
   }, []);
 
   return (
-    <div className="h-full flex overflow-hidden">
+    <div className="flex min-h-[250px]">
       {/* Station list */}
       <div className="w-[320px] border-r border-border overflow-y-auto p-2">
         <div className="flex items-center gap-1 mb-2 flex-wrap">
@@ -532,7 +558,7 @@ const StrategicPosturePanel = memo(() => {
   const elevCount = THEATER_DATA.filter(t => t.status === 'ELEV').length;
 
   return (
-    <div className="h-full overflow-y-auto p-3">
+    <div className="p-3">
       <div className="flex items-center gap-2 mb-3">
         <h2 className="text-[10px] font-display tracking-[0.2em] text-muted-foreground">🎯 AI STRATEGIC POSTURE — THEATER ANALYSIS</h2>
         <span className="text-[9px] font-data text-text-secondary">● {THEATER_DATA.length} THEATERS</span>
@@ -599,7 +625,7 @@ const InstabilityIndexPanel = memo(() => {
   };
 
   return (
-    <div className="h-full overflow-y-auto p-3">
+    <div className="p-3">
       <div className="flex items-center gap-2 mb-3">
         <h2 className="text-[10px] font-display tracking-[0.2em] text-muted-foreground">⚠ COUNTRY INSTABILITY INDEX</h2>
         <span className="text-[9px] font-data text-text-secondary">● {sorted.length} COUNTRIES</span>
@@ -689,7 +715,7 @@ const StrategicRiskPanel = memo(() => {
   ].slice(0, 6);
 
   return (
-    <div className="h-full overflow-y-auto p-3">
+    <div className="p-3">
       <div className="flex items-center gap-2 mb-3">
         <h2 className="text-[10px] font-display tracking-[0.2em] text-muted-foreground">🛡 STRATEGIC RISK OVERVIEW</h2>
         <span className="text-[9px] font-data text-primary">● LIVE</span>
@@ -784,7 +810,7 @@ const CombinedIndexesPanel = memo(() => {
   };
 
   return (
-    <div className="h-full overflow-y-auto p-3">
+    <div className="p-3">
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 auto-rows-auto">
 
         {/* ── STRATEGIC RISK ── */}
@@ -976,7 +1002,7 @@ const MarketsPanel = memo(() => {
   const fgColor = (snapshot?.fearGreed?.value ?? 50) <= 25 ? 'text-alert-critical' : (snapshot?.fearGreed?.value ?? 50) >= 75 ? 'text-signal-aircraft' : (snapshot?.fearGreed?.value ?? 50) >= 50 ? 'text-alert-medium' : 'text-alert-high';
 
   return (
-    <div className="h-full overflow-y-auto p-3">
+    <div className="p-3">
       <div className="flex items-center gap-2 mb-3">
         <h2 className="text-[10px] font-display tracking-[0.2em] text-muted-foreground">📈 MARKETS & CRYPTO</h2>
         <span className="text-[8px] font-data text-primary animate-pulse-dot">● LIVE</span>
@@ -1040,7 +1066,7 @@ const TrendingPanel = memo(() => {
   }, []);
 
   return (
-    <div className="h-full overflow-y-auto p-3">
+    <div className="p-3">
       <div className="flex items-center gap-2 mb-3">
         <h2 className="text-[10px] font-display tracking-[0.2em] text-muted-foreground">🔥 TRENDING SIGNALS</h2>
         <span className="text-[8px] font-data text-text-secondary">● {signals.length} TOPICS</span>
@@ -1076,7 +1102,7 @@ const ConvergencePanel = memo(() => {
   const zones = detectConvergenceZones(earthquakes, protests, outages, fires, milCount);
 
   return (
-    <div className="h-full overflow-y-auto p-3">
+    <div className="p-3">
       <div className="flex items-center gap-2 mb-3">
         <h2 className="text-[10px] font-display tracking-[0.2em] text-muted-foreground">🎯 CONVERGENCE ZONES</h2>
         <span className="text-[8px] font-data text-text-secondary">● {zones.length} DETECTED</span>
@@ -1133,7 +1159,7 @@ const SourcesHealthPanel = memo(() => {
   const refreshAge = Math.floor((now - lastRefresh.getTime()) / 1000);
 
   return (
-    <div className="h-full overflow-y-auto p-3">
+    <div className="p-3">
       <div className="flex items-center gap-2 mb-3">
         <h2 className="text-[10px] font-display tracking-[0.2em] text-muted-foreground">🩺 DATA SOURCES HEALTH</h2>
         <span className="text-[8px] font-data text-primary animate-pulse-dot">● MONITORING</span>
@@ -1189,7 +1215,7 @@ const PredictionsPanel = memo(() => {
   const sorted = [...PREDICTION_MARKETS].sort((a, b) => b.probability - a.probability);
 
   return (
-    <div className="h-full overflow-y-auto p-3">
+    <div className="p-3">
       <div className="flex items-center gap-2 mb-3">
         <h2 className="text-[10px] font-display tracking-[0.2em] text-muted-foreground">🔮 PREDICTION MARKETS</h2>
         <span className="text-[8px] font-data text-text-secondary">● {sorted.length} SCENARIOS</span>
