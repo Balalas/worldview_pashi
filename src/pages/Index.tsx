@@ -145,7 +145,8 @@ const CctvPip = memo(() => {
 CctvPip.displayName = 'CctvPip';
 
 const Index = () => {
-  const { setAircraft, setSatellites, setEarthquakes, setNews, setLastRefresh, setNewsLoading, setWeatherAlerts, setVolcanoes, setVessels, setProtests, setOutages, setFires, toggleLayer, closeDetailPanel, mapMode, setFollowTarget, visualStyle, setVisualStyle, filterParams, bottomPanelCollapsed, bottomPanelExpanded, setMapCenter, isScreensaver, setScreensaver, immersiveMode, circularViewport, hudLayout, warMode, setGeoEvents } = useWorldViewStore();
+  const { setAircraft, setSatellites, setEarthquakes, setNews, setLastRefresh, setNewsLoading, setWeatherAlerts, setVolcanoes, setVessels, setProtests, setOutages, setFires, toggleLayer, closeDetailPanel, mapMode, setFollowTarget, visualStyle, setVisualStyle, filterParams, bottomPanelCollapsed, bottomPanelExpanded, setMapCenter, isScreensaver, setScreensaver, immersiveMode, circularViewport, hudLayout, warMode, setGeoEvents, layerSubFilters } = useWorldViewStore();
+  const earthquakeTimeWindow = layerSubFilters.earthquakeTimeWindow || '24H';
   const styleConfig = computeStyleConfig(visualStyle, filterParams);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const IDLE_TIMEOUT = 25000;
@@ -213,8 +214,9 @@ const Index = () => {
     };
     fetchAllNews();
 
-    // Fetch earthquakes
-    fetchEarthquakes().then(setEarthquakes);
+    // Fetch earthquakes with current time window
+    const eqTimeWindow = useWorldViewStore.getState().layerSubFilters.earthquakeTimeWindow || '24H';
+    fetchEarthquakes(eqTimeWindow).then(setEarthquakes);
 
     // Fetch weather
     fetchGlobalWeather().then(setWeatherAlerts);
@@ -239,7 +241,10 @@ const Index = () => {
 
     const vesselInterval = setInterval(() => setVessels(generateVessels()), 30000);
 
-    const eqInterval = setInterval(() => fetchEarthquakes().then(setEarthquakes), 300000);
+    const eqInterval = setInterval(() => {
+      const tw = useWorldViewStore.getState().layerSubFilters.earthquakeTimeWindow || '24H';
+      fetchEarthquakes(tw).then(setEarthquakes);
+    }, 60000); // 60s refresh (was 300s)
 
     const newsInterval = setInterval(async () => {
       try {
@@ -328,13 +333,17 @@ const Index = () => {
       // H for HUD layout cycle
       if (key === 'h') { useWorldViewStore.getState().cycleHudLayout(); return; }
 
-
       const layer = LAYER_SHORTCUTS[key];
       if (layer) toggleLayer(layer);
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [toggleLayer, closeDetailPanel, setFollowTarget, setVisualStyle, setMapCenter]);
+
+  // Re-fetch earthquakes when time window changes
+  useEffect(() => {
+    fetchEarthquakes(earthquakeTimeWindow).then(setEarthquakes);
+  }, [earthquakeTimeWindow]);
 
   if (booting) {
     return <BootScreen onComplete={() => setBooting(false)} />;

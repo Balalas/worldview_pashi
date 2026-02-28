@@ -115,15 +115,37 @@ function satelliteReticleSvg(color: string, name: string, isISS: boolean, catego
   </svg>`);
 }
 
-function quakeSvg(mag: number, color: string) {
+function quakeSvg(mag: number, depth: number, color: string, isSignificant: boolean) {
   const s = Math.max(mag * 8, 28);
-  return svgEl(`<svg xmlns="http://www.w3.org/2000/svg" width="${s+20}" height="${s+20}" viewBox="0 0 ${s+20} ${s+20}">
-    <circle cx="${(s+20)/2}" cy="${(s+20)/2-4}" r="${s/2}" fill="${color}" opacity="0.35">
+  const w = s + 30;
+  const h = s + 30;
+  const cx = w / 2;
+  const cy = h / 2 - 4;
+  // Additional ripple rings for significant (M5+) earthquakes
+  const rippleRings = isSignificant ? `
+    <circle cx="${cx}" cy="${cy}" r="${s * 0.7}" fill="none" stroke="${color}" stroke-width="1.5" opacity="0">
+      <animate attributeName="r" values="${s*0.7};${s*1.8};${s*0.7}" dur="2.5s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.6;0;0.6" dur="2.5s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="${cx}" cy="${cy}" r="${s * 0.5}" fill="none" stroke="${color}" stroke-width="1" opacity="0">
+      <animate attributeName="r" values="${s*0.5};${s*1.5};${s*0.5}" dur="2.5s" repeatCount="indefinite" begin="0.8s"/>
+      <animate attributeName="opacity" values="0.4;0;0.4" dur="2.5s" repeatCount="indefinite" begin="0.8s"/>
+    </circle>
+    <circle cx="${cx}" cy="${cy}" r="${s * 0.3}" fill="none" stroke="#fff" stroke-width="0.8" opacity="0">
+      <animate attributeName="r" values="${s*0.3};${s*1.2};${s*0.3}" dur="2.5s" repeatCount="indefinite" begin="1.5s"/>
+      <animate attributeName="opacity" values="0.3;0;0.3" dur="2.5s" repeatCount="indefinite" begin="1.5s"/>
+    </circle>` : '';
+  const depthLabel = depth < 70 ? 'SHALLOW' : depth < 300 ? 'INTER' : 'DEEP';
+  return svgEl(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+    ${rippleRings}
+    <circle cx="${cx}" cy="${cy}" r="${s/2}" fill="${color}" opacity="0.35">
       <animate attributeName="r" values="${s/2};${s};${s/2}" dur="2s" repeatCount="indefinite"/>
       <animate attributeName="opacity" values="0.35;0;0.35" dur="2s" repeatCount="indefinite"/>
     </circle>
-    <circle cx="${(s+20)/2}" cy="${(s+20)/2-4}" r="${s/4}" fill="${color}" opacity="0.8"/>
-    <text x="${(s+20)/2}" y="${s+16}" text-anchor="middle" font-family="monospace" font-size="10" fill="${color}" font-weight="bold">M${mag}</text>
+    <circle cx="${cx}" cy="${cy}" r="${s/4}" fill="${color}" opacity="0.8"/>
+    ${isSignificant ? `<circle cx="${cx}" cy="${cy}" r="${s/6}" fill="#fff" opacity="0.9"><animate attributeName="opacity" values="0.9;0.4;0.9" dur="0.8s" repeatCount="indefinite"/></circle>` : ''}
+    <text x="${cx}" y="${h-6}" text-anchor="middle" font-family="monospace" font-size="10" fill="${color}" font-weight="bold">M${mag.toFixed(1)}</text>
+    <text x="${cx}" y="${h+4}" text-anchor="middle" font-family="monospace" font-size="6" fill="${color}" opacity="0.6">${depthLabel} ${Math.round(depth)}km</text>
   </svg>`);
 }
 
@@ -1094,14 +1116,21 @@ const Google3DGlobe = memo(() => {
       });
     }
 
-    // Earthquakes — filtered by min magnitude
+    // Earthquakes — filtered by min magnitude with enhanced color mapping
     if (layers.earthquakes) {
       earthquakes
         .filter(eq => eq.magnitude >= layerSubFilters.minMagnitude)
         .forEach(eq => {
-          const color = eq.magnitude >= 6 ? '#ff0044' : eq.magnitude >= 4.5 ? '#ff6600' : '#aa44ff';
+          // Magnitude-based color mapping (USGS-inspired)
+          const color = eq.magnitude >= 7 ? '#ff0000'  // Major — red
+            : eq.magnitude >= 6 ? '#ff2244'            // Strong — dark red
+            : eq.magnitude >= 5 ? '#ff6600'             // Moderate — orange
+            : eq.magnitude >= 4 ? '#ffaa00'             // Light — amber
+            : eq.magnitude >= 3 ? '#ffdd00'             // Minor — yellow
+            : '#aa44ff';                                 // Micro — purple
+          const isSignificant = eq.magnitude >= 5;
           addMarker(eq.lat, eq.lon,
-            quakeSvg(eq.magnitude, color),
+            quakeSvg(eq.magnitude, eq.depth, color, isSignificant),
             0, true,
             () => { stopFollow(); setDetailPanel({ type: 'earthquake', data: eq }); }
           );

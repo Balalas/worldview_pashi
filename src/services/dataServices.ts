@@ -1,21 +1,53 @@
 import { Aircraft, Earthquake, NewsItem } from '@/store/worldview';
 import { supabase } from '@/integrations/supabase/client';
 
-export const fetchEarthquakes = async (): Promise<Earthquake[]> => {
+export type EarthquakeTimeWindow = '1H' | '6H' | '24H' | '48H' | '7D';
+
+const USGS_FEEDS: Record<EarthquakeTimeWindow, string> = {
+  '1H': 'all_hour',
+  '6H': 'all_hour',
+  '24H': 'all_day',
+  '48H': 'all_day',
+  '7D': 'all_week',
+};
+
+// Time window filtering thresholds (in ms)
+const TIME_FILTERS: Record<EarthquakeTimeWindow, number> = {
+  '1H': 60 * 60 * 1000,
+  '6H': 6 * 60 * 60 * 1000,
+  '24H': 24 * 60 * 60 * 1000,
+  '48H': 48 * 60 * 60 * 1000,
+  '7D': 7 * 24 * 60 * 60 * 1000,
+};
+
+export const fetchEarthquakes = async (timeWindow: EarthquakeTimeWindow = '24H'): Promise<Earthquake[]> => {
   try {
-    const res = await fetch('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson');
+    const feed = USGS_FEEDS[timeWindow];
+    const res = await fetch(`https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/${feed}.geojson`);
     const data = await res.json();
-    return data.features.map((f: any) => ({
-      id: f.id,
-      title: f.properties.title,
-      lat: f.geometry.coordinates[1],
-      lon: f.geometry.coordinates[0],
-      magnitude: f.properties.mag,
-      depth: f.geometry.coordinates[2],
-      time: f.properties.time,
-      place: f.properties.place,
-      url: f.properties.url,
-    }));
+    const now = Date.now();
+    const cutoff = now - TIME_FILTERS[timeWindow];
+
+    return data.features
+      .filter((f: any) => f.properties.time >= cutoff)
+      .map((f: any) => ({
+        id: f.id,
+        title: f.properties.title,
+        lat: f.geometry.coordinates[1],
+        lon: f.geometry.coordinates[0],
+        magnitude: f.properties.mag,
+        depth: f.geometry.coordinates[2],
+        time: f.properties.time,
+        place: f.properties.place,
+        url: f.properties.url,
+        felt: f.properties.felt,
+        tsunami: f.properties.tsunami,
+        alert: f.properties.alert,
+        significance: f.properties.sig,
+        mmi: f.properties.mmi,
+        status: f.properties.status,
+        type: f.properties.type,
+      }));
   } catch (e) {
     console.error('Failed to fetch earthquakes:', e);
     return [];

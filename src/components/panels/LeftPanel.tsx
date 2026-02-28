@@ -173,6 +173,23 @@ const LeftPanel = memo(() => {
                         </div>
                         {hasSubs && isExpanded && layers[key] && (
                           <div className="ml-5 pl-2 border-l border-primary/10 py-1 space-y-0.5 mb-1">
+                            {/* Earthquake time window selector */}
+                            {key === 'earthquakes' && (
+                              <div className="px-1 mb-1">
+                                <span className="text-[8px] font-data text-muted-foreground/70 mb-0.5 block">TIME WINDOW</span>
+                                <div className="flex gap-0.5">
+                                  {(['1H', '6H', '24H', '48H', '7D'] as const).map(tw => (
+                                    <button key={tw} onClick={() => setSubFilter('earthquakeTimeWindow', tw)}
+                                      className={`flex-1 text-[7px] font-data py-0.5 rounded transition-colors ${
+                                        layerSubFilters.earthquakeTimeWindow === tw
+                                          ? 'bg-primary/20 text-primary border border-primary/30'
+                                          : 'text-muted-foreground/50 hover:text-primary hover:bg-primary/10 border border-transparent'
+                                      }`}
+                                    >{tw}</button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                             {LAYER_SUB_OPTIONS[key]!.map((opt) => {
                               if (isSlider(opt)) {
                                 const val = layerSubFilters[opt.key] as number;
