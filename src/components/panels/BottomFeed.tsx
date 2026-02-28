@@ -1,4 +1,4 @@
-import { memo, useState, useRef, useEffect, useCallback } from 'react';
+import { memo, useState, useRef, useEffect, useCallback, ReactNode } from 'react';
 import { useWorldViewStore, MARKET_DATA, NewsItem, BottomPanelTab, INSTABILITY_DATA } from '@/store/worldview';
 import { fetchForexRates, ForexRate } from '@/services/forexService';
 import { fetchAirQuality, AirQualityStation } from '@/services/airQualityService';
@@ -42,6 +42,91 @@ const TABS: { key: BottomPanelTab; label: string; icon: string }[] = [
 ];
 
 type NewsFilter = 'ALL' | 'CRITICAL' | 'MILITARY' | 'CONFLICT' | 'PROTEST' | 'CYBER' | 'NUCLEAR' | 'ECONOMIC';
+
+// Collapsible section wrapper
+const CollapsibleRow = ({ title, icon, defaultOpen = true, children }: { title: string; icon: string; defaultOpen?: boolean; children: ReactNode }) => {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="border-b border-border">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center gap-2 px-3 py-1.5 bg-card-bg/30 hover:bg-card-bg/60 transition-colors text-left"
+      >
+        <span className="text-[10px]">{icon}</span>
+        <span className="text-[9px] font-display tracking-[0.2em] text-muted-foreground flex-1">{title}</span>
+        <span className="text-[9px] font-data text-primary/50">{open ? '▼' : '▶'}</span>
+      </button>
+      {open && <div>{children}</div>}
+    </div>
+  );
+};
+
+// War Status Panel — live overview of all active conflicts
+const WarStatusPanel = memo(() => {
+  const { news, warMode } = useWorldViewStore();
+  
+  const warNews = news.filter(n => 
+    n.category === 'conflict' || n.category === 'military' || 
+    /\b(war|airstrike|missile|killed|casualties|bombing|shelling|troops|offensive|invasion)\b/i.test(n.title)
+  );
+
+  const conflictStats = CONFLICT_ZONES.map(zone => {
+    const relatedNews = warNews.filter(n => {
+      const parts = zone.name.toLowerCase().split('–').map(p => p.trim());
+      return parts.some(p => n.title.toLowerCase().includes(p));
+    });
+    return { ...zone, newsCount: relatedNews.length, latestNews: relatedNews.slice(0, 3) };
+  }).sort((a, b) => b.intensity - a.intensity);
+
+  const activeWars = conflictStats.filter(c => c.type === 'war' || c.intensity >= 8);
+  const activeConflicts = conflictStats.filter(c => c.type !== 'war' && c.intensity >= 5 && c.intensity < 8);
+  const tensions = conflictStats.filter(c => c.intensity < 5);
+
+  const typeColors: Record<string, string> = {
+    war: 'text-alert-critical', conflict: 'text-alert-high', civil_war: 'text-alert-high',
+    insurgency: 'text-alert-medium', tension: 'text-primary', gang_violence: 'text-alert-medium',
+    instability: 'text-muted-foreground',
+  };
+
+  const renderConflict = (c: typeof conflictStats[0]) => (
+    <div key={c.name} className={`border-l-2 ${c.intensity >= 8 ? 'border-l-alert-critical' : c.intensity >= 6 ? 'border-l-alert-high' : 'border-l-alert-medium'} bg-card-bg/40 rounded-r px-2 py-1.5 hover:bg-card-hover transition-colors cursor-pointer`}
+      onClick={() => useWorldViewStore.getState().setMapCenter({ lat: c.lat, lon: c.lon, zoom: 7 })}
+    >
+      <div className="flex items-center gap-2">
+        <span className={`text-[10px] font-display tracking-wider ${typeColors[c.type] || 'text-muted-foreground'} font-bold`}>
+          {c.type === 'war' ? '🔴' : c.intensity >= 6 ? '🟠' : '🟡'} {c.name}
+        </span>
+        <span className="text-[8px] font-data text-muted-foreground ml-auto">{c.intensity}/10</span>
+        <span className="text-[7px] font-data text-primary/40 uppercase">{c.type}</span>
+      </div>
+      {c.newsCount > 0 && (
+        <div className="mt-1 space-y-0.5">
+          {c.latestNews.map((n, i) => (
+            <div key={i} className="text-[8px] text-muted-foreground/80 leading-tight truncate cursor-pointer hover:text-foreground"
+              onClick={(e) => { e.stopPropagation(); n.link && window.open(n.link, '_blank'); }}>
+              ↗ {n.source}: {n.title.substring(0, 60)}...
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <div className={`p-2 ${warMode ? 'bg-alert-critical/5' : ''}`}>
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
+        <h2 className="text-[10px] font-display tracking-[0.2em] text-alert-critical">ACTIVE CONFLICT TRACKER</h2>
+        <span className="text-[9px] font-data text-alert-critical/70">● {activeWars.length} WARS</span>
+        <span className="text-[9px] font-data text-alert-high/70">● {activeConflicts.length} CONFLICTS</span>
+        <span className="text-[9px] font-data text-alert-medium/70">● {tensions.length} TENSIONS</span>
+        <span className="text-[8px] font-data text-primary/40 ml-auto">{warNews.length} RELATED ARTICLES</span>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-1.5">
+        {conflictStats.slice(0, 12).map(renderConflict)}
+      </div>
+    </div>
+  );
+});
 
 const BottomFeed = memo(() => {
   const [forexRates, setForexRates] = useState<ForexRate[]>([]);
@@ -88,126 +173,150 @@ const BottomFeed = memo(() => {
         </div>
       </div>
 
-      {/* All sections in grid view */}
+      {/* All sections in grid view with collapsible rows */}
       <div>
+        {/* Row 0: Live War Status (always visible in war mode, collapsible otherwise) */}
+        <CollapsibleRow title="ACTIVE CONFLICTS" icon="💥" defaultOpen={true}>
+          <WarStatusPanel />
+        </CollapsibleRow>
+
         {/* Row 1: Intel Feed + Markets */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 border-b border-border">
-          <div className="border-r border-border max-h-[420px] overflow-y-auto scrollbar-thin">
-            <NewsFeed />
+        <CollapsibleRow title="INTELLIGENCE & MARKETS" icon="📡" defaultOpen={true}>
+          <div className="grid grid-cols-1 lg:grid-cols-2">
+            <div className="border-r border-border max-h-[420px] overflow-y-auto scrollbar-thin">
+              <NewsFeed />
+            </div>
+            <div className="max-h-[420px] overflow-y-auto scrollbar-thin">
+              <MarketsPanel />
+            </div>
           </div>
-          <div className="max-h-[420px] overflow-y-auto scrollbar-thin">
-            <MarketsPanel />
-          </div>
-        </div>
+        </CollapsibleRow>
 
         {/* Row 2: Risk Overview + Strategic Posture + Instability */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 border-b border-border">
-          <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
-            <StrategicRiskPanel />
+        <CollapsibleRow title="STRATEGIC ANALYSIS" icon="🛡" defaultOpen={true}>
+          <div className="grid grid-cols-1 lg:grid-cols-3">
+            <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
+              <StrategicRiskPanel />
+            </div>
+            <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
+              <StrategicPosturePanel />
+            </div>
+            <div className="max-h-[380px] overflow-y-auto scrollbar-thin">
+              <InstabilityIndexPanel />
+            </div>
           </div>
-          <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
-            <StrategicPosturePanel />
-          </div>
-          <div className="max-h-[380px] overflow-y-auto scrollbar-thin">
-            <InstabilityIndexPanel />
-          </div>
-        </div>
+        </CollapsibleRow>
 
         {/* Row 3: Trending + Convergence + Predictions */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 border-b border-border">
-          <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
-            <TrendingPanel />
+        <CollapsibleRow title="TRENDING & PREDICTIONS" icon="🔥" defaultOpen={false}>
+          <div className="grid grid-cols-1 lg:grid-cols-3">
+            <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
+              <TrendingPanel />
+            </div>
+            <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
+              <ConvergencePanel />
+            </div>
+            <div className="max-h-[380px] overflow-y-auto scrollbar-thin">
+              <PredictionsPanel />
+            </div>
           </div>
-          <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
-            <ConvergencePanel />
-          </div>
-          <div className="max-h-[380px] overflow-y-auto scrollbar-thin">
-            <PredictionsPanel />
-          </div>
-        </div>
+        </CollapsibleRow>
 
         {/* Row 4: Combined Indexes + World Stats + Weather */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 border-b border-border">
-          <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
-            <CombinedIndexesPanel />
+        <CollapsibleRow title="INDEXES & ENVIRONMENT" icon="📊" defaultOpen={false}>
+          <div className="grid grid-cols-1 lg:grid-cols-4">
+            <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
+              <CombinedIndexesPanel />
+            </div>
+            <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
+              <WorldStatsPanel />
+            </div>
+            <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
+              <WeatherPanel />
+            </div>
+            <div className="max-h-[380px] overflow-y-auto scrollbar-thin">
+              <AirQualityPanel stations={airQuality} />
+            </div>
           </div>
-          <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
-            <WorldStatsPanel />
-          </div>
-          <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
-            <WeatherPanel />
-          </div>
-          <div className="max-h-[380px] overflow-y-auto scrollbar-thin">
-            <AirQualityPanel stations={airQuality} />
-          </div>
-        </div>
+        </CollapsibleRow>
 
-        {/* Row 4.5: SIGINT — Solar Weather + Volcano Alerts + Internet Outages + Nuclear */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 border-b border-border">
-          <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
-            <SolarWeatherPanel data={solarData} />
+        {/* Row 4.5: SIGINT */}
+        <CollapsibleRow title="SIGINT — SENSORS & MONITORING" icon="📡" defaultOpen={false}>
+          <div className="grid grid-cols-1 lg:grid-cols-4">
+            <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
+              <SolarWeatherPanel data={solarData} />
+            </div>
+            <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
+              <VolcanoAlertsPanel alerts={volcanoAlerts} />
+            </div>
+            <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
+              <InternetOutagePanel outages={internetOutages} />
+            </div>
+            <div className="max-h-[380px] overflow-y-auto scrollbar-thin">
+              <NuclearReactorPanel />
+            </div>
           </div>
-          <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
-            <VolcanoAlertsPanel alerts={volcanoAlerts} />
-          </div>
-          <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
-            <InternetOutagePanel outages={internetOutages} />
-          </div>
-          <div className="max-h-[380px] overflow-y-auto scrollbar-thin">
-            <NuclearReactorPanel />
-          </div>
-        </div>
+        </CollapsibleRow>
 
-        {/* Row 4.6: CBRN — Radioactivity + Disease Outbreaks + Sanctions + Cable Incidents */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 border-b border-border">
-          <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
-            <RadioactivityPanel stations={radiationStations} />
+        {/* Row 4.6: CBRN */}
+        <CollapsibleRow title="CBRN — HAZARDS & SANCTIONS" icon="☢" defaultOpen={false}>
+          <div className="grid grid-cols-1 lg:grid-cols-4">
+            <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
+              <RadioactivityPanel stations={radiationStations} />
+            </div>
+            <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
+              <DiseaseOutbreakPanel outbreaks={diseaseOutbreaks} />
+            </div>
+            <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
+              <SanctionsPanel />
+            </div>
+            <div className="max-h-[380px] overflow-y-auto scrollbar-thin">
+              <CableIncidentPanel />
+            </div>
           </div>
-          <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
-            <DiseaseOutbreakPanel outbreaks={diseaseOutbreaks} />
+        </CollapsibleRow>
+
+        <CollapsibleRow title="AI INSIGHTS" icon="🧠" defaultOpen={false}>
+          <div className="max-h-[450px] overflow-y-auto scrollbar-thin">
+            <AIInsightsPanel />
           </div>
-          <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
-            <SanctionsPanel />
+        </CollapsibleRow>
+
+        <CollapsibleRow title="LIVE WEBCAMS" icon="📹" defaultOpen={false}>
+          <div className="max-h-[500px] overflow-y-auto scrollbar-thin">
+            <WebcamGrid />
           </div>
-          <div className="max-h-[380px] overflow-y-auto scrollbar-thin">
-            <CableIncidentPanel />
+        </CollapsibleRow>
+
+        <CollapsibleRow title="REGIONAL NEWS" icon="🗞" defaultOpen={false}>
+          <div className="max-h-[400px] overflow-y-auto scrollbar-thin">
+            <RegionalNewsPanel />
           </div>
-        </div>
+        </CollapsibleRow>
 
-        <div className="border-b border-border max-h-[450px] overflow-y-auto scrollbar-thin">
-          <AIInsightsPanel />
-        </div>
-
-        {/* Row 6: Live Webcams */}
-        <div className="border-b border-border max-h-[500px] overflow-y-auto scrollbar-thin">
-          <WebcamGrid />
-        </div>
-
-        {/* Row 7: Regional News */}
-        <div className="border-b border-border max-h-[400px] overflow-y-auto scrollbar-thin">
-          <RegionalNewsPanel />
-        </div>
-
-        {/* Row 8: Infrastructure Cascade */}
-        <div className="border-b border-border max-h-[450px] overflow-y-auto scrollbar-thin">
-          <InfrastructureCascade />
-        </div>
+        <CollapsibleRow title="INFRASTRUCTURE CASCADE" icon="🏗" defaultOpen={false}>
+          <div className="max-h-[450px] overflow-y-auto scrollbar-thin">
+            <InfrastructureCascade />
+          </div>
+        </CollapsibleRow>
 
         {/* Row 9: Livestreams + Radio + Sources + Pizza */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 border-b border-border">
-          <div className="border-r border-border max-h-[350px] overflow-y-auto scrollbar-thin">
-            <LivestreamPanel />
+        <CollapsibleRow title="MEDIA & SOURCES" icon="📺" defaultOpen={false}>
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4">
+            <div className="border-r border-border max-h-[350px] overflow-y-auto scrollbar-thin">
+              <LivestreamPanel />
+            </div>
+            <div className="border-r border-border max-h-[350px] overflow-y-auto scrollbar-thin">
+              <RadioPanel />
+            </div>
+            <div className="border-r border-border max-h-[350px] overflow-y-auto scrollbar-thin">
+              <SourcesHealthPanel />
+            </div>
+            <div className="max-h-[350px] overflow-y-auto scrollbar-thin">
+              <PizzaIndexPanel />
+            </div>
           </div>
-          <div className="border-r border-border max-h-[350px] overflow-y-auto scrollbar-thin">
-            <RadioPanel />
-          </div>
-          <div className="border-r border-border max-h-[350px] overflow-y-auto scrollbar-thin">
-            <SourcesHealthPanel />
-          </div>
-          <div className="max-h-[350px] overflow-y-auto scrollbar-thin">
-            <PizzaIndexPanel />
-          </div>
-        </div>
+        </CollapsibleRow>
       </div>
     </div>
   );

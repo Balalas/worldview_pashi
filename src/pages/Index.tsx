@@ -365,8 +365,8 @@ const Index = () => {
 
   return (
     <div className="min-h-screen w-screen bg-void overflow-y-auto relative">
-      {/* Map section — fixed height, not fullscreen */}
-      <div className="relative w-full h-[60vh] z-0" style={{ isolation: 'isolate', ...(circularViewport ? { clipPath: 'circle(50% at 50% 50%)' } : {}) }}>
+      {/* Map section — fullscreen in screensaver, 60vh normally */}
+      <div className={`relative w-full z-0 transition-all duration-700 ${isScreensaver ? 'h-screen' : 'h-[60vh]'}`} style={{ isolation: 'isolate', ...(circularViewport ? { clipPath: 'circle(50% at 50% 50%)' } : {}) }}>
         {/* SVG filters for CRT effects */}
         <svg className="absolute w-0 h-0">
           <defs>
@@ -471,7 +471,7 @@ const Index = () => {
       )}
 
       {/* Floating UI layer — positioned over the map section */}
-      <div className="absolute inset-0 h-[60vh] pointer-events-none z-20">
+      <div className={`absolute inset-0 pointer-events-none z-20 ${isScreensaver ? 'h-screen' : 'h-[60vh]'}`}>
         {!isScreensaver && (
           <>
             <HudOverlay />
@@ -565,9 +565,10 @@ KeyboardHints.displayName = 'KeyboardHints';
 const ScreensaverOverlay = memo(() => {
   return (
     <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none animate-fade-in">
+      {/* Dark overlay to dim everything except the map */}
+      <div className="absolute inset-0 bg-background/40" />
       {/* Holographic logo */}
       <div className="relative">
-        {/* Outer glow */}
         <div className="absolute -inset-12 rounded-full opacity-20"
           style={{
             background: 'radial-gradient(ellipse, hsl(var(--primary) / 0.4), transparent)',
@@ -575,7 +576,6 @@ const ScreensaverOverlay = memo(() => {
             animation: 'pulse 4s ease-in-out infinite',
           }}
         />
-        {/* Logo text */}
         <div className="relative text-center" style={{ animation: 'float-logo 6s ease-in-out infinite' }}>
           <div className="text-3xl font-display tracking-[0.5em] text-primary/80 font-bold"
             style={{
@@ -587,7 +587,6 @@ const ScreensaverOverlay = memo(() => {
           <div className="text-[9px] font-data tracking-[0.4em] text-primary/40 mt-2">
             GLOBAL INTELLIGENCE PLATFORM
           </div>
-          {/* Scanline effect over logo */}
           <div className="absolute inset-0 pointer-events-none"
             style={{
               backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, hsl(var(--primary) / 0.03) 2px, hsl(var(--primary) / 0.03) 4px)',
@@ -595,7 +594,6 @@ const ScreensaverOverlay = memo(() => {
             }}
           />
         </div>
-        {/* Reflection */}
         <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 w-[60%] h-4 rounded-full opacity-15"
           style={{
             background: 'radial-gradient(ellipse, hsl(var(--primary) / 0.5), transparent)',
