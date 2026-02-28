@@ -350,9 +350,9 @@ const Index = () => {
   }
 
   return (
-    <div className="h-screen w-screen bg-void overflow-hidden relative">
-      {/* Full-screen map */}
-      <div className="absolute inset-0 z-0" style={{ isolation: 'isolate', ...(circularViewport ? { clipPath: 'circle(50% at 50% 50%)' } : {}) }}>
+    <div className="min-h-screen w-screen bg-void overflow-y-auto relative">
+      {/* Map section — fixed height, not fullscreen */}
+      <div className="relative w-full h-[60vh] z-0" style={{ isolation: 'isolate', ...(circularViewport ? { clipPath: 'circle(50% at 50% 50%)' } : {}) }}>
         {/* SVG filters for CRT effects */}
         <svg className="absolute w-0 h-0">
           <defs>
@@ -456,8 +456,8 @@ const Index = () => {
         />
       )}
 
-      {/* Floating UI layer */}
-      <div className="absolute inset-0 pointer-events-none z-20">
+      {/* Floating UI layer — positioned over the map section */}
+      <div className="absolute inset-0 h-[60vh] pointer-events-none z-20">
         {!isScreensaver && (
           <>
             <HudOverlay />
@@ -497,19 +497,17 @@ const Index = () => {
 
         {!isScreensaver && <MinimapRadar />}
 
-        {/* Bottom Feed — full grid, scrollable overlay */}
-        {!isScreensaver && !immersiveMode && (
-          <div className="absolute bottom-0 left-0 right-0 pointer-events-auto"
-            style={{ height: bottomPanelCollapsed ? '26px' : '70vh', transition: 'height 0.3s cubic-bezier(0.16,1,0.3,1)' }}
-          >
-            <BottomFeed />
-          </div>
-        )}
-
         {!isScreensaver && <KeyboardHints />}
 
         {isScreensaver && <ScreensaverOverlay />}
       </div>
+
+      {/* Bottom Feed — flows naturally below the map */}
+      {!isScreensaver && !immersiveMode && (
+        <div className="relative z-10">
+          <BottomFeed />
+        </div>
+      )}
     </div>
   );
 };
