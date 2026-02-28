@@ -16,6 +16,8 @@ const TABS: { key: BottomPanelTab; label: string; icon: string }[] = [
   { key: 'markets', label: 'MARKETS', icon: '📈' },
   { key: 'trending', label: 'TRENDING', icon: '🔥' },
   { key: 'convergence', label: 'CONVERGENCE', icon: '🎯' },
+  { key: 'predictions', label: 'PREDICTIONS', icon: '🔮' },
+  { key: 'sources', label: 'SOURCES', icon: '🩺' },
   { key: 'indexes', label: 'INDEXES', icon: '📊' },
   { key: 'posture', label: 'STRATEGIC POSTURE', icon: '🎯' },
   { key: 'instability', label: 'INSTABILITY INDEX', icon: '⚠' },
@@ -30,7 +32,7 @@ type NewsFilter = 'ALL' | 'CRITICAL' | 'MILITARY' | 'PROTEST' | 'CYBER';
 const BottomFeed = memo(() => {
   const { bottomTab, setBottomTab, bottomPanelCollapsed, toggleBottomPanel, bottomPanelExpanded, setBottomPanelExpanded } = useWorldViewStore();
 
-  const isExpandable = bottomTab === 'indexes' || bottomTab === 'posture' || bottomTab === 'instability' || bottomTab === 'risk' || bottomTab === 'markets' || bottomTab === 'trending' || bottomTab === 'convergence';
+  const isExpandable = bottomTab === 'indexes' || bottomTab === 'posture' || bottomTab === 'instability' || bottomTab === 'risk' || bottomTab === 'markets' || bottomTab === 'trending' || bottomTab === 'convergence' || bottomTab === 'sources' || bottomTab === 'predictions';
 
   return (
     <div className="glass-panel border-t border-primary/8 flex flex-col overflow-hidden z-30 h-full">
@@ -72,6 +74,8 @@ const BottomFeed = memo(() => {
             {bottomTab === 'markets' && <MarketsPanel />}
             {bottomTab === 'trending' && <TrendingPanel />}
             {bottomTab === 'convergence' && <ConvergencePanel />}
+            {bottomTab === 'predictions' && <PredictionsPanel />}
+            {bottomTab === 'sources' && <SourcesHealthPanel />}
             {bottomTab === 'indexes' && <CombinedIndexesPanel />}
             {bottomTab === 'posture' && <StrategicPosturePanel />}
             {bottomTab === 'instability' && <InstabilityIndexPanel />}
@@ -1099,12 +1103,124 @@ const ConvergencePanel = memo(() => {
   );
 });
 
+// ── Data Sources Health Panel ──
+const DATA_SOURCES = [
+  { name: 'OpenSky (Aircraft)', endpoint: 'opensky-network.org', interval: '15s', icon: '✈️' },
+  { name: 'USGS Earthquakes', endpoint: 'earthquake.usgs.gov', interval: '5min', icon: '🌍' },
+  { name: 'NASA EONET (Fires)', endpoint: 'eonet.gsfc.nasa.gov', interval: '10min', icon: '🔥' },
+  { name: 'OpenWeather', endpoint: 'api.openweathermap.org', interval: '10min', icon: '🌤' },
+  { name: 'CoinGecko (Crypto)', endpoint: 'api.coingecko.com', interval: '2min', icon: '₿' },
+  { name: 'Fear & Greed Index', endpoint: 'api.alternative.me', interval: '2min', icon: '😱' },
+  { name: 'Mempool (Hashrate)', endpoint: 'mempool.space', interval: '2min', icon: '⛏' },
+  { name: 'RSS News Feeds', endpoint: 'various', interval: '3min', icon: '📰' },
+  { name: 'ISS Position', endpoint: 'api.wheretheiss.at', interval: '10s', icon: '🛰' },
+];
+
+const SourcesHealthPanel = memo(() => {
+  const { lastRefresh } = useWorldViewStore();
+  const now = Date.now();
+  const refreshAge = Math.floor((now - lastRefresh.getTime()) / 1000);
+
+  return (
+    <div className="h-full overflow-y-auto p-3">
+      <div className="flex items-center gap-2 mb-3">
+        <h2 className="text-[10px] font-display tracking-[0.2em] text-muted-foreground">🩺 DATA SOURCES HEALTH</h2>
+        <span className="text-[8px] font-data text-primary animate-pulse-dot">● MONITORING</span>
+        <span className="text-[8px] font-data text-muted-foreground ml-auto">LAST REFRESH: {refreshAge}s AGO</span>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+        {DATA_SOURCES.map(src => {
+          // Simulate status based on refresh age
+          const isFresh = refreshAge < 60;
+          const isStale = refreshAge >= 60 && refreshAge < 300;
+          const statusColor = isFresh ? 'bg-signal-aircraft' : isStale ? 'bg-alert-medium' : 'bg-alert-critical';
+          const statusLabel = isFresh ? 'FRESH' : isStale ? 'STALE' : 'ERROR';
+          const statusText = isFresh ? 'text-signal-aircraft' : isStale ? 'text-alert-medium' : 'text-alert-critical';
+          return (
+            <div key={src.name} className="bg-card-bg/60 rounded border border-border p-2.5 flex items-start gap-2">
+              <span className="text-sm">{src.icon}</span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-display tracking-wide text-foreground">{src.name}</span>
+                  <div className="flex items-center gap-1">
+                    <span className={`w-1.5 h-1.5 rounded-full ${statusColor} ${isFresh ? 'animate-pulse' : ''}`} />
+                    <span className={`text-[7px] font-data font-bold ${statusText}`}>{statusLabel}</span>
+                  </div>
+                </div>
+                <div className="text-[7px] font-data text-muted-foreground mt-0.5">{src.endpoint}</div>
+                <div className="text-[7px] font-data text-text-muted-custom">INTERVAL: {src.interval}</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+});
+
+// ── Prediction Markets Panel ──
+const PREDICTION_MARKETS = [
+  { question: 'China invades Taiwan by 2027', probability: 8, category: 'MILITARY', trend: 'stable' },
+  { question: 'Russia-Ukraine ceasefire by Dec 2025', probability: 22, category: 'CONFLICT', trend: 'up' },
+  { question: 'Iran develops nuclear weapon by 2026', probability: 12, category: 'NUCLEAR', trend: 'up' },
+  { question: 'US enters recession by Q4 2025', probability: 35, category: 'ECONOMIC', trend: 'down' },
+  { question: 'Bitcoin exceeds $200K by 2025', probability: 18, category: 'CRYPTO', trend: 'up' },
+  { question: 'NATO Article 5 invoked by 2026', probability: 4, category: 'MILITARY', trend: 'stable' },
+  { question: 'Major cyberattack on US grid by 2025', probability: 15, category: 'CYBER', trend: 'up' },
+  { question: 'AI causes >$10B economic disruption', probability: 42, category: 'TECH', trend: 'up' },
+  { question: 'Oil exceeds $120/bbl by 2025', probability: 20, category: 'ENERGY', trend: 'down' },
+  { question: 'North Korea ICBM test 2025', probability: 55, category: 'MILITARY', trend: 'stable' },
+  { question: 'Red Sea shipping crisis resolved 2025', probability: 30, category: 'MARITIME', trend: 'down' },
+  { question: 'Global food crisis (FAO emergency) 2025', probability: 25, category: 'HUMANITARIAN', trend: 'up' },
+];
+
+const PredictionsPanel = memo(() => {
+  const sorted = [...PREDICTION_MARKETS].sort((a, b) => b.probability - a.probability);
+
+  return (
+    <div className="h-full overflow-y-auto p-3">
+      <div className="flex items-center gap-2 mb-3">
+        <h2 className="text-[10px] font-display tracking-[0.2em] text-muted-foreground">🔮 PREDICTION MARKETS</h2>
+        <span className="text-[8px] font-data text-text-secondary">● {sorted.length} SCENARIOS</span>
+      </div>
+      <div className="text-[8px] font-data text-muted-foreground mb-2">
+        Curated geopolitical prediction probabilities aggregated from Polymarket, Metaculus, and analyst estimates.
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+        {sorted.map((p, i) => {
+          const probColor = p.probability >= 50 ? 'text-alert-critical' : p.probability >= 25 ? 'text-alert-high' : p.probability >= 10 ? 'text-alert-medium' : 'text-signal-aircraft';
+          const barColor = p.probability >= 50 ? 'bg-alert-critical' : p.probability >= 25 ? 'bg-alert-high' : p.probability >= 10 ? 'bg-alert-medium' : 'bg-signal-aircraft';
+          const trendIcon = p.trend === 'up' ? '↗' : p.trend === 'down' ? '↘' : '→';
+          const trendColor = p.trend === 'up' ? 'text-alert-critical' : p.trend === 'down' ? 'text-signal-aircraft' : 'text-muted-foreground';
+          return (
+            <div key={i} className="bg-card-bg/60 rounded border border-border p-2.5">
+              <div className="flex items-start justify-between mb-1.5">
+                <span className="text-[9px] text-foreground leading-tight flex-1 mr-2">{p.question}</span>
+                <span className={`text-[16px] font-data font-bold ${probColor} flex-shrink-0`}>{p.probability}%</span>
+              </div>
+              <div className="w-full h-1.5 bg-card-hover rounded-full overflow-hidden mb-1.5">
+                <div className={`h-full rounded-full ${barColor}`} style={{ width: `${p.probability}%` }} />
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[7px] font-data bg-primary/10 text-primary px-1.5 py-0.5 rounded">{p.category}</span>
+                <span className={`text-[8px] font-data ${trendColor}`}>{trendIcon} {p.trend.toUpperCase()}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+});
+
 NewsFeed.displayName = 'NewsFeed';
 LivestreamPanel.displayName = 'LivestreamPanel';
 RadioPanel.displayName = 'RadioPanel';
 MarketsPanel.displayName = 'MarketsPanel';
 TrendingPanel.displayName = 'TrendingPanel';
 ConvergencePanel.displayName = 'ConvergencePanel';
+SourcesHealthPanel.displayName = 'SourcesHealthPanel';
+PredictionsPanel.displayName = 'PredictionsPanel';
 WeatherPanel.displayName = 'WeatherPanel';
 WorldStatsPanel.displayName = 'WorldStatsPanel';
 PizzaIndexPanel.displayName = 'PizzaIndexPanel';

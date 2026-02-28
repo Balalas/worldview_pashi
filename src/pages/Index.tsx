@@ -8,6 +8,7 @@ import HudOverlay from '@/components/hud/HudOverlay';
 import TrackingHud from '@/components/hud/TrackingHud';
 import StreetViewOverlay from '@/components/map/StreetViewOverlay';
 import GlobeControls from '@/components/hud/GlobeControls';
+import PanopticOverlay from '@/components/hud/PanopticOverlay';
 import SearchBar from '@/components/hud/SearchBar';
 import StylePresetsBar, { computeStyleConfig } from '@/components/hud/StylePresetsBar';
 import WeatherRadarOverlay from '@/components/map/WeatherRadarOverlay';
@@ -143,7 +144,7 @@ const CctvPip = memo(() => {
 CctvPip.displayName = 'CctvPip';
 
 const Index = () => {
-  const { setAircraft, setSatellites, setEarthquakes, setNews, setLastRefresh, setNewsLoading, setWeatherAlerts, setVolcanoes, setVessels, setProtests, setOutages, setFires, toggleLayer, closeDetailPanel, mapMode, setFollowTarget, visualStyle, setVisualStyle, filterParams, bottomPanelCollapsed, bottomPanelExpanded, setMapCenter, isScreensaver, setScreensaver } = useWorldViewStore();
+  const { setAircraft, setSatellites, setEarthquakes, setNews, setLastRefresh, setNewsLoading, setWeatherAlerts, setVolcanoes, setVessels, setProtests, setOutages, setFires, toggleLayer, closeDetailPanel, mapMode, setFollowTarget, visualStyle, setVisualStyle, filterParams, bottomPanelCollapsed, bottomPanelExpanded, setMapCenter, isScreensaver, setScreensaver, immersiveMode, circularViewport, hudLayout } = useWorldViewStore();
   const styleConfig = computeStyleConfig(visualStyle, filterParams);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const IDLE_TIMEOUT = 25000;
@@ -262,6 +263,13 @@ const Index = () => {
       // D for detection mode toggle
       if (key === 'd') { useWorldViewStore.getState().toggleDetectionMode(); return; }
 
+      // I for immersive mode
+      if (key === 'i') { useWorldViewStore.getState().toggleImmersiveMode(); return; }
+
+      // H for HUD layout cycle
+      if (key === 'h') { useWorldViewStore.getState().cycleHudLayout(); return; }
+
+
       const layer = LAYER_SHORTCUTS[key];
       if (layer) toggleLayer(layer);
     };
@@ -276,7 +284,7 @@ const Index = () => {
   return (
     <div className="h-screen w-screen bg-void overflow-hidden relative">
       {/* Full-screen map — no flex layout, map fills everything */}
-      <div className="absolute inset-0 z-0" style={{ isolation: 'isolate' }}>
+      <div className="absolute inset-0 z-0" style={{ isolation: 'isolate', ...(circularViewport ? { clipPath: 'circle(50% at 50% 50%)' } : {}) }}>
         {/* SVG filters for CRT effects */}
         <svg className="absolute w-0 h-0">
           <defs>
@@ -387,16 +395,19 @@ const Index = () => {
 
       {/* Floating UI layer — all panels overlay on top of full-screen map */}
       <div className="absolute inset-0 pointer-events-none z-20">
-        {/* HUD elements hidden during screensaver */}
+        {/* HUD elements hidden during screensaver or immersive */}
         {!isScreensaver && (
           <>
             <HudOverlay />
             <TrackingHud />
-            <TopBar />
-            <div className="pointer-events-auto">
-              <SearchBar />
-            </div>
-            <LeftPanel />
+            <PanopticOverlay />
+            {!immersiveMode && <TopBar />}
+            {!immersiveMode && (
+              <div className="pointer-events-auto">
+                <SearchBar />
+              </div>
+            )}
+            {!immersiveMode && <LeftPanel />}
           </>
         )}
 
@@ -431,7 +442,7 @@ const Index = () => {
         {!isScreensaver && <MinimapRadar />}
 
         {/* Bottom Feed — floating ticker */}
-        {!isScreensaver && (
+        {!isScreensaver && !immersiveMode && (
           <div className={`absolute bottom-0 left-0 right-0 pointer-events-auto ${bottomPanelCollapsed ? 'h-[26px]' : bottomPanelExpanded ? 'h-[70vh]' : 'h-[200px]'}`}
             style={{ transition: 'height 0.3s cubic-bezier(0.16,1,0.3,1)' }}
           >
@@ -474,6 +485,8 @@ const KeyboardHints = memo(() => {
           <div><span className="text-primary/60">1-8</span> Visual modes (Normal/CRT/NVG/FLIR/Anime/Noir/Snow/AI)</div>
           <div><span className="text-primary/60">Q,W,E,R,T</span> Fly to NYC / London / Tokyo / Dubai / Sydney</div>
           <div><span className="text-primary/60">D</span> Toggle sparse/full detection</div>
+          <div><span className="text-primary/60">I</span> Immersive mode (hide panels)</div>
+          <div><span className="text-primary/60">H</span> Cycle HUD layout (Full/Tactical/Clean)</div>
           <div><span className="text-primary/60">/</span> Search</div>
           <div><span className="text-primary/60">ESC</span> Clear tracking</div>
         </div>
