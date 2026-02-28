@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { WeatherAlert, VolcanoData } from '@/services/weatherService';
+import { CountryData } from '@/services/countryService';
 
 export type LayerType =
   | 'aircraft' | 'satellites' | 'cameras' | 'militaryFlights'
@@ -443,6 +444,10 @@ export interface WorldViewState {
   toggleWarMode: () => void;
   preWarLayers: Record<LayerType, boolean> | null;
   preWarSubFilters: LayerSubFilters | null;
+
+  countryDossier: CountryData | null;
+  openCountryDossier: (country: CountryData) => void;
+  closeCountryDossier: () => void;
 }
 
 export const useWorldViewStore = create<WorldViewState>((set) => ({
@@ -642,6 +647,10 @@ export const useWorldViewStore = create<WorldViewState>((set) => ({
       bottomTab: 'news' as BottomPanelTab,
     };
   }),
+
+  countryDossier: null,
+  openCountryDossier: (country) => set({ countryDossier: country }),
+  closeCountryDossier: () => set({ countryDossier: null }),
 }));
 
 // Keyboard shortcuts

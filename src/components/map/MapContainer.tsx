@@ -75,41 +75,35 @@ const MapContainer = memo(() => {
                 geoLayer.resetStyle(e.target);
               },
               click: () => {
-                // Gather news for this country
+                // Open the full Country Dossier overlay
                 const state = useWorldViewStore.getState();
-                const countryNews = state.news.filter(n => {
-                  const t = n.title.toLowerCase();
-                  return t.includes(countryName.toLowerCase()) || t.includes(code.toLowerCase());
-                });
-
-                // Gather cameras for this country
-                const countryCameras = PUBLIC_CAMERAS.filter(c => c.country === code);
-
-                // Gather earthquakes
-                const countryQuakes = state.earthquakes.filter(eq => {
-                  const place = (eq.place || '').toLowerCase();
-                  return place.includes(countryName.toLowerCase());
-                });
-
-                // Gather protests
-                const countryProtests = state.protests.filter(p =>
-                  p.country.toLowerCase().includes(countryName.toLowerCase()) ||
-                  p.country === code
-                );
-
-                setDetailPanel({
-                  type: 'country',
-                  data: {
-                    name: countryName,
-                    flag,
-                    code,
-                    news: countryNews.slice(0, 20),
-                    cameras: countryCameras.slice(0, 10),
-                    earthquakes: countryQuakes.slice(0, 5),
-                    protests: countryProtests.slice(0, 5),
-                    newsCount: countryNews.length,
-                    cameraCount: countryCameras.length,
-                  },
+                // Try to find enriched country data
+                import('@/services/countryService').then(({ searchCountries }) => {
+                  const matches = searchCountries(countryName);
+                  if (matches.length > 0) {
+                    state.openCountryDossier(matches[0]);
+                  } else {
+                    // Fallback with minimal data
+                    state.openCountryDossier({
+                      name: countryName,
+                      officialName: countryName,
+                      code,
+                      flag,
+                      population: 0,
+                      area: 0,
+                      region: '',
+                      subregion: '',
+                      capital: '',
+                      languages: [],
+                      currencies: [],
+                      timezones: [],
+                      borders: [],
+                      lat: 0,
+                      lon: 0,
+                      unMember: false,
+                      landlocked: false,
+                    });
+                  }
                 });
               },
             });

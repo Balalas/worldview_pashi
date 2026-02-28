@@ -13,6 +13,7 @@ import SearchBar from '@/components/hud/SearchBar';
 import { computeStyleConfig } from '@/components/hud/StylePresetsBar';
 import WeatherRadarOverlay from '@/components/map/WeatherRadarOverlay';
 import TacticalAlerts from '@/components/hud/TacticalAlerts';
+import CountryDossier from '@/components/panels/CountryDossier';
 import MinimapRadar from '@/components/hud/MinimapRadar';
 import BootScreen from '@/components/hud/BootScreen';
 import { useWorldViewStore, LAYER_SHORTCUTS, LANDMARK_PRESETS, VisualStyle } from '@/store/worldview';
@@ -518,6 +519,9 @@ const Index = () => {
           <BottomFeed />
         </div>
       )}
+
+      {/* Country Dossier overlay */}
+      <CountryDossier />
     </div>
   );
 };
