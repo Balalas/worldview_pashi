@@ -1,6 +1,248 @@
 import { Satellite } from '@/store/worldview';
+import * as satellite from 'satellite.js';
 
-// Real ISS position from free API
+// ── TLE Fetching Pipeline ──
+
+interface TLEEntry {
+  name: string;
+  line1: string;
+  line2: string;
+  satelliteId: number;
+}
+
+let cachedTLEs: TLEEntry[] = [];
+let lastFetchTime = 0;
+const TLE_CACHE_DURATION = 2 * 60 * 60 * 1000; // 2 hours
+
+// Batched executor with controlled concurrency
+async function runBatched<T>(tasks: (() => Promise<T>)[], concurrency: number): Promise<PromiseSettledResult<T>[]> {
+  const results: PromiseSettledResult<T>[] = [];
+  for (let i = 0; i < tasks.length; i += concurrency) {
+    const batch = tasks.slice(i, i + concurrency);
+    const batchResults = await Promise.allSettled(batch.map(fn => fn()));
+    results.push(...batchResults);
+  }
+  return results;
+}
+
+async function fetchTLEPage(page: number, pageSize: number): Promise<TLEEntry[]> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 20000);
+  try {
+    const res = await fetch(
+      `https://tle.ivanstanojevic.me/api/tle?page=${page}&page_size=${pageSize}&sort=popularity&sort-dir=desc`,
+      { signal: controller.signal }
+    );
+    clearTimeout(timer);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data.member || []).map((e: any) => ({
+      name: e.name || '',
+      line1: e.line1 || '',
+      line2: e.line2 || '',
+      satelliteId: e.satelliteId || 0,
+    }));
+  } catch {
+    clearTimeout(timer);
+    return [];
+  }
+}
+
+async function fetchTLESearch(query: string, maxPages: number): Promise<TLEEntry[]> {
+  const results: TLEEntry[] = [];
+  for (let page = 1; page <= maxPages; page++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20000);
+    try {
+      const res = await fetch(
+        `https://tle.ivanstanojevic.me/api/tle?search=${encodeURIComponent(query)}&page=${page}&page_size=100`,
+        { signal: controller.signal }
+      );
+      clearTimeout(timer);
+      if (!res.ok) break;
+      const data = await res.json();
+      const entries = (data.member || []).map((e: any) => ({
+        name: e.name || '',
+        line1: e.line1 || '',
+        line2: e.line2 || '',
+        satelliteId: e.satelliteId || 0,
+      }));
+      results.push(...entries);
+      if (entries.length < 100) break;
+    } catch {
+      clearTimeout(timer);
+      break;
+    }
+  }
+  return results;
+}
+
+const CONSTELLATION_SEARCHES: { query: string; maxPages: number }[] = [
+  { query: 'STARLINK', maxPages: 3 },
+  { query: 'GPS', maxPages: 2 },
+  { query: 'GLONASS', maxPages: 1 },
+  { query: 'GALILEO', maxPages: 1 },
+  { query: 'BEIDOU', maxPages: 1 },
+  { query: 'IRIDIUM', maxPages: 1 },
+  { query: 'COSMOS', maxPages: 2 },
+  { query: 'NOAA', maxPages: 1 },
+  { query: 'GOES', maxPages: 1 },
+  { query: 'INTELSAT', maxPages: 1 },
+];
+
+async function fetchAllTLEs(): Promise<TLEEntry[]> {
+  // Phase 1: Popularity pages (8 pages × 100)
+  const pageTasks = Array.from({ length: 8 }, (_, i) => () => fetchTLEPage(i + 1, 100));
+  const pageResults = await runBatched(pageTasks, 3);
+
+  const seen = new Set<string>();
+  const allEntries: TLEEntry[] = [];
+
+  const addUnique = (entries: TLEEntry[]) => {
+    for (const entry of entries) {
+      if (!entry.line1 || !entry.line2) continue;
+      const noradId = entry.line1.slice(2, 7).trim();
+      if (seen.has(noradId)) continue;
+      seen.add(noradId);
+      allEntries.push(entry);
+    }
+  };
+
+  for (const result of pageResults) {
+    if (result.status === 'fulfilled') addUnique(result.value);
+  }
+
+  // Phase 2: Constellation searches
+  const searchTasks = CONSTELLATION_SEARCHES.map(s => () => fetchTLESearch(s.query, s.maxPages));
+  const searchResults = await runBatched(searchTasks, 2);
+  for (const result of searchResults) {
+    if (result.status === 'fulfilled') addUnique(result.value);
+  }
+
+  console.log(`[SAT] Fetched ${allEntries.length} unique TLEs`);
+  return allEntries;
+}
+
+// ── Classification ──
+
+function classifySat(name: string): 'station' | 'starlink' | 'military' | 'active' {
+  const n = name.toUpperCase();
+  if (n.includes('ISS') || n.includes('ZARYA') || n.includes('NAUKA') ||
+      n.includes('CSS') || n.includes('TIANHE') || n.includes('TIANGONG')) return 'station';
+  if (n.includes('STARLINK') || n.includes('ONEWEB') || n.includes('KUIPER')) return 'starlink';
+  if (n.includes('USA ') || n.includes('COSMOS') || n.includes('NROL') ||
+      n.includes('MILSTAR') || n.includes('SBIRS') || n.includes('AEHF') ||
+      n.includes('WGS') || n.includes('MUOS') || n.includes('YAOGAN') || n.includes('HAWK')) return 'military';
+  return 'active';
+}
+
+// ── SGP4 Propagation ──
+
+function propagateSatellites(tles: TLEEntry[], timestamp: Date): Satellite[] {
+  const results: Satellite[] = [];
+
+  for (const entry of tles) {
+    try {
+      const satrec = satellite.twoline2satrec(entry.line1, entry.line2);
+      const posVel = satellite.propagate(satrec, timestamp);
+      if (!posVel || !posVel.position || typeof posVel.position === 'boolean') continue;
+      if (!posVel.velocity || typeof posVel.velocity === 'boolean') continue;
+
+      const gmst = satellite.gstime(timestamp);
+      const geo = satellite.eciToGeodetic(posVel.position as satellite.EciVec3<number>, gmst);
+
+      const lat = satellite.degreesLat(geo.latitude);
+      const lon = satellite.degreesLong(geo.longitude);
+      const alt = geo.height; // km
+      const vel = posVel.velocity as satellite.EciVec3<number>;
+      const velocity = Math.sqrt(vel.x ** 2 + vel.y ** 2 + vel.z ** 2);
+      const noradId = entry.line1.slice(2, 7).trim();
+
+      results.push({
+        name: entry.name,
+        lat: Math.max(-85, Math.min(85, lat)),
+        lon,
+        alt,
+        velocity,
+        category: classifySat(entry.name),
+        noradId,
+        tle1: entry.line1,
+        tle2: entry.line2,
+      });
+    } catch {
+      continue;
+    }
+  }
+
+  return results;
+}
+
+// ── Orbit Trajectory Computation ──
+
+export function computeOrbitTrajectory(
+  tle1: string, tle2: string, steps = 360
+): { lon: number; lat: number; alt: number }[] {
+  try {
+    const satrec = satellite.twoline2satrec(tle1, tle2);
+    const meanMotion = satrec.no * (1440 / (2 * Math.PI));
+    const periodMin = 1440 / meanMotion;
+    const now = new Date();
+    const points: { lon: number; lat: number; alt: number }[] = [];
+
+    for (let i = 0; i <= steps; i++) {
+      const t = new Date(now.getTime() + (i / steps) * periodMin * 60 * 1000);
+      const posVel = satellite.propagate(satrec, t);
+      if (!posVel || !posVel.position || typeof posVel.position === 'boolean') continue;
+      const gmst = satellite.gstime(t);
+      const geo = satellite.eciToGeodetic(posVel.position as satellite.EciVec3<number>, gmst);
+      points.push({
+        lon: satellite.degreesLong(geo.longitude),
+        lat: satellite.degreesLat(geo.latitude),
+        alt: geo.height,
+      });
+    }
+    return points;
+  } catch {
+    return [];
+  }
+}
+
+// ── Forward Trajectory Projection (for aircraft) ──
+
+export function projectAircraftPath(
+  lat: number, lon: number, altMeters: number,
+  headingDeg: number, speedKts: number,
+  durationMin = 30, steps = 60
+): { lon: number; lat: number; alt: number }[] {
+  if (speedKts < 10) return [];
+  const R = 6371;
+  const speedKmH = speedKts * 1.852;
+  const brng = (headingDeg * Math.PI) / 180;
+  const lat1 = (lat * Math.PI) / 180;
+  const lon1 = (lon * Math.PI) / 180;
+  const points: { lon: number; lat: number; alt: number }[] = [];
+
+  for (let i = 1; i <= steps; i++) {
+    const hours = (i / steps) * durationMin / 60;
+    const d = (speedKmH * hours) / R;
+    const lat2 = Math.asin(
+      Math.sin(lat1) * Math.cos(d) + Math.cos(lat1) * Math.sin(d) * Math.cos(brng)
+    );
+    const lon2 = lon1 + Math.atan2(
+      Math.sin(brng) * Math.sin(d) * Math.cos(lat1),
+      Math.cos(d) - Math.sin(lat1) * Math.sin(lat2)
+    );
+    points.push({
+      lat: (lat2 * 180) / Math.PI,
+      lon: (lon2 * 180) / Math.PI,
+      alt: altMeters,
+    });
+  }
+  return points;
+}
+
+// ── Public API ──
+
 export const fetchISSPosition = async (): Promise<{ lat: number; lon: number; alt: number; velocity: number } | null> => {
   try {
     const res = await fetch('https://api.wheretheiss.at/v1/satellites/25544');
@@ -12,178 +254,30 @@ export const fetchISSPosition = async (): Promise<{ lat: number; lon: number; al
   }
 };
 
-// Comprehensive satellite catalog — 2000+ objects
-const SAT_CATALOG = [
-  // ── Space Stations ──
-  { name: 'ISS (ZARYA)', type: 'station', alt: 408, vel: 7.66, inc: 51.6 },
-  { name: 'TIANGONG', type: 'station', alt: 389, vel: 7.68, inc: 41.5 },
-
-  // ── Science & Telescopes ──
-  { name: 'HUBBLE', type: 'science', alt: 540, vel: 7.59, inc: 28.5 },
-  { name: 'JAMES WEBB', type: 'science', alt: 1500000, vel: 0.03, inc: 0 },
-  { name: 'CHANDRA X-RAY', type: 'science', alt: 133000, vel: 1.5, inc: 28.5 },
-  { name: 'JASON-3', type: 'science', alt: 1336, vel: 7.2, inc: 66 },
-  { name: 'ICESat-2', type: 'science', alt: 496, vel: 7.61, inc: 92 },
-  { name: 'GRACE-FO 1', type: 'science', alt: 490, vel: 7.61, inc: 89 },
-  { name: 'GRACE-FO 2', type: 'science', alt: 490, vel: 7.61, inc: 89 },
-  { name: 'SWOT', type: 'science', alt: 891, vel: 7.42, inc: 77.6 },
-
-  // ── Starlink (800 sats across orbital shells) ──
-  ...Array.from({ length: 400 }, (_, i) => ({ name: `STARLINK-${1000 + i * 15}`, type: 'comms', alt: 550, vel: 7.59, inc: 53 + (i % 6) * 1.3 })),
-  ...Array.from({ length: 200 }, (_, i) => ({ name: `STARLINK-${7000 + i * 12}`, type: 'comms', alt: 540, vel: 7.6, inc: 53.2 + (i % 5) * 1.5 })),
-  ...Array.from({ length: 200 }, (_, i) => ({ name: `STARLINK-${13000 + i * 8}`, type: 'comms', alt: 560, vel: 7.58, inc: 97.6 })),
-
-  // ── GPS constellation (31) ──
-  ...Array.from({ length: 31 }, (_, i) => ({ name: `GPS ${i < 12 ? 'IIF' : 'III'}-${i + 1}`, type: 'navigation', alt: 20200, vel: 3.87, inc: 55 })),
-
-  // ── GLONASS (24) ──
-  ...Array.from({ length: 24 }, (_, i) => ({ name: `GLONASS-K${i + 1}`, type: 'navigation', alt: 19130, vel: 3.95, inc: 64.8 })),
-
-  // ── Galileo (30) ──
-  ...Array.from({ length: 30 }, (_, i) => ({ name: `GALILEO-${i + 1}`, type: 'navigation', alt: 23222, vel: 3.6, inc: 56 })),
-
-  // ── BeiDou (35) ──
-  ...Array.from({ length: 35 }, (_, i) => ({ name: `BEIDOU-3 M${i + 1}`, type: 'navigation', alt: 21528, vel: 3.7, inc: 55 + (i % 3) * 10 })),
-
-  // ── OneWeb (500) ──
-  ...Array.from({ length: 500 }, (_, i) => ({ name: `ONEWEB-${i + 1}`, type: 'comms', alt: 1200, vel: 7.32, inc: 87.9 })),
-
-  // ── Iridium NEXT (66) ──
-  ...Array.from({ length: 66 }, (_, i) => ({ name: `IRIDIUM ${100 + i}`, type: 'comms', alt: 780, vel: 7.46, inc: 86.4 })),
-
-  // ── Amazon Kuiper (50) ──
-  ...Array.from({ length: 50 }, (_, i) => ({ name: `KUIPER-${i + 1}`, type: 'comms', alt: 590, vel: 7.58, inc: 51.9 })),
-
-  // ── Planet Labs (150 Doves) ──
-  ...Array.from({ length: 150 }, (_, i) => ({ name: `DOVE-${i + 1}`, type: 'earth_obs', alt: 475, vel: 7.63, inc: 97.4 + (i % 3) * 0.3 })),
-
-  // ── Spire Global (100) ──
-  ...Array.from({ length: 100 }, (_, i) => ({ name: `LEMUR-2-${i + 1}`, type: 'comms', alt: 500, vel: 7.61, inc: 37 + (i % 8) * 8 })),
-
-  // ── Military / Recon ──
-  { name: 'USA-326', type: 'military', alt: 270, vel: 7.73, inc: 97.4 },
-  { name: 'USA-314', type: 'military', alt: 265, vel: 7.73, inc: 97.9 },
-  { name: 'USA-325', type: 'military', alt: 280, vel: 7.72, inc: 97.5 },
-  { name: 'USA-338', type: 'military', alt: 260, vel: 7.74, inc: 97.8 },
-  { name: 'USA-224', type: 'military', alt: 250, vel: 7.75, inc: 97.9 },
-  { name: 'USA-245', type: 'military', alt: 1100, vel: 7.3, inc: 63.4 },
-  { name: 'USA-290', type: 'military', alt: 35786, vel: 3.07, inc: 5.2 },
-  { name: 'COSMOS 2558', type: 'military', alt: 430, vel: 7.65, inc: 97.3 },
-  { name: 'COSMOS 2542', type: 'military', alt: 620, vel: 7.56, inc: 82.4 },
-  { name: 'COSMOS 2573', type: 'military', alt: 350, vel: 7.69, inc: 67.1 },
-  { name: 'NROL-82', type: 'military', alt: 300, vel: 7.73, inc: 63 },
-  { name: 'NROL-87', type: 'military', alt: 290, vel: 7.72, inc: 97 },
-  { name: 'NROL-107', type: 'military', alt: 500, vel: 7.61, inc: 63.4 },
-  { name: 'YAOGAN-39A', type: 'military', alt: 500, vel: 7.61, inc: 35 },
-  { name: 'YAOGAN-39B', type: 'military', alt: 500, vel: 7.61, inc: 35 },
-  { name: 'YAOGAN-39C', type: 'military', alt: 500, vel: 7.61, inc: 35 },
-  { name: 'YAOGAN-35A', type: 'military', alt: 500, vel: 7.61, inc: 35 },
-  { name: 'YAOGAN-35B', type: 'military', alt: 500, vel: 7.61, inc: 35 },
-  { name: 'YAOGAN-35C', type: 'military', alt: 500, vel: 7.61, inc: 35 },
-  { name: 'MUOS-5', type: 'military', alt: 35786, vel: 3.07, inc: 5 },
-  { name: 'MUOS-4', type: 'military', alt: 35786, vel: 3.07, inc: 5 },
-  { name: 'MUOS-3', type: 'military', alt: 35786, vel: 3.07, inc: 5 },
-  { name: 'WGS-11', type: 'military', alt: 35786, vel: 3.07, inc: 0 },
-  { name: 'SBIRS GEO-5', type: 'military', alt: 35786, vel: 3.07, inc: 0 },
-  { name: 'SBIRS GEO-6', type: 'military', alt: 35786, vel: 3.07, inc: 0 },
-
-  // ── Weather ──
-  { name: 'NOAA-20', type: 'weather', alt: 824, vel: 7.45, inc: 98.7 },
-  { name: 'NOAA-21', type: 'weather', alt: 824, vel: 7.45, inc: 98.7 },
-  { name: 'GOES-18', type: 'weather', alt: 35786, vel: 3.07, inc: 0.1 },
-  { name: 'GOES-16', type: 'weather', alt: 35786, vel: 3.07, inc: 0.1 },
-  { name: 'METEOSAT-12', type: 'weather', alt: 35786, vel: 3.07, inc: 0.5 },
-  { name: 'METEOSAT-11', type: 'weather', alt: 35786, vel: 3.07, inc: 0.5 },
-  { name: 'FENGYUN-4B', type: 'weather', alt: 35786, vel: 3.07, inc: 0.2 },
-  { name: 'FENGYUN-4A', type: 'weather', alt: 35786, vel: 3.07, inc: 0.2 },
-  { name: 'HIMAWARI-9', type: 'weather', alt: 35786, vel: 3.07, inc: 0.1 },
-  { name: 'INSAT-3D', type: 'weather', alt: 35786, vel: 3.07, inc: 0.1 },
-  { name: 'SUOMI NPP', type: 'weather', alt: 824, vel: 7.45, inc: 98.7 },
-  { name: 'METOP-C', type: 'weather', alt: 817, vel: 7.45, inc: 98.7 },
-  { name: 'FY-3E', type: 'weather', alt: 836, vel: 7.44, inc: 98.8 },
-
-  // ── Earth observation ──
-  { name: 'SENTINEL-1A', type: 'earth_obs', alt: 693, vel: 7.5, inc: 98.2 },
-  { name: 'SENTINEL-2A', type: 'earth_obs', alt: 786, vel: 7.45, inc: 98.6 },
-  { name: 'SENTINEL-2B', type: 'earth_obs', alt: 786, vel: 7.45, inc: 98.6 },
-  { name: 'SENTINEL-3A', type: 'earth_obs', alt: 814, vel: 7.45, inc: 98.6 },
-  { name: 'SENTINEL-3B', type: 'earth_obs', alt: 814, vel: 7.45, inc: 98.6 },
-  { name: 'SENTINEL-5P', type: 'earth_obs', alt: 824, vel: 7.45, inc: 98.7 },
-  { name: 'SENTINEL-6A', type: 'earth_obs', alt: 1336, vel: 7.2, inc: 66 },
-  { name: 'LANDSAT-9', type: 'earth_obs', alt: 705, vel: 7.5, inc: 98.2 },
-  { name: 'LANDSAT-8', type: 'earth_obs', alt: 705, vel: 7.5, inc: 98.2 },
-  { name: 'TERRA', type: 'earth_obs', alt: 705, vel: 7.5, inc: 98.1 },
-  { name: 'AQUA', type: 'earth_obs', alt: 705, vel: 7.5, inc: 98.2 },
-  { name: 'WORLDVIEW-3', type: 'earth_obs', alt: 617, vel: 7.56, inc: 97.2 },
-  { name: 'PLEIADES NEO-3', type: 'earth_obs', alt: 620, vel: 7.56, inc: 97.9 },
-  { name: 'PLEIADES NEO-4', type: 'earth_obs', alt: 620, vel: 7.56, inc: 97.9 },
-  { name: 'SPOT-7', type: 'earth_obs', alt: 694, vel: 7.5, inc: 98.2 },
-  { name: 'CBERS-4A', type: 'earth_obs', alt: 628, vel: 7.55, inc: 98.5 },
-
-  // ── Communication GEO ──
-  { name: 'INTELSAT 39', type: 'comms', alt: 35786, vel: 3.07, inc: 0.1 },
-  { name: 'INTELSAT 40E', type: 'comms', alt: 35786, vel: 3.07, inc: 0.1 },
-  { name: 'SES-17', type: 'comms', alt: 35786, vel: 3.07, inc: 0.2 },
-  { name: 'SES-22', type: 'comms', alt: 35786, vel: 3.07, inc: 0.2 },
-  { name: 'VIASAT-3', type: 'comms', alt: 35786, vel: 3.07, inc: 0.1 },
-  { name: 'EUTELSAT 36D', type: 'comms', alt: 35786, vel: 3.07, inc: 0.1 },
-  { name: 'TURKSAT 5B', type: 'comms', alt: 35786, vel: 3.07, inc: 0.1 },
-  { name: 'ASTRA 1P', type: 'comms', alt: 35786, vel: 3.07, inc: 0.1 },
-  { name: 'ARABSAT-6A', type: 'comms', alt: 35786, vel: 3.07, inc: 0.1 },
-  { name: 'TELSTAR 19V', type: 'comms', alt: 35786, vel: 3.07, inc: 0.1 },
-  { name: 'JCSAT-18', type: 'comms', alt: 35786, vel: 3.07, inc: 0.1 },
-
-  // ── Globalstar (48) ──
-  ...Array.from({ length: 48 }, (_, i) => ({ name: `GLOBALSTAR M${i + 1}`, type: 'comms', alt: 1414, vel: 7.15, inc: 52 })),
-
-  // ── Orbcomm (36) ──
-  ...Array.from({ length: 36 }, (_, i) => ({ name: `ORBCOMM-${i + 1}`, type: 'comms', alt: 750, vel: 7.48, inc: 47 + (i % 4) * 5 })),
-
-  // ── Telesat Lightspeed (early, 50) ──
-  ...Array.from({ length: 50 }, (_, i) => ({ name: `TELESAT-LS-${i + 1}`, type: 'comms', alt: 1015, vel: 7.35, inc: 98.98 })),
-
-  // ── BlackSky (16) ──
-  ...Array.from({ length: 16 }, (_, i) => ({ name: `BLACKSKY-${i + 1}`, type: 'earth_obs', alt: 430, vel: 7.65, inc: 97.5 })),
-
-  // ── Hawk (HawkEye 360, 21) ──
-  ...Array.from({ length: 21 }, (_, i) => ({ name: `HAWK-${i + 1}`, type: 'military', alt: 575, vel: 7.58, inc: 45 + (i % 3) * 15 })),
-
-  // ── NAVSTAR debris / old sats (50) ──
-  ...Array.from({ length: 50 }, (_, i) => ({ name: `DEBRIS-${10000 + i}`, type: 'debris', alt: 400 + Math.random() * 600, vel: 7.6, inc: 20 + Math.random() * 80 })),
-];
-
-// Propagate satellite positions using simple Keplerian motion
-export const generateRealisticSatellites = (issPos?: { lat: number; lon: number; alt: number; velocity: number } | null): Satellite[] => {
+export const fetchSatellites = async (): Promise<Satellite[]> => {
   const now = Date.now();
+  if (now - lastFetchTime > TLE_CACHE_DURATION || cachedTLEs.length === 0) {
+    cachedTLEs = await fetchAllTLEs();
+    lastFetchTime = now;
+  }
+  return propagateSatellites(cachedTLEs, new Date());
+};
 
-  return SAT_CATALOG.map((sat) => {
-    // Use real ISS position if available
-    if (sat.name === 'ISS (ZARYA)' && issPos) {
-      return { name: sat.name, lat: issPos.lat, lon: issPos.lon, alt: issPos.alt, velocity: issPos.velocity };
+// Keep backward compatibility
+export const generateRealisticSatellites = (issPos?: { lat: number; lon: number; alt: number; velocity: number } | null): Satellite[] => {
+  // If we have cached TLEs, use SGP4 propagation
+  if (cachedTLEs.length > 0) {
+    const sats = propagateSatellites(cachedTLEs, new Date());
+    // Override ISS with real position if available
+    if (issPos) {
+      const issIdx = sats.findIndex(s => s.name.includes('ISS') || s.name.includes('ZARYA'));
+      if (issIdx >= 0) {
+        sats[issIdx] = { ...sats[issIdx], lat: issPos.lat, lon: issPos.lon, alt: issPos.alt, velocity: issPos.velocity };
+      }
     }
-
-    // Simple orbital simulation
-    const period = 2 * Math.PI * Math.sqrt(Math.pow((6371 + sat.alt) * 1000, 3) / (3.986e14));
-    const meanMotion = (2 * Math.PI) / period;
-    const elapsed = (now / 1000) % period;
-    // Use name hash for deterministic but unique phase per satellite
-    let hash = 0;
-    for (let i = 0; i < sat.name.length; i++) hash = ((hash << 5) - hash) + sat.name.charCodeAt(i);
-    const phase = (Math.abs(hash) % 10000) / 10000 * 2 * Math.PI;
-
-    const trueAnomaly = meanMotion * elapsed + phase;
-    const incRad = (sat.inc * Math.PI) / 180;
-
-    const lat = Math.asin(Math.sin(incRad) * Math.sin(trueAnomaly)) * (180 / Math.PI);
-    const raanOffset = (Math.abs(hash) % 360);
-    const lon = ((Math.atan2(Math.cos(incRad) * Math.sin(trueAnomaly), Math.cos(trueAnomaly)) * (180 / Math.PI)) + raanOffset + 720) % 360 - 180;
-
-    return {
-      name: sat.name,
-      lat: Math.max(-85, Math.min(85, lat)),
-      lon,
-      alt: sat.alt,
-      velocity: sat.vel + (Math.random() - 0.5) * 0.02,
-    };
-  });
+    return sats;
+  }
+  // Initial load — trigger TLE fetch and return empty until ready
+  fetchSatellites().catch(() => {});
+  return [];
 };
