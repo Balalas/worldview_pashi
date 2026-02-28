@@ -30,11 +30,9 @@ const TABS: { key: BottomPanelTab; label: string; icon: string }[] = [
 type NewsFilter = 'ALL' | 'CRITICAL' | 'MILITARY' | 'CONFLICT' | 'PROTEST' | 'CYBER' | 'NUCLEAR' | 'ECONOMIC';
 
 const BottomFeed = memo(() => {
-  const { bottomPanelCollapsed, toggleBottomPanel } = useWorldViewStore();
-
   return (
-    <div className="glass-panel border-t border-primary/8 flex flex-col h-full z-30">
-      {/* Market ticker + collapse toggle */}
+    <div className="glass-panel border-t border-primary/8 flex flex-col z-30">
+      {/* Market ticker */}
       <div className="h-7 border-b border-border flex items-center overflow-hidden bg-card-bg/50 relative flex-shrink-0">
         <div className="flex items-center animate-ticker-scroll whitespace-nowrap">
           {[...MARKET_DATA, ...MARKET_DATA].map((m, i) => (
@@ -45,82 +43,75 @@ const BottomFeed = memo(() => {
             </span>
           ))}
         </div>
-        <div className="absolute right-1 top-0.5 z-10 flex items-center gap-1">
-          <button onClick={() => toggleBottomPanel()} className="px-1.5 py-0.5 text-[8px] font-data text-muted-foreground hover:text-primary bg-background/60 backdrop-blur-sm rounded transition-colors">
-            {bottomPanelCollapsed ? '▲ SHOW ALL' : '▼ HIDE'}
-          </button>
-        </div>
       </div>
 
-      {/* All sections in scrollable grid view */}
-      {!bottomPanelCollapsed && (
-        <div className="flex-1 overflow-y-auto">
-          {/* Row 1: Intel Feed + Markets */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 border-b border-border">
-            <div className="border-r border-border">
-              <NewsFeed />
-            </div>
-            <div>
-              <MarketsPanel />
-            </div>
+      {/* All sections in grid view */}
+      <div>
+        {/* Row 1: Intel Feed + Markets */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 border-b border-border">
+          <div className="border-r border-border">
+            <NewsFeed />
           </div>
-
-          {/* Row 2: Risk Overview + Strategic Posture + Instability */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 border-b border-border">
-            <div className="border-r border-border">
-              <StrategicRiskPanel />
-            </div>
-            <div className="border-r border-border">
-              <StrategicPosturePanel />
-            </div>
-            <div>
-              <InstabilityIndexPanel />
-            </div>
-          </div>
-
-          {/* Row 3: Trending + Convergence + Predictions */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 border-b border-border">
-            <div className="border-r border-border">
-              <TrendingPanel />
-            </div>
-            <div className="border-r border-border">
-              <ConvergencePanel />
-            </div>
-            <div>
-              <PredictionsPanel />
-            </div>
-          </div>
-
-          {/* Row 4: Combined Indexes + World Stats + Weather */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 border-b border-border">
-            <div className="border-r border-border">
-              <CombinedIndexesPanel />
-            </div>
-            <div className="border-r border-border">
-              <WorldStatsPanel />
-            </div>
-            <div>
-              <WeatherPanel />
-            </div>
-          </div>
-
-          {/* Row 5: Livestreams + Radio + Sources + Pizza */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 border-b border-border">
-            <div className="border-r border-border">
-              <LivestreamPanel />
-            </div>
-            <div className="border-r border-border">
-              <RadioPanel />
-            </div>
-            <div className="border-r border-border">
-              <SourcesHealthPanel />
-            </div>
-            <div>
-              <PizzaIndexPanel />
-            </div>
+          <div>
+            <MarketsPanel />
           </div>
         </div>
-      )}
+
+        {/* Row 2: Risk Overview + Strategic Posture + Instability */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 border-b border-border">
+          <div className="border-r border-border">
+            <StrategicRiskPanel />
+          </div>
+          <div className="border-r border-border">
+            <StrategicPosturePanel />
+          </div>
+          <div>
+            <InstabilityIndexPanel />
+          </div>
+        </div>
+
+        {/* Row 3: Trending + Convergence + Predictions */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 border-b border-border">
+          <div className="border-r border-border">
+            <TrendingPanel />
+          </div>
+          <div className="border-r border-border">
+            <ConvergencePanel />
+          </div>
+          <div>
+            <PredictionsPanel />
+          </div>
+        </div>
+
+        {/* Row 4: Combined Indexes + World Stats + Weather */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 border-b border-border">
+          <div className="border-r border-border">
+            <CombinedIndexesPanel />
+          </div>
+          <div className="border-r border-border">
+            <WorldStatsPanel />
+          </div>
+          <div>
+            <WeatherPanel />
+          </div>
+        </div>
+
+        {/* Row 5: Livestreams + Radio + Sources + Pizza */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 border-b border-border">
+          <div className="border-r border-border">
+            <LivestreamPanel />
+          </div>
+          <div className="border-r border-border">
+            <RadioPanel />
+          </div>
+          <div className="border-r border-border">
+            <SourcesHealthPanel />
+          </div>
+          <div>
+            <PizzaIndexPanel />
+          </div>
+        </div>
+      </div>
     </div>
   );
 });
