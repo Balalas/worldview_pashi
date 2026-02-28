@@ -53,85 +53,85 @@ const BottomFeed = memo(() => {
       <div>
         {/* Row 1: Intel Feed + Markets */}
         <div className="grid grid-cols-1 lg:grid-cols-2 border-b border-border">
-          <div className="border-r border-border">
+          <div className="border-r border-border max-h-[420px] overflow-y-auto scrollbar-thin">
             <NewsFeed />
           </div>
-          <div>
+          <div className="max-h-[420px] overflow-y-auto scrollbar-thin">
             <MarketsPanel />
           </div>
         </div>
 
         {/* Row 2: Risk Overview + Strategic Posture + Instability */}
         <div className="grid grid-cols-1 lg:grid-cols-3 border-b border-border">
-          <div className="border-r border-border">
+          <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
             <StrategicRiskPanel />
           </div>
-          <div className="border-r border-border">
+          <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
             <StrategicPosturePanel />
           </div>
-          <div>
+          <div className="max-h-[380px] overflow-y-auto scrollbar-thin">
             <InstabilityIndexPanel />
           </div>
         </div>
 
         {/* Row 3: Trending + Convergence + Predictions */}
         <div className="grid grid-cols-1 lg:grid-cols-3 border-b border-border">
-          <div className="border-r border-border">
+          <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
             <TrendingPanel />
           </div>
-          <div className="border-r border-border">
+          <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
             <ConvergencePanel />
           </div>
-          <div>
+          <div className="max-h-[380px] overflow-y-auto scrollbar-thin">
             <PredictionsPanel />
           </div>
         </div>
 
         {/* Row 4: Combined Indexes + World Stats + Weather */}
         <div className="grid grid-cols-1 lg:grid-cols-3 border-b border-border">
-          <div className="border-r border-border">
+          <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
             <CombinedIndexesPanel />
           </div>
-          <div className="border-r border-border">
+          <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
             <WorldStatsPanel />
           </div>
-          <div>
+          <div className="max-h-[380px] overflow-y-auto scrollbar-thin">
             <WeatherPanel />
           </div>
         </div>
 
         {/* Row 5: AI Insights */}
-        <div className="border-b border-border">
+        <div className="border-b border-border max-h-[450px] overflow-y-auto scrollbar-thin">
           <AIInsightsPanel />
         </div>
 
         {/* Row 6: Live Webcams */}
-        <div className="border-b border-border">
+        <div className="border-b border-border max-h-[500px] overflow-y-auto scrollbar-thin">
           <WebcamGrid />
         </div>
 
         {/* Row 7: Regional News */}
-        <div className="border-b border-border">
+        <div className="border-b border-border max-h-[400px] overflow-y-auto scrollbar-thin">
           <RegionalNewsPanel />
         </div>
 
         {/* Row 8: Infrastructure Cascade */}
-        <div className="border-b border-border">
+        <div className="border-b border-border max-h-[450px] overflow-y-auto scrollbar-thin">
           <InfrastructureCascade />
         </div>
 
         {/* Row 9: Livestreams + Radio + Sources + Pizza */}
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 border-b border-border">
-          <div className="border-r border-border">
+          <div className="border-r border-border max-h-[350px] overflow-y-auto scrollbar-thin">
             <LivestreamPanel />
           </div>
-          <div className="border-r border-border">
+          <div className="border-r border-border max-h-[350px] overflow-y-auto scrollbar-thin">
             <RadioPanel />
           </div>
-          <div className="border-r border-border">
+          <div className="border-r border-border max-h-[350px] overflow-y-auto scrollbar-thin">
             <SourcesHealthPanel />
           </div>
-          <div>
+          <div className="max-h-[350px] overflow-y-auto scrollbar-thin">
             <PizzaIndexPanel />
           </div>
         </div>
