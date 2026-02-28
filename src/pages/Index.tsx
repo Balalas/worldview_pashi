@@ -277,11 +277,11 @@ const Index = () => {
       } catch (e) {
         console.warn('News refresh error:', e);
       }
-    }, 180000); // 3 min default
+    }, 60000); // 60s live refresh
 
-    const weatherInterval = setInterval(() => fetchGlobalWeather().then(setWeatherAlerts), 600000);
+    const weatherInterval = setInterval(() => fetchGlobalWeather().then(setWeatherAlerts), 300000); // 5 min
 
-    const fireInterval = setInterval(() => fetchFires('24H').then(setFires), 300000); // 5 min
+    const fireInterval = setInterval(() => fetchFires('24H').then(setFires), 120000); // 2 min
 
     return () => {
       clearInterval(aircraftInterval);
