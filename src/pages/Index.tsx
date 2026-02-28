@@ -27,6 +27,7 @@ import { fetchUserLocation } from '@/services/geolocateService';
 import { fetchAllCountries } from '@/services/countryService';
 import { fetchAllCameras } from '@/services/cameraService';
 import { fetchConflictIntel } from '@/services/conflictIntelService';
+import { fetchOsintData } from '@/services/osintService';
 import { CONFLICT_ZONES } from '@/data/conflictZones';
 
 const Google3DGlobe = lazy(() => import('@/components/map/Google3DGlobe'));
@@ -329,13 +330,22 @@ const Index = () => {
     return () => clearInterval(warNewsInterval);
   }, [warMode, setNews]);
 
-  // AI Conflict Intel — fetch missile data + escalation predictions
+  // AI Conflict Intel — fetch OSINT from X accounts + missile data + escalation predictions
   useEffect(() => {
     const fetchIntel = async () => {
       const state = useWorldViewStore.getState();
       const headlines = state.news.map(n => n.title);
       const zones = CONFLICT_ZONES.map(z => z.name);
-      const intel = await fetchConflictIntel(headlines, zones);
+
+      // Fetch live OSINT from X accounts via Firecrawl
+      const osintData = await fetchOsintData();
+      const osintHeadlines = osintData?.headlines || [];
+
+      if (osintHeadlines.length > 0) {
+        console.log(`[OSINT] Fetched ${osintHeadlines.length} live posts from X accounts`);
+      }
+
+      const intel = await fetchConflictIntel(headlines, zones, osintHeadlines);
       if (intel) {
         setConflictIntel(intel);
         if (intel.missileActivity?.length > 0) {
@@ -345,7 +355,7 @@ const Index = () => {
     };
     // Fetch after news loads (delayed)
     const timer = setTimeout(fetchIntel, 5000);
-    const interval = setInterval(fetchIntel, 90_000);
+    const interval = setInterval(fetchIntel, 120_000); // every 2 min
     return () => { clearTimeout(timer); clearInterval(interval); };
   }, [setConflictIntel, setMissileArcs]);
 
@@ -370,10 +380,12 @@ const Index = () => {
         setOutages(extractOutagesFromNews(allNews));
         setLastRefresh(new Date());
 
-        // Also refresh conflict intel
+        // Also refresh OSINT + conflict intel
+        const osintData = await fetchOsintData();
+        const osintHeadlines = osintData?.headlines || [];
         const headlines = allNews.map(n => n.title);
         const zones = CONFLICT_ZONES.map(z => z.name);
-        const intel = await fetchConflictIntel(headlines, zones);
+        const intel = await fetchConflictIntel(headlines, zones, osintHeadlines);
         if (intel) {
           setConflictIntel(intel);
           if (intel.missileActivity?.length > 0) setMissileArcs(intel.missileActivity);
