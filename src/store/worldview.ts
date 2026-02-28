@@ -130,7 +130,7 @@ export interface GeoEvent {
 }
 
 export interface DetailPanel {
-  type: 'aircraft' | 'satellite' | 'earthquake' | 'volcano' | 'weather' | 'cable' | 'vessel' | 'protest' | 'outage' | 'camera' | 'fire' | 'country' | 'none';
+  type: 'aircraft' | 'satellite' | 'earthquake' | 'volcano' | 'weather' | 'cable' | 'vessel' | 'protest' | 'outage' | 'camera' | 'fire' | 'country' | 'conflict' | 'none';
   data: any;
 }
 

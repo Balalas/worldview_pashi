@@ -10,10 +10,12 @@ const RightPanel = memo(() => {
     satellite: 'SATELLITE', earthquake: 'EARTHQUAKE', volcano: 'VOLCANO', weather: 'WEATHER', cable: 'CABLE',
     vessel: detailPanel.data?.type === 'yacht' ? 'SUPERYACHT' : detailPanel.data?.type === 'military' ? 'MIL VESSEL' : 'VESSEL',
     protest: 'PROTEST', outage: 'CYBER/OUTAGE', camera: 'CCTV', country: 'COUNTRY', fire: 'FIRE',
+    conflict: detailPanel.data?.type === 'war' ? 'ACTIVE WAR' : detailPanel.data?.type === 'civil_war' ? 'CIVIL WAR' : 'CONFLICT ZONE',
   };
   const typeIcons: Record<string, string> = {
     aircraft: '✈', satellite: '🛰', earthquake: '🌍', volcano: '🌋', weather: '🌤', cable: '🔌',
     vessel: '🚢', protest: '✊', outage: '🔒', camera: '📹', country: detailPanel.data?.flag || '🌍', fire: '🔥',
+    conflict: '💥',
   };
 
   return (
@@ -49,6 +51,7 @@ const RightPanel = memo(() => {
           {detailPanel.type === 'outage' && <OutageDetail data={detailPanel.data} />}
           {detailPanel.type === 'camera' && <CameraDetail data={detailPanel.data} />}
           {detailPanel.type === 'country' && <CountryDetail data={detailPanel.data} />}
+          {detailPanel.type === 'conflict' && <ConflictDetail data={detailPanel.data} />}
         </div>
       </div>
     </div>
@@ -252,6 +255,51 @@ const CountryDetail = ({ data }: { data: any }) => {
           </div>
         </div>
       )}
+    </div>
+  );
+};
+
+const ConflictDetail = ({ data }: { data: any }) => {
+  const intensityLabel = data.intensity >= 8 ? 'CRITICAL' : data.intensity >= 6 ? 'HIGH' : data.intensity >= 4 ? 'MEDIUM' : 'LOW';
+  const intensityColor = data.intensity >= 8 ? 'text-destructive' : data.intensity >= 6 ? 'text-amber-500' : 'text-amber-300';
+  const typeLabels: Record<string, string> = {
+    war: 'ACTIVE WAR', civil_war: 'CIVIL WAR', conflict: 'ARMED CONFLICT',
+    insurgency: 'INSURGENCY', tension: 'GEOPOLITICAL TENSION', gang_violence: 'GANG VIOLENCE', instability: 'INSTABILITY',
+  };
+  return (
+    <div className="space-y-1">
+      <DataRow label="ZONE" value={data.name} />
+      <DataRow label="TYPE" value={typeLabels[data.type] || data.type?.toUpperCase()} />
+      <div className="flex items-center justify-between py-0.5">
+        <span className="text-[9px] font-display tracking-wider text-muted-foreground">INTENSITY</span>
+        <div className="flex items-center gap-1.5">
+          <div className="flex gap-[2px]">
+            {Array.from({ length: 10 }).map((_, i) => (
+              <div key={i} className={`w-[4px] h-[10px] rounded-[1px] ${i < data.intensity ? (data.intensity >= 8 ? 'bg-destructive' : data.intensity >= 6 ? 'bg-amber-500' : 'bg-amber-300') : 'bg-border/40'}`} />
+            ))}
+          </div>
+          <span className={`text-[10px] font-data ${intensityColor}`}>{data.intensity}/10</span>
+        </div>
+      </div>
+      <DataRow label="LEVEL" value={intensityLabel} />
+      <DataRow label="POS" value={`${data.lat.toFixed(2)}°, ${data.lon.toFixed(2)}°`} />
+      {data.relatedNews && data.relatedNews.length > 0 && (
+        <div className="border-t border-border/50 pt-1 mt-1">
+          <div className="text-[8px] font-display tracking-[0.15em] text-primary mb-1">📰 RELATED INTEL ({data.relatedNews.length})</div>
+          <div className="space-y-1 max-h-[100px] overflow-y-auto">
+            {data.relatedNews.map((n: any, i: number) => (
+              <div key={i} className="text-[9px] text-foreground leading-tight cursor-pointer hover:text-primary transition-colors"
+                onClick={() => n.link && window.open(n.link, '_blank')}>
+                {n.title}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      <div className="flex gap-1.5 mt-2">
+        <ActionButton label="📍 LOCATE" onClick={() => useWorldViewStore.getState().setMapCenter({ lat: data.lat, lon: data.lon, zoom: 7 })} />
+        <ActionButton label="📋 COPY" onClick={() => navigator.clipboard.writeText(`${data.name} | ${data.lat.toFixed(4)},${data.lon.toFixed(4)}`)} />
+      </div>
     </div>
   );
 };
