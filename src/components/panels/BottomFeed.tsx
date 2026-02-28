@@ -1,14 +1,18 @@
 import { memo, useState, useRef, useEffect, useCallback } from 'react';
-import { useWorldViewStore, MARKET_DATA, NewsItem, BottomPanelTab } from '@/store/worldview';
+import { useWorldViewStore, MARKET_DATA, NewsItem, BottomPanelTab, INSTABILITY_DATA } from '@/store/worldview';
 import { PENTAGON_PIZZA_DATA, LIVESTREAM_FEEDS, LivestreamFeed } from '@/services/dataServices';
 import { ACTIVE_VOLCANOES } from '@/services/weatherService';
 import { SUBMARINE_CABLES } from '@/data/submarineCables';
 import { RADIO_STATIONS, RadioStation } from '@/data/radioStations';
+import { CONFLICT_ZONES } from '@/data/conflictZones';
 
 const TABS: { key: BottomPanelTab; label: string; icon: string }[] = [
   { key: 'news', label: 'INTEL FEED', icon: '📡' },
   { key: 'livestream', label: 'LIVESTREAMS', icon: '📺' },
   { key: 'radio', label: 'RADIO', icon: '📻' },
+  { key: 'posture', label: 'STRATEGIC POSTURE', icon: '🎯' },
+  { key: 'instability', label: 'INSTABILITY INDEX', icon: '⚠' },
+  { key: 'risk', label: 'RISK OVERVIEW', icon: '🛡' },
   { key: 'weather', label: 'WEATHER', icon: '🌤' },
   { key: 'stats', label: 'WORLD STATS', icon: '📊' },
   { key: 'pizza', label: 'PIZZA INDEX', icon: '🍕' },
@@ -48,6 +52,9 @@ const BottomFeed = memo(() => {
             {bottomTab === 'news' && <NewsFeed />}
             {bottomTab === 'livestream' && <LivestreamPanel />}
             {bottomTab === 'radio' && <RadioPanel />}
+            {bottomTab === 'posture' && <StrategicPosturePanel />}
+            {bottomTab === 'instability' && <InstabilityIndexPanel />}
+            {bottomTab === 'risk' && <StrategicRiskPanel />}
             {bottomTab === 'weather' && <WeatherPanel />}
             {bottomTab === 'stats' && <WorldStatsPanel />}
             {bottomTab === 'pizza' && <PizzaIndexPanel />}
@@ -458,11 +465,264 @@ const RadioPanel = memo(() => {
   );
 });
 
+// ── Strategic Posture Panel ──
+interface TheaterData {
+  name: string;
+  region: string;
+  status: 'CRIT' | 'ELEV' | 'NORM';
+  airAssets: number;
+  seaAssets: number;
+  trend: 'escalating' | 'stable' | 'de-escalating';
+  notes?: string;
+}
+
+const THEATER_DATA: TheaterData[] = [
+  { name: 'Iran Theater', region: 'CENTCOM', status: 'CRIT', airAssets: 12, seaAssets: 5, trend: 'escalating', notes: 'Carrier strike group deployed. B-2 sorties detected.' },
+  { name: 'Baltic Theater', region: 'EUCOM', status: 'ELEV', airAssets: 8, seaAssets: 3, trend: 'stable', notes: 'NATO enhanced air policing active.' },
+  { name: 'Taiwan Strait', region: 'INDOPACOM', status: 'ELEV', airAssets: 6, seaAssets: 4, trend: 'escalating', notes: 'PLA exercises near median line.' },
+  { name: 'Black Sea', region: 'EUCOM', status: 'NORM', airAssets: 4, seaAssets: 2, trend: 'stable' },
+  { name: 'Korean DMZ', region: 'INDOPACOM', status: 'NORM', airAssets: 3, seaAssets: 1, trend: 'stable' },
+  { name: 'South China Sea', region: 'INDOPACOM', status: 'NORM', airAssets: 2, seaAssets: 3, trend: 'stable' },
+  { name: 'E. Mediterranean', region: 'EUCOM', status: 'ELEV', airAssets: 5, seaAssets: 4, trend: 'escalating', notes: 'Israeli ops ongoing. USS fleet presence.' },
+  { name: 'Gaza/Sinai', region: 'CENTCOM', status: 'CRIT', airAssets: 3, seaAssets: 1, trend: 'stable', notes: 'Ceasefire fragile. Humanitarian corridor active.' },
+  { name: 'Red Sea/Bab el-Mandeb', region: 'CENTCOM', status: 'ELEV', airAssets: 4, seaAssets: 6, trend: 'stable', notes: 'Houthi anti-ship threat persists.' },
+  { name: 'Horn of Africa', region: 'AFRICOM', status: 'NORM', airAssets: 2, seaAssets: 2, trend: 'stable' },
+  { name: 'Sahel Region', region: 'AFRICOM', status: 'NORM', airAssets: 1, seaAssets: 0, trend: 'escalating', notes: 'Wagner/Africa Corps repositioning.' },
+  { name: 'Cyprus Buffer Zone', region: 'EUCOM', status: 'NORM', airAssets: 1, seaAssets: 1, trend: 'stable', notes: 'UNFICYP monitoring. Turkish drills nearby.' },
+];
+
+const StrategicPosturePanel = memo(() => {
+  const critCount = THEATER_DATA.filter(t => t.status === 'CRIT').length;
+  const elevCount = THEATER_DATA.filter(t => t.status === 'ELEV').length;
+
+  return (
+    <div className="h-full overflow-y-auto p-3">
+      <div className="flex items-center gap-2 mb-3">
+        <h2 className="text-[10px] font-display tracking-[0.2em] text-muted-foreground">🎯 AI STRATEGIC POSTURE — THEATER ANALYSIS</h2>
+        <span className="text-[9px] font-data text-text-secondary">● {THEATER_DATA.length} THEATERS</span>
+        {critCount > 0 && <span className="text-[8px] font-data text-alert-critical animate-pulse-dot ml-auto">⚠ {critCount} CRITICAL</span>}
+        {elevCount > 0 && <span className="text-[8px] font-data text-alert-medium">{elevCount} ELEVATED</span>}
+      </div>
+      <div className="text-[8px] font-data text-muted-foreground mb-2 leading-relaxed">
+        Aggregates military aircraft, naval vessels, and intelligence signals by geographic theater. 
+        Status based on force concentration thresholds and operational tempo.
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
+        {THEATER_DATA.map((theater) => {
+          const statusColor = theater.status === 'CRIT' ? 'text-alert-critical' : theater.status === 'ELEV' ? 'text-alert-medium' : 'text-signal-aircraft';
+          const statusBg = theater.status === 'CRIT' ? 'bg-alert-critical/10' : theater.status === 'ELEV' ? 'bg-alert-medium/10' : 'bg-primary/5';
+          const borderColor = theater.status === 'CRIT' ? 'border-alert-critical/40' : theater.status === 'ELEV' ? 'border-alert-medium/30' : 'border-border';
+          const trendIcon = theater.trend === 'escalating' ? '↗' : theater.trend === 'de-escalating' ? '↘' : '→';
+          const trendColor = theater.trend === 'escalating' ? 'text-alert-critical' : theater.trend === 'de-escalating' ? 'text-signal-aircraft' : 'text-muted-foreground';
+          return (
+            <div key={theater.name} className={`${statusBg} rounded border p-2.5 ${borderColor} ${theater.status === 'CRIT' ? 'ring-1 ring-alert-critical/20' : ''}`}>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[10px] font-display tracking-wider text-foreground">{theater.name}</span>
+                <span className={`text-[8px] font-data font-bold px-1.5 py-0.5 rounded ${statusColor} ${statusBg}`}>{theater.status}</span>
+              </div>
+              <div className="flex items-center gap-3 mb-1">
+                <div className="flex items-center gap-1">
+                  <span className="text-[9px]">✈️</span>
+                  <span className="text-[11px] font-data font-bold text-data-text">{theater.airAssets}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-[9px]">⚓</span>
+                  <span className="text-[11px] font-data font-bold text-data-text">{theater.seaAssets}</span>
+                </div>
+                <span className={`text-[9px] font-data ${trendColor} ml-auto`}>{trendIcon} {theater.trend}</span>
+              </div>
+              <div className="text-[7px] font-data text-text-muted-custom">{theater.region}</div>
+              {theater.notes && <div className="text-[7px] font-data text-text-secondary mt-1 leading-tight">{theater.notes}</div>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+});
+
+// ── Country Instability Index Panel ──
+const InstabilityIndexPanel = memo(() => {
+  const sorted = [...INSTABILITY_DATA].sort((a, b) => b.score - a.score);
+  const criticalCount = sorted.filter(c => c.level === 'critical').length;
+  const highCount = sorted.filter(c => c.level === 'high').length;
+  const { setMapCenter } = useWorldViewStore();
+
+  // rough lat/lon for fly-to
+  const COUNTRY_COORDS: Record<string, { lat: number; lon: number }> = {
+    Syria: { lat: 35, lon: 38 }, Ukraine: { lat: 48.5, lon: 31 }, Sudan: { lat: 15.5, lon: 32.5 },
+    Yemen: { lat: 15.5, lon: 48 }, Somalia: { lat: 5, lon: 46 }, 'DR Congo': { lat: -2.5, lon: 24 },
+    Afghanistan: { lat: 33.9, lon: 67.7 }, Iraq: { lat: 33.2, lon: 43.7 }, Haiti: { lat: 19, lon: -72.3 },
+    Myanmar: { lat: 19.7, lon: 96.2 }, Libya: { lat: 26.3, lon: 17.2 }, Lebanon: { lat: 33.9, lon: 35.5 },
+    Ethiopia: { lat: 9.1, lon: 40.5 }, Pakistan: { lat: 30.4, lon: 69.3 }, Venezuela: { lat: 6.4, lon: -66.6 },
+    'North Korea': { lat: 40, lon: 127 }, Cyprus: { lat: 35.1, lon: 33.4 }, Iran: { lat: 32.4, lon: 53.7 },
+    Nigeria: { lat: 9.1, lon: 8.7 }, Mali: { lat: 17.6, lon: -4 }, 'Burkina Faso': { lat: 12.4, lon: -1.5 },
+    Niger: { lat: 17.6, lon: 8.1 }, Mozambique: { lat: -18.7, lon: 35.5 }, Colombia: { lat: 4.6, lon: -74.1 },
+    Tunisia: { lat: 33.9, lon: 9.5 }, Georgia: { lat: 42.3, lon: 43.4 }, Egypt: { lat: 26.8, lon: 30.8 },
+    Turkey: { lat: 38.9, lon: 35.2 }, Taiwan: { lat: 23.7, lon: 121 },
+  };
+
+  return (
+    <div className="h-full overflow-y-auto p-3">
+      <div className="flex items-center gap-2 mb-3">
+        <h2 className="text-[10px] font-display tracking-[0.2em] text-muted-foreground">⚠ COUNTRY INSTABILITY INDEX</h2>
+        <span className="text-[9px] font-data text-text-secondary">● {sorted.length} COUNTRIES</span>
+        {criticalCount > 0 && <span className="text-[8px] font-data text-alert-critical animate-pulse-dot ml-auto">🔴 {criticalCount} CRITICAL</span>}
+        <span className="text-[8px] font-data text-alert-high">🟠 {highCount} HIGH</span>
+      </div>
+      <div className="text-[8px] font-data text-muted-foreground mb-2 leading-relaxed">
+        Composite score (0-100) blending: Unrest (civil disorder), Conflict (armed intensity), Security (military activity), Information (news velocity). Click to fly to country.
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-1.5">
+        {sorted.map((c, i) => {
+          const levelColor = c.level === 'critical' ? 'border-l-alert-critical' : c.level === 'high' ? 'border-l-alert-high' : c.level === 'medium' ? 'border-l-alert-medium' : 'border-l-primary/30';
+          const scoreColor = c.level === 'critical' ? 'text-alert-critical' : c.level === 'high' ? 'text-alert-high' : c.level === 'medium' ? 'text-alert-medium' : 'text-data-text';
+          const trendIcon = c.trend === 'up' ? '↗' : c.trend === 'down' ? '↘' : '→';
+          const trendColor = c.trend === 'up' ? 'text-alert-critical' : c.trend === 'down' ? 'text-signal-aircraft' : 'text-muted-foreground';
+          const coords = COUNTRY_COORDS[c.country];
+          return (
+            <div key={c.country}
+              onClick={() => coords && setMapCenter({ lat: coords.lat, lon: coords.lon, zoom: 6 })}
+              className={`bg-card-bg/60 border-l-2 ${levelColor} rounded-r px-2.5 py-1.5 cursor-pointer hover:bg-card-hover transition-colors`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[8px] font-data text-text-muted-custom">#{i + 1}</span>
+                  <span className="text-sm">{c.flag}</span>
+                  <span className="text-[10px] font-display tracking-wide text-foreground">{c.country}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className={`text-[14px] font-data font-bold ${scoreColor}`}>{c.score}</span>
+                  <span className={`text-[9px] font-data ${trendColor}`}>{trendIcon}</span>
+                </div>
+              </div>
+              <div className="mt-1">
+                <div className="w-full h-1 bg-card-hover rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full transition-all ${c.level === 'critical' ? 'bg-alert-critical' : c.level === 'high' ? 'bg-alert-high' : c.level === 'medium' ? 'bg-alert-medium' : 'bg-primary/40'}`}
+                    style={{ width: `${c.score}%` }} />
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+});
+
+// ── Strategic Risk Overview Panel ──
+const StrategicRiskPanel = memo(() => {
+  const { earthquakes, protests, outages, fires, aircraft } = useWorldViewStore();
+
+  // Calculate composite risk score
+  const instabilityTop5 = [...INSTABILITY_DATA].sort((a, b) => b.score - a.score).slice(0, 5);
+  const instabilityScore = instabilityTop5.reduce((sum, c) => sum + c.score, 0) / 5;
+  const conflictScore = CONFLICT_ZONES.filter(c => c.intensity >= 8).length * 8;
+  const infraScore = Math.min((outages.length * 5 + fires.length * 3), 30);
+  const milScore = Math.min(aircraft.filter(a => a.isMilitary).length * 0.5, 20);
+
+  const compositeRaw = (instabilityScore * 0.5) + (conflictScore * 0.2) + (infraScore * 0.15) + (milScore * 0.15);
+  const compositeScore = Math.min(Math.round(compositeRaw), 100);
+
+  const riskLevel = compositeScore >= 70 ? 'CRITICAL' : compositeScore >= 50 ? 'HIGH' : compositeScore >= 30 ? 'ELEVATED' : 'LOW';
+  const riskColor = compositeScore >= 70 ? 'text-alert-critical' : compositeScore >= 50 ? 'text-alert-high' : compositeScore >= 30 ? 'text-alert-medium' : 'text-signal-aircraft';
+  const riskBg = compositeScore >= 70 ? 'bg-alert-critical' : compositeScore >= 50 ? 'bg-alert-high' : compositeScore >= 30 ? 'bg-alert-medium' : 'bg-signal-aircraft';
+
+  const critTheaters = THEATER_DATA.filter(t => t.status === 'CRIT').length;
+  const escalatingTheaters = THEATER_DATA.filter(t => t.trend === 'escalating').length;
+  const highAlerts = INSTABILITY_DATA.filter(c => c.level === 'critical' || c.level === 'high').length;
+  const activeConflicts = CONFLICT_ZONES.filter(c => c.intensity >= 7).length;
+
+  const metrics = [
+    { label: 'COMPOSITE SCORE', value: compositeScore, max: 100, color: riskBg },
+    { label: 'INSTABILITY AVG (TOP 5)', value: Math.round(instabilityScore), max: 100, color: 'bg-alert-high' },
+    { label: 'ACTIVE CONFLICTS (INT≥7)', value: activeConflicts, max: 20, color: 'bg-alert-critical' },
+    { label: 'CRITICAL THEATERS', value: critTheaters, max: 12, color: 'bg-alert-critical' },
+    { label: 'ESCALATING THEATERS', value: escalatingTheaters, max: 12, color: 'bg-alert-medium' },
+    { label: 'HIGH ALERT COUNTRIES', value: highAlerts, max: 29, color: 'bg-alert-high' },
+    { label: 'INFRA EVENTS', value: outages.length + fires.length, max: 50, color: 'bg-signal-outage' },
+    { label: 'MIL AIRCRAFT TRACKED', value: aircraft.filter(a => a.isMilitary).length, max: 100, color: 'bg-signal-military' },
+  ];
+
+  const recentAlerts = [
+    ...INSTABILITY_DATA.filter(c => c.trend === 'up' && c.score >= 40).map(c => ({
+      icon: '📊', level: c.level, text: `${c.country} instability rising (score: ${c.score})`, driver: 'Trend: ↗ escalating',
+    })),
+    ...THEATER_DATA.filter(t => t.status === 'CRIT').map(t => ({
+      icon: '🎯', level: 'critical' as const, text: `${t.name} — CRITICAL posture`, driver: t.notes || 'High force concentration',
+    })),
+  ].slice(0, 6);
+
+  return (
+    <div className="h-full overflow-y-auto p-3">
+      <div className="flex items-center gap-2 mb-3">
+        <h2 className="text-[10px] font-display tracking-[0.2em] text-muted-foreground">🛡 STRATEGIC RISK OVERVIEW</h2>
+        <span className="text-[9px] font-data text-primary">● LIVE</span>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Big score */}
+        <div className="flex flex-col items-center justify-center bg-card-bg/60 rounded border border-border p-4">
+          <div className={`text-[48px] font-data font-bold ${riskColor}`}>{compositeScore}</div>
+          <div className={`text-[10px] font-display tracking-[0.2em] ${riskColor} mt-1`}>{riskLevel}</div>
+          <div className="text-[8px] font-data text-muted-foreground mt-2">TREND</div>
+          <div className="text-[10px] font-data text-foreground">→ Stable</div>
+        </div>
+        {/* Metrics grid */}
+        <div className="col-span-1 space-y-2">
+          {metrics.slice(0, 4).map((m) => (
+            <div key={m.label}>
+              <div className="flex justify-between mb-0.5">
+                <span className="text-[8px] font-data text-muted-foreground">{m.label}</span>
+                <span className="text-[9px] font-data text-data-text font-bold">{m.value}</span>
+              </div>
+              <div className="w-full h-1.5 bg-card-hover rounded-full overflow-hidden">
+                <div className={`h-full rounded-full ${m.color}`} style={{ width: `${Math.min((m.value / m.max) * 100, 100)}%` }} />
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="col-span-1 space-y-2">
+          {metrics.slice(4).map((m) => (
+            <div key={m.label}>
+              <div className="flex justify-between mb-0.5">
+                <span className="text-[8px] font-data text-muted-foreground">{m.label}</span>
+                <span className="text-[9px] font-data text-data-text font-bold">{m.value}</span>
+              </div>
+              <div className="w-full h-1.5 bg-card-hover rounded-full overflow-hidden">
+                <div className={`h-full rounded-full ${m.color}`} style={{ width: `${Math.min((m.value / m.max) * 100, 100)}%` }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      {/* Recent alerts */}
+      {recentAlerts.length > 0 && (
+        <div className="mt-3">
+          <h3 className="text-[9px] font-display tracking-wider text-muted-foreground mb-1.5">RECENT ALERTS ({recentAlerts.length})</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-1.5">
+            {recentAlerts.map((alert, i) => {
+              const alertColor = alert.level === 'critical' ? 'border-l-alert-critical' : alert.level === 'high' ? 'border-l-alert-high' : 'border-l-alert-medium';
+              return (
+                <div key={i} className={`bg-card-bg/60 border-l-2 ${alertColor} rounded-r px-2 py-1.5`}>
+                  <div className="text-[9px] text-foreground leading-tight">{alert.icon} {alert.text}</div>
+                  <div className="text-[7px] font-data text-text-muted-custom mt-0.5">{alert.driver}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+});
+
 NewsFeed.displayName = 'NewsFeed';
 LivestreamPanel.displayName = 'LivestreamPanel';
 RadioPanel.displayName = 'RadioPanel';
 WeatherPanel.displayName = 'WeatherPanel';
 WorldStatsPanel.displayName = 'WorldStatsPanel';
 PizzaIndexPanel.displayName = 'PizzaIndexPanel';
+StrategicPosturePanel.displayName = 'StrategicPosturePanel';
+InstabilityIndexPanel.displayName = 'InstabilityIndexPanel';
+StrategicRiskPanel.displayName = 'StrategicRiskPanel';
 BottomFeed.displayName = 'BottomFeed';
 export default BottomFeed;
