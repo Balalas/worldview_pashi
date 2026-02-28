@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { WeatherAlert, VolcanoData } from '@/services/weatherService';
 import { CountryData } from '@/services/countryService';
 import { GlobalCamera } from '@/services/cameraService';
+import { ConflictIntel, MissileActivity } from '@/services/conflictIntelService';
 
 export type LayerType =
   | 'aircraft' | 'satellites' | 'cameras' | 'militaryFlights'
@@ -452,6 +453,14 @@ export interface WorldViewState {
   countryDossier: CountryData | null;
   openCountryDossier: (country: CountryData) => void;
   closeCountryDossier: () => void;
+
+  conflictIntel: ConflictIntel | null;
+  setConflictIntel: (intel: ConflictIntel | null) => void;
+  missileArcs: MissileActivity[];
+  setMissileArcs: (arcs: MissileActivity[]) => void;
+
+  manualRefresh: number;
+  triggerManualRefresh: () => void;
 }
 
 export const useWorldViewStore = create<WorldViewState>((set) => ({
@@ -658,6 +667,14 @@ export const useWorldViewStore = create<WorldViewState>((set) => ({
   countryDossier: null,
   openCountryDossier: (country) => set({ countryDossier: country }),
   closeCountryDossier: () => set({ countryDossier: null }),
+
+  conflictIntel: null,
+  setConflictIntel: (conflictIntel) => set({ conflictIntel }),
+  missileArcs: [],
+  setMissileArcs: (missileArcs) => set({ missileArcs }),
+
+  manualRefresh: 0,
+  triggerManualRefresh: () => set((s) => ({ manualRefresh: s.manualRefresh + 1 })),
 }));
 
 // Keyboard shortcuts

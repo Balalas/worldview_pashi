@@ -2,9 +2,10 @@ import { memo, useEffect, useState } from 'react';
 import { useWorldViewStore, MapMode, DashboardMode, DetectionMode } from '@/store/worldview';
 
 const TopBar = memo(() => {
-  const { aircraft, satellites, earthquakes, vessels, toggleLeftPanel, mapMode, setMapMode, detectionMode, toggleDetectionMode, visualStyle, circularViewport, toggleCircularViewport, panopticEnabled, togglePanoptic, hudLayout, immersiveMode, warMode, toggleWarMode } = useWorldViewStore();
+  const { aircraft, satellites, earthquakes, vessels, toggleLeftPanel, mapMode, setMapMode, detectionMode, toggleDetectionMode, visualStyle, circularViewport, toggleCircularViewport, panopticEnabled, togglePanoptic, hudLayout, immersiveMode, warMode, toggleWarMode, triggerManualRefresh, newsLoading } = useWorldViewStore();
   const militaryCount = aircraft.filter(a => a.isMilitary).length;
   const [utc, setUtc] = useState('');
+  const [refreshFlash, setRefreshFlash] = useState(false);
 
   useEffect(() => {
     const tick = () => setUtc(new Date().toLocaleTimeString('en-US', { hour12: false, timeZone: 'UTC' }));
@@ -112,8 +113,18 @@ const TopBar = memo(() => {
         )}
       </div>
 
-      {/* Right — WAR/LIVE + UTC */}
+      {/* Right — Refresh + WAR/LIVE + UTC */}
       <div className="flex items-center gap-2.5">
+        {/* Live refresh button */}
+        <button
+          onClick={() => { triggerManualRefresh(); setRefreshFlash(true); setTimeout(() => setRefreshFlash(false), 1000); }}
+          disabled={newsLoading}
+          className={`px-2 py-0.5 text-[8px] font-display tracking-[0.15em] rounded border transition-all ${
+            refreshFlash ? 'bg-primary/20 border-primary/40 text-primary' : 'border-primary/15 text-muted-foreground hover:text-primary hover:border-primary/30'
+          } disabled:opacity-40`}
+        >
+          {newsLoading ? '⏳ LOADING...' : refreshFlash ? '✓ REFRESHING' : '🔄 LIVE UPDATE'}
+        </button>
         {/* Mobile war mode button */}
         <div className="lg:hidden">
           <WarModeButton active={warMode} onClick={toggleWarMode} compact />
