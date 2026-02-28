@@ -36,7 +36,7 @@ export const TIER_LABELS: Record<number, string> = {
 let cachedArticles: NewsItem[] = [];
 let cachedEvents: GdeltEvent[] = [];
 let lastFetch = 0;
-const CACHE_TTL = 120_000; // 2 minutes
+const CACHE_TTL = 45_000; // 45 seconds — live update cadence
 
 // ── Parse GDELT date format (YYYYMMDDHHMMSS) to Date ──
 function parseGdeltDate(dateStr: string): Date {
