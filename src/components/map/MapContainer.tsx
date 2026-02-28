@@ -6,6 +6,7 @@ import { CONFLICT_ZONES } from '@/data/conflictZones';
 import { SUBMARINE_CABLES } from '@/data/submarineCables';
 import { PUBLIC_CAMERAS } from '@/data/publicCameras';
 import { COUNTRY_META } from '@/data/countryMeta';
+import { getCameraSourceColor, getCameraSourceLabel } from '@/services/cameraService';
 import * as topojson from 'topojson-client';
 
 const WORLD_TOPO_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/countries-110m.json';
@@ -16,7 +17,7 @@ const MapContainer = memo(() => {
   const layersRef = useRef<Record<string, L.LayerGroup>>({});
   const geoLayerRef = useRef<L.GeoJSON | null>(null);
 
-  const { layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, fires, setDetailPanel, setActiveLivestream, mapCenter } = useWorldViewStore();
+  const { layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, fires, liveCameras, setDetailPanel, setActiveLivestream, mapCenter } = useWorldViewStore();
 
   // Initialize map
   useEffect(() => {
@@ -129,13 +130,33 @@ const MapContainer = memo(() => {
     }
   }, [mapCenter]);
 
-  // Render cameras
+  // Render cameras — curated + live API cameras with FOV cones
   useEffect(() => {
     const group = layersRef.current['cameras'];
     if (!group) return;
     group.clearLayers();
     if (!layers.cameras) return;
 
+    // FOV cone helper
+    const addFovCone = (lat: number, lon: number, heading: number, color: string) => {
+      const FOV_DEG = 70;
+      const FOV_RANGE_KM = 0.35; // 350m in km
+      const halfFov = FOV_DEG / 2;
+      const steps = 12;
+      const points: [number, number][] = [[lat, lon]];
+      for (let i = 0; i <= steps; i++) {
+        const angle = heading - halfFov + (FOV_DEG * i) / steps;
+        const rad = (angle * Math.PI) / 180;
+        const dlat = (FOV_RANGE_KM / 111) * Math.cos(rad);
+        const dlon = (FOV_RANGE_KM / (111 * Math.cos((lat * Math.PI) / 180))) * Math.sin(rad);
+        points.push([lat + dlat, lon + dlon]);
+      }
+      points.push([lat, lon]);
+      const polygon = L.polygon(points, { color, fillColor: color, fillOpacity: 0.12, weight: 1, opacity: 0.6, interactive: false });
+      group.addLayer(polygon);
+    };
+
+    // Curated cameras (YouTube embeds)
     PUBLIC_CAMERAS.forEach(cam => {
       const icon = L.divIcon({
         className: '',
@@ -147,7 +168,6 @@ const MapContainer = memo(() => {
         iconSize: [16, 16],
         iconAnchor: [8, 8],
       });
-
       const marker = L.marker([cam.lat, cam.lon], { icon })
         .on('click', () => {
           setDetailPanel({ type: 'camera', data: cam });
@@ -155,8 +175,33 @@ const MapContainer = memo(() => {
         });
       marker.bindTooltip(`📹 ${cam.name} | ${cam.city}`, { direction: 'top', offset: [0, -10] });
       group.addLayer(marker);
+      if (cam.heading != null) addFovCone(cam.lat, cam.lon, cam.heading, '#fbbf24');
     });
-  }, [layers.cameras, setDetailPanel, setActiveLivestream]);
+
+    // Live API cameras from aggregator
+    liveCameras.forEach(cam => {
+      const color = getCameraSourceColor(cam.source);
+      const label = getCameraSourceLabel(cam.source);
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="position:relative;width:14px;height:14px;">
+          <div style="position:absolute;inset:0;border:1.5px solid ${color};border-radius:50%;background:${color}20;"></div>
+          <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:4px;height:4px;background:${color};border-radius:50%;"></div>
+          <div style="position:absolute;top:-7px;right:-10px;font-size:5px;background:${color};color:#000;padding:0 2px;border-radius:2px;font-weight:bold;font-family:monospace;">${label}</div>
+        </div>`,
+        iconSize: [14, 14],
+        iconAnchor: [7, 7],
+      });
+      const marker = L.marker([cam.lat, cam.lon], { icon })
+        .on('click', () => {
+          setDetailPanel({ type: 'camera', data: { ...cam, feedType: 'snapshot', snapshotUrl: cam.imageUrl, name: cam.name, city: cam.region || cam.country } });
+          setActiveLivestream(cam.imageUrl);
+        });
+      marker.bindTooltip(`📷 ${cam.name} | ${label}`, { direction: 'top', offset: [0, -10] });
+      group.addLayer(marker);
+      if (cam.heading != null) addFovCone(cam.lat, cam.lon, cam.heading, color);
+    });
+  }, [layers.cameras, liveCameras, setDetailPanel, setActiveLivestream]);
 
   // Render fires
   useEffect(() => {

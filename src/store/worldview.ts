@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { WeatherAlert, VolcanoData } from '@/services/weatherService';
 import { CountryData } from '@/services/countryService';
+import { GlobalCamera } from '@/services/cameraService';
 
 export type LayerType =
   | 'aircraft' | 'satellites' | 'cameras' | 'militaryFlights'
@@ -363,6 +364,9 @@ export interface WorldViewState {
   geoEvents: GeoEvent[];
   setGeoEvents: (e: GeoEvent[]) => void;
 
+  liveCameras: GlobalCamera[];
+  setLiveCameras: (c: GlobalCamera[]) => void;
+
   weatherAlerts: WeatherAlert[];
   setWeatherAlerts: (w: WeatherAlert[]) => void;
 
@@ -513,6 +517,9 @@ export const useWorldViewStore = create<WorldViewState>((set) => ({
 
   geoEvents: [],
   setGeoEvents: (geoEvents) => set({ geoEvents }),
+
+  liveCameras: [],
+  setLiveCameras: (liveCameras) => set({ liveCameras }),
 
   weatherAlerts: [],
   setWeatherAlerts: (weatherAlerts) => set({ weatherAlerts }),
