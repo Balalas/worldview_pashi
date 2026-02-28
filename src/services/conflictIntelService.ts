@@ -49,15 +49,20 @@ const CACHE_TTL = 90_000; // 90 seconds
 
 export const fetchConflictIntel = async (
   headlines: string[],
-  conflictZones: string[]
+  conflictZones: string[],
+  osintHeadlines?: string[]
 ): Promise<ConflictIntel | null> => {
-  if (headlines.length === 0) return cache.data;
+  if (headlines.length === 0 && (!osintHeadlines || osintHeadlines.length === 0)) return cache.data;
 
   if (cache.data && Date.now() - cache.ts < CACHE_TTL) return cache.data;
 
   try {
     const { data, error } = await supabase.functions.invoke('ai-conflict-intel', {
-      body: { headlines: headlines.slice(0, 30), conflictZones: conflictZones.slice(0, 15) },
+      body: {
+        headlines: headlines.slice(0, 30),
+        conflictZones: conflictZones.slice(0, 15),
+        osintHeadlines: osintHeadlines?.slice(0, 30),
+      },
     });
 
     if (error) {

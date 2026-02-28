@@ -22,9 +22,15 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { headlines, conflictZones } = await req.json();
+    const { headlines, conflictZones, osintHeadlines } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+
+    // Merge OSINT data with regular headlines — OSINT gets priority
+    const allHeadlines = [
+      ...(osintHeadlines || []).slice(0, 30),
+      ...(headlines || []).slice(0, 20),
+    ];
 
     const systemPrompt = `You are a senior military intelligence analyst specializing in real-time conflict analysis.
 Given the latest news headlines and known conflict zones, provide a tactical assessment.
@@ -73,7 +79,11 @@ Use the known conflict pairs to map missile activity to coordinates. Be analytic
       `${p.attacker} → ${p.defender} (Active: ${p.active})`
     ).join("\n");
 
-    const userContent = `Latest headlines:\n${(headlines || []).slice(0, 30).join('\n')}\n\nKnown conflict pairs:\n${pairsContext}\n\nActive conflict zones:\n${(conflictZones || []).slice(0, 15).join('\n')}`;
+    const osintSection = (osintHeadlines && osintHeadlines.length > 0)
+      ? `\n\nLive OSINT from X/Twitter (@osintwarfare, @conflict_radar, @sentdefender):\n${osintHeadlines.slice(0, 30).join('\n')}`
+      : '';
+
+    const userContent = `Latest headlines:\n${allHeadlines.slice(0, 40).join('\n')}\n\nKnown conflict pairs:\n${pairsContext}\n\nActive conflict zones:\n${(conflictZones || []).slice(0, 15).join('\n')}${osintSection}`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
