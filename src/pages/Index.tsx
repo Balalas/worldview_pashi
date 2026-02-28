@@ -284,10 +284,15 @@ const Index = () => {
               <feBlend in="redOnly" in2="greenOnly" mode="screen" result="rg" />
               <feBlend in="rg" in2="blueOnly" mode="screen" />
             </filter>
+            {/* Fisheye barrel distortion filter */}
+            <filter id="crt-fisheye" x="-10%" y="-10%" width="120%" height="120%">
+              <feImage xlinkHref="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Cdefs%3E%3CradialGradient id='g'%3E%3Cstop offset='0%25' stop-color='rgb(128,128,128)'/%3E%3Cstop offset='55%25' stop-color='rgb(140,140,140)'/%3E%3Cstop offset='80%25' stop-color='rgb(160,160,160)'/%3E%3Cstop offset='100%25' stop-color='rgb(190,190,190)'/%3E%3C/radialGradient%3E%3C/defs%3E%3Crect width='400' height='400' fill='url(%23g)'/%3E%3C/svg%3E" result="map" preserveAspectRatio="none" x="0%" y="0%" width="100%" height="100%" />
+              <feDisplacementMap in="SourceGraphic" in2="map" scale="35" xChannelSelector="R" yChannelSelector="G" />
+            </filter>
           </defs>
         </svg>
 
-        {/* CRT barrel distortion wrapper */}
+        {/* CRT barrel distortion + fisheye wrapper */}
         <div className="absolute inset-0"
           style={styleConfig.crt ? {
             borderRadius: '18px', overflow: 'hidden',
@@ -296,8 +301,8 @@ const Index = () => {
         >
           <div className="absolute inset-0"
             style={{
-              filter: styleConfig.crt ? `${styleConfig.filter} url(#crt-rgb-split)` : styleConfig.filter,
-              ...(styleConfig.crt ? { transform: 'scale(1.04)', transformOrigin: 'center center' } : {}),
+              filter: styleConfig.crt ? `${styleConfig.filter} url(#crt-rgb-split) url(#crt-fisheye)` : styleConfig.filter,
+              ...(styleConfig.crt ? { transform: 'scale(1.08)', transformOrigin: 'center center' } : {}),
             }}
           >
             {mapMode === '2d' ? (
