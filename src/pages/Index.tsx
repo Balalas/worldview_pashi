@@ -10,7 +10,7 @@ import StreetViewOverlay from '@/components/map/StreetViewOverlay';
 import GlobeControls from '@/components/hud/GlobeControls';
 import PanopticOverlay from '@/components/hud/PanopticOverlay';
 import SearchBar from '@/components/hud/SearchBar';
-import StylePresetsBar, { computeStyleConfig } from '@/components/hud/StylePresetsBar';
+import { computeStyleConfig } from '@/components/hud/StylePresetsBar';
 import WeatherRadarOverlay from '@/components/map/WeatherRadarOverlay';
 import TacticalAlerts from '@/components/hud/TacticalAlerts';
 import MinimapRadar from '@/components/hud/MinimapRadar';
@@ -494,11 +494,8 @@ const Index = () => {
           </div>
         )}
 
-        {!isScreensaver && (
-          <div className="pointer-events-auto">
-            <StylePresetsBar />
-          </div>
-        )}
+
+
 
         <CctvPip />
 
