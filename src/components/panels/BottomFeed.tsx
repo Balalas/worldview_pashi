@@ -10,6 +10,7 @@ const TABS: { key: BottomPanelTab; label: string; icon: string }[] = [
   { key: 'news', label: 'INTEL FEED', icon: '📡' },
   { key: 'livestream', label: 'LIVESTREAMS', icon: '📺' },
   { key: 'radio', label: 'RADIO', icon: '📻' },
+  { key: 'indexes', label: 'INDEXES', icon: '📊' },
   { key: 'posture', label: 'STRATEGIC POSTURE', icon: '🎯' },
   { key: 'instability', label: 'INSTABILITY INDEX', icon: '⚠' },
   { key: 'risk', label: 'RISK OVERVIEW', icon: '🛡' },
@@ -21,7 +22,10 @@ const TABS: { key: BottomPanelTab; label: string; icon: string }[] = [
 type NewsFilter = 'ALL' | 'CRITICAL' | 'MILITARY' | 'PROTEST' | 'CYBER';
 
 const BottomFeed = memo(() => {
-  const { bottomTab, setBottomTab, bottomPanelCollapsed, toggleBottomPanel } = useWorldViewStore();
+  const { bottomTab, setBottomTab, bottomPanelCollapsed, toggleBottomPanel, bottomPanelExpanded, setBottomPanelExpanded } = useWorldViewStore();
+
+  const isExpandable = bottomTab === 'indexes' || bottomTab === 'posture' || bottomTab === 'instability' || bottomTab === 'risk';
+
   return (
     <div className="glass-panel border-t border-primary/8 flex flex-col overflow-hidden z-30 h-full">
       <div className="h-6 border-b border-border flex items-center overflow-hidden bg-card-bg/50 relative">
@@ -34,16 +38,23 @@ const BottomFeed = memo(() => {
             </span>
           ))}
         </div>
-        <button onClick={toggleBottomPanel} className="absolute right-1 top-0.5 z-10 px-1.5 py-0.5 text-[8px] font-data text-muted-foreground hover:text-primary bg-background/60 backdrop-blur-sm rounded transition-colors">
-          {bottomPanelCollapsed ? '▲' : '▼'}
-        </button>
+        <div className="absolute right-1 top-0.5 z-10 flex items-center gap-1">
+          {isExpandable && !bottomPanelCollapsed && (
+            <button onClick={() => setBottomPanelExpanded(!bottomPanelExpanded)} className="px-1.5 py-0.5 text-[8px] font-data text-muted-foreground hover:text-primary bg-background/60 backdrop-blur-sm rounded transition-colors">
+              {bottomPanelExpanded ? '⊟' : '⊞'}
+            </button>
+          )}
+          <button onClick={() => { toggleBottomPanel(); if (bottomPanelExpanded) setBottomPanelExpanded(false); }} className="px-1.5 py-0.5 text-[8px] font-data text-muted-foreground hover:text-primary bg-background/60 backdrop-blur-sm rounded transition-colors">
+            {bottomPanelCollapsed ? '▲' : '▼'}
+          </button>
+        </div>
       </div>
       {!bottomPanelCollapsed && (
         <>
-          <div className="flex items-center gap-1 px-2 py-1 border-b border-border bg-card-bg/30">
+          <div className="flex items-center gap-1 px-2 py-1 border-b border-border bg-card-bg/30 overflow-x-auto">
             {TABS.map((tab) => (
-              <button key={tab.key} onClick={() => setBottomTab(tab.key)}
-                className={`flex items-center gap-1.5 px-2.5 py-0.5 text-[10px] font-display tracking-wider rounded transition-colors ${bottomTab === tab.key ? 'bg-primary/10 text-primary border border-primary/20' : 'text-muted-foreground hover:text-foreground'}`}>
+              <button key={tab.key} onClick={() => { setBottomTab(tab.key); if (tab.key === 'indexes') setBottomPanelExpanded(true); }}
+                className={`flex items-center gap-1.5 px-2.5 py-0.5 text-[10px] font-display tracking-wider rounded transition-colors whitespace-nowrap ${bottomTab === tab.key ? 'bg-primary/10 text-primary border border-primary/20' : 'text-muted-foreground hover:text-foreground'}`}>
                 <span className="text-[9px]">{tab.icon}</span>{tab.label}
               </button>
             ))}
@@ -52,6 +63,7 @@ const BottomFeed = memo(() => {
             {bottomTab === 'news' && <NewsFeed />}
             {bottomTab === 'livestream' && <LivestreamPanel />}
             {bottomTab === 'radio' && <RadioPanel />}
+            {bottomTab === 'indexes' && <CombinedIndexesPanel />}
             {bottomTab === 'posture' && <StrategicPosturePanel />}
             {bottomTab === 'instability' && <InstabilityIndexPanel />}
             {bottomTab === 'risk' && <StrategicRiskPanel />}
@@ -715,6 +727,215 @@ const StrategicRiskPanel = memo(() => {
   );
 });
 
+// ── Combined Indexes Panel (Grid of Squares) ──
+const CombinedIndexesPanel = memo(() => {
+  const { earthquakes, protests, outages, fires, aircraft, setMapCenter } = useWorldViewStore();
+  const sorted = [...INSTABILITY_DATA].sort((a, b) => b.score - a.score);
+
+  // Risk score calculation
+  const instabilityTop5 = sorted.slice(0, 5);
+  const instabilityScore = instabilityTop5.reduce((sum, c) => sum + c.score, 0) / 5;
+  const conflictScore = CONFLICT_ZONES.filter(c => c.intensity >= 8).length * 8;
+  const infraScore = Math.min((outages.length * 5 + fires.length * 3), 30);
+  const milScore = Math.min(aircraft.filter(a => a.isMilitary).length * 0.5, 20);
+  const compositeRaw = (instabilityScore * 0.5) + (conflictScore * 0.2) + (infraScore * 0.15) + (milScore * 0.15);
+  const compositeScore = Math.min(Math.round(compositeRaw), 100);
+  const riskLevel = compositeScore >= 70 ? 'CRITICAL' : compositeScore >= 50 ? 'HIGH' : compositeScore >= 30 ? 'ELEVATED' : 'LOW';
+  const riskColor = compositeScore >= 70 ? 'text-alert-critical' : compositeScore >= 50 ? 'text-alert-high' : compositeScore >= 30 ? 'text-alert-medium' : 'text-signal-aircraft';
+
+  const critTheaters = THEATER_DATA.filter(t => t.status === 'CRIT').length;
+  const escalatingTheaters = THEATER_DATA.filter(t => t.trend === 'escalating').length;
+
+  const COUNTRY_COORDS: Record<string, { lat: number; lon: number }> = {
+    Syria: { lat: 35, lon: 38 }, Ukraine: { lat: 48.5, lon: 31 }, Sudan: { lat: 15.5, lon: 32.5 },
+    Yemen: { lat: 15.5, lon: 48 }, Somalia: { lat: 5, lon: 46 }, 'DR Congo': { lat: -2.5, lon: 24 },
+    Afghanistan: { lat: 33.9, lon: 67.7 }, Iraq: { lat: 33.2, lon: 43.7 }, Haiti: { lat: 19, lon: -72.3 },
+    Myanmar: { lat: 19.7, lon: 96.2 }, Libya: { lat: 26.3, lon: 17.2 }, Lebanon: { lat: 33.9, lon: 35.5 },
+    Ethiopia: { lat: 9.1, lon: 40.5 }, Pakistan: { lat: 30.4, lon: 69.3 }, Venezuela: { lat: 6.4, lon: -66.6 },
+    'North Korea': { lat: 40, lon: 127 }, Cyprus: { lat: 35.1, lon: 33.4 }, Iran: { lat: 32.4, lon: 53.7 },
+    Nigeria: { lat: 9.1, lon: 8.7 }, Mali: { lat: 17.6, lon: -4 }, 'Burkina Faso': { lat: 12.4, lon: -1.5 },
+    Niger: { lat: 17.6, lon: 8.1 }, Mozambique: { lat: -18.7, lon: 35.5 }, Colombia: { lat: 4.6, lon: -74.1 },
+    Tunisia: { lat: 33.9, lon: 9.5 }, Georgia: { lat: 42.3, lon: 43.4 }, Egypt: { lat: 26.8, lon: 30.8 },
+    Turkey: { lat: 38.9, lon: 35.2 }, Taiwan: { lat: 23.7, lon: 121 },
+  };
+
+  return (
+    <div className="h-full overflow-y-auto p-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 auto-rows-auto">
+
+        {/* ── STRATEGIC RISK ── */}
+        <div className="bg-card-bg/60 rounded-lg border border-border p-3 min-h-[200px]">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-[10px] font-display tracking-[0.2em] text-muted-foreground">🛡 STRATEGIC RISK OVERVIEW</h3>
+            <span className="text-[8px] font-data text-primary animate-pulse-dot">● LIVE</span>
+          </div>
+          <div className="flex items-center gap-4 mb-3">
+            <div className="text-center">
+              <div className={`text-[42px] font-data font-bold ${riskColor} leading-none`}>{compositeScore}</div>
+              <div className={`text-[9px] font-display tracking-[0.15em] ${riskColor} mt-1`}>{riskLevel}</div>
+            </div>
+            <div className="flex-1 space-y-1.5">
+              <div className="flex justify-between text-[8px] font-data">
+                <span className="text-muted-foreground">INSTABILITY</span>
+                <span className="text-data-text">{Math.round(instabilityScore)}</span>
+              </div>
+              <div className="w-full h-1 bg-card-hover rounded-full overflow-hidden">
+                <div className="h-full bg-alert-high rounded-full" style={{ width: `${instabilityScore}%` }} />
+              </div>
+              <div className="flex justify-between text-[8px] font-data">
+                <span className="text-muted-foreground">CONFLICTS</span>
+                <span className="text-data-text">{conflictScore}</span>
+              </div>
+              <div className="w-full h-1 bg-card-hover rounded-full overflow-hidden">
+                <div className="h-full bg-alert-critical rounded-full" style={{ width: `${Math.min(conflictScore, 100)}%` }} />
+              </div>
+              <div className="flex justify-between text-[8px] font-data">
+                <span className="text-muted-foreground">INFRA</span>
+                <span className="text-data-text">{infraScore}</span>
+              </div>
+              <div className="w-full h-1 bg-card-hover rounded-full overflow-hidden">
+                <div className="h-full bg-signal-outage rounded-full" style={{ width: `${(infraScore / 30) * 100}%` }} />
+              </div>
+            </div>
+          </div>
+          <div className="text-[8px] font-data text-muted-foreground">TREND → Stable</div>
+        </div>
+
+        {/* ── STRATEGIC POSTURE ── */}
+        <div className="bg-card-bg/60 rounded-lg border border-border p-3 min-h-[200px]">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-[10px] font-display tracking-[0.2em] text-muted-foreground">🎯 AI STRATEGIC POSTURE</h3>
+            {critTheaters > 0 && <span className="text-[8px] font-data text-alert-critical animate-pulse-dot">⚠ {critTheaters} CRIT</span>}
+          </div>
+          <div className="space-y-1.5 max-h-[calc(100%-30px)] overflow-y-auto">
+            {THEATER_DATA.map((t) => {
+              const sc = t.status === 'CRIT' ? 'text-alert-critical' : t.status === 'ELEV' ? 'text-alert-medium' : 'text-signal-aircraft';
+              const sbg = t.status === 'CRIT' ? 'bg-alert-critical/10' : t.status === 'ELEV' ? 'bg-alert-medium/10' : 'bg-primary/5';
+              const trendIcon = t.trend === 'escalating' ? '↗' : t.trend === 'de-escalating' ? '↘' : '→';
+              const trendColor = t.trend === 'escalating' ? 'text-alert-critical' : t.trend === 'de-escalating' ? 'text-signal-aircraft' : 'text-muted-foreground';
+              return (
+                <div key={t.name} className={`${sbg} rounded border p-2 ${t.status === 'CRIT' ? 'border-alert-critical/40' : t.status === 'ELEV' ? 'border-alert-medium/30' : 'border-border'}`}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] font-display tracking-wide text-foreground">{t.name}</span>
+                    <span className={`text-[7px] font-data font-bold px-1 py-0.5 rounded ${sc} ${sbg}`}>{t.status}</span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-[8px] font-data text-data-text">✈️ {t.airAssets}</span>
+                    <span className="text-[8px] font-data text-data-text">⚓ {t.seaAssets}</span>
+                    <span className={`text-[8px] font-data ${trendColor} ml-auto`}>{trendIcon} {t.trend}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ── INSTABILITY INDEX ── */}
+        <div className="bg-card-bg/60 rounded-lg border border-border p-3 min-h-[200px]">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-[10px] font-display tracking-[0.2em] text-muted-foreground">⚠ COUNTRY INSTABILITY</h3>
+            <span className="text-[8px] font-data text-text-secondary">{sorted.length} COUNTRIES</span>
+          </div>
+          <div className="space-y-1 max-h-[calc(100%-30px)] overflow-y-auto">
+            {sorted.map((c, i) => {
+              const levelColor = c.level === 'critical' ? 'border-l-alert-critical' : c.level === 'high' ? 'border-l-alert-high' : c.level === 'medium' ? 'border-l-alert-medium' : 'border-l-primary/30';
+              const scoreColor = c.level === 'critical' ? 'text-alert-critical' : c.level === 'high' ? 'text-alert-high' : c.level === 'medium' ? 'text-alert-medium' : 'text-data-text';
+              const trendIcon = c.trend === 'up' ? '↗' : c.trend === 'down' ? '↘' : '→';
+              const trendColor = c.trend === 'up' ? 'text-alert-critical' : c.trend === 'down' ? 'text-signal-aircraft' : 'text-muted-foreground';
+              const coords = COUNTRY_COORDS[c.country];
+              return (
+                <div key={c.country}
+                  onClick={() => coords && setMapCenter({ lat: coords.lat, lon: coords.lon, zoom: 6 })}
+                  className={`bg-card-bg/40 border-l-2 ${levelColor} rounded-r px-2 py-1 cursor-pointer hover:bg-card-hover transition-colors`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1">
+                      <span className="text-[7px] font-data text-text-muted-custom">#{i + 1}</span>
+                      <span className="text-xs">{c.flag}</span>
+                      <span className="text-[9px] font-display tracking-wide text-foreground">{c.country}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className={`text-[12px] font-data font-bold ${scoreColor}`}>{c.score}</span>
+                      <span className={`text-[8px] font-data ${trendColor}`}>{trendIcon}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ── WORLD STATS SUMMARY ── */}
+        <div className="bg-card-bg/60 rounded-lg border border-border p-3 min-h-[200px]">
+          <h3 className="text-[10px] font-display tracking-[0.2em] text-muted-foreground mb-2">📊 MONITORING STATS</h3>
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { label: 'Aircraft', value: aircraft.length, icon: '✈️', color: 'text-signal-aircraft' },
+              { label: 'Military', value: aircraft.filter(a => a.isMilitary).length, icon: '⚔️', color: 'text-signal-military' },
+              { label: 'Earthquakes', value: earthquakes.length, icon: '🌍', color: 'text-signal-earthquake' },
+              { label: 'Protests', value: protests.length, icon: '✊', color: 'text-signal-protest' },
+              { label: 'Cyber/Outages', value: outages.length, icon: '🔒', color: 'text-signal-outage' },
+              { label: 'Fires', value: fires.length, icon: '🔥', color: 'text-alert-high' },
+              { label: 'Theaters CRIT', value: critTheaters, icon: '🎯', color: 'text-alert-critical' },
+              { label: 'Escalating', value: escalatingTheaters, icon: '↗', color: 'text-alert-medium' },
+            ].map((s) => (
+              <div key={s.label} className="bg-card-bg/40 rounded border border-border p-2 text-center">
+                <div className="text-sm mb-0.5">{s.icon}</div>
+                <div className={`font-data text-base font-bold ${s.color}`}>{s.value}</div>
+                <div className="text-[7px] font-display tracking-wider text-muted-foreground">{s.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ── CONFLICT ZONES ── */}
+        <div className="bg-card-bg/60 rounded-lg border border-border p-3 min-h-[200px]">
+          <h3 className="text-[10px] font-display tracking-[0.2em] text-muted-foreground mb-2">⚔ ACTIVE CONFLICTS</h3>
+          <div className="space-y-1 max-h-[calc(100%-30px)] overflow-y-auto">
+            {CONFLICT_ZONES.sort((a, b) => b.intensity - a.intensity).map((cz) => {
+              const c = cz.intensity >= 8 ? 'text-alert-critical' : cz.intensity >= 6 ? 'text-alert-high' : 'text-alert-medium';
+              const bg = cz.intensity >= 8 ? 'border-alert-critical/40' : cz.intensity >= 6 ? 'border-alert-high/30' : 'border-border';
+              return (
+                <div key={cz.name}
+                  onClick={() => setMapCenter({ lat: cz.lat, lon: cz.lon, zoom: 7 })}
+                  className={`flex items-center justify-between px-2 py-1.5 rounded bg-card-bg/40 border cursor-pointer hover:bg-card-hover transition-colors ${bg}`}>
+                  <span className="text-[9px] font-display tracking-wide text-foreground">{cz.name}</span>
+                  <span className={`text-[9px] font-data font-bold ${c}`}>{cz.intensity}/10</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ── RECENT ESCALATION ALERTS ── */}
+        <div className="bg-card-bg/60 rounded-lg border border-border p-3 min-h-[200px]">
+          <h3 className="text-[10px] font-display tracking-[0.2em] text-muted-foreground mb-2">🔴 ESCALATION ALERTS</h3>
+          <div className="space-y-1.5 max-h-[calc(100%-30px)] overflow-y-auto">
+            {[
+              ...INSTABILITY_DATA.filter(c => c.trend === 'up' && c.score >= 40).map(c => ({
+                icon: '📊', level: c.level, text: `${c.flag} ${c.country} instability rising → ${c.score}`,
+              })),
+              ...THEATER_DATA.filter(t => t.status === 'CRIT').map(t => ({
+                icon: '🎯', level: 'critical' as const, text: `${t.name} — CRITICAL posture`,
+              })),
+              ...THEATER_DATA.filter(t => t.trend === 'escalating').map(t => ({
+                icon: '↗', level: 'high' as const, text: `${t.name} — escalating`,
+              })),
+            ].slice(0, 12).map((a, i) => {
+              const ac = a.level === 'critical' ? 'border-l-alert-critical' : a.level === 'high' ? 'border-l-alert-high' : 'border-l-alert-medium';
+              return (
+                <div key={i} className={`bg-card-bg/40 border-l-2 ${ac} rounded-r px-2 py-1.5`}>
+                  <span className="text-[9px] text-foreground">{a.icon} {a.text}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+});
+
 NewsFeed.displayName = 'NewsFeed';
 LivestreamPanel.displayName = 'LivestreamPanel';
 RadioPanel.displayName = 'RadioPanel';
@@ -724,5 +945,6 @@ PizzaIndexPanel.displayName = 'PizzaIndexPanel';
 StrategicPosturePanel.displayName = 'StrategicPosturePanel';
 InstabilityIndexPanel.displayName = 'InstabilityIndexPanel';
 StrategicRiskPanel.displayName = 'StrategicRiskPanel';
+CombinedIndexesPanel.displayName = 'CombinedIndexesPanel';
 BottomFeed.displayName = 'BottomFeed';
 export default BottomFeed;

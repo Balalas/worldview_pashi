@@ -142,7 +142,7 @@ const CctvPip = memo(() => {
 CctvPip.displayName = 'CctvPip';
 
 const Index = () => {
-  const { setAircraft, setSatellites, setEarthquakes, setNews, setLastRefresh, setNewsLoading, setWeatherAlerts, setVolcanoes, setVessels, setProtests, setOutages, setFires, toggleLayer, closeDetailPanel, mapMode, setFollowTarget, visualStyle, setVisualStyle, filterParams, bottomPanelCollapsed, setMapCenter, isScreensaver, setScreensaver } = useWorldViewStore();
+  const { setAircraft, setSatellites, setEarthquakes, setNews, setLastRefresh, setNewsLoading, setWeatherAlerts, setVolcanoes, setVessels, setProtests, setOutages, setFires, toggleLayer, closeDetailPanel, mapMode, setFollowTarget, visualStyle, setVisualStyle, filterParams, bottomPanelCollapsed, bottomPanelExpanded, setMapCenter, isScreensaver, setScreensaver } = useWorldViewStore();
   const styleConfig = computeStyleConfig(visualStyle, filterParams);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const IDLE_TIMEOUT = 25000; // 25 seconds
@@ -395,7 +395,7 @@ const Index = () => {
 
         {/* Bottom Feed — floating ticker */}
         {!isScreensaver && (
-          <div className={`absolute bottom-0 left-0 right-0 pointer-events-auto ${bottomPanelCollapsed ? 'h-[26px]' : 'h-[200px]'}`}
+          <div className={`absolute bottom-0 left-0 right-0 pointer-events-auto ${bottomPanelCollapsed ? 'h-[26px]' : bottomPanelExpanded ? 'h-[70vh]' : 'h-[200px]'}`}
             style={{ transition: 'height 0.3s cubic-bezier(0.16,1,0.3,1)' }}
           >
             <BottomFeed />
