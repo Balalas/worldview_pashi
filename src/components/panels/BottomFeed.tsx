@@ -128,6 +128,116 @@ const WarStatusPanel = memo(() => {
   );
 });
 
+// World TV Card — inline TV player with volume + channel list
+const WorldTVCard = memo(() => {
+  const { setActiveLivestream } = useWorldViewStore();
+  const [selectedChannel, setSelectedChannel] = useState<LivestreamFeed | null>(null);
+  const [volume, setVolume] = useState(30);
+  const [catFilter, setCatFilter] = useState<'all' | LivestreamFeed['category']>('all');
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  const cats: { key: typeof catFilter; label: string; icon: string }[] = [
+    { key: 'all', label: 'ALL', icon: '📺' },
+    { key: 'news', label: 'NEWS', icon: '📡' },
+    { key: 'traffic', label: 'WEBCAMS', icon: '📹' },
+    { key: 'conflict', label: 'CONFLICT', icon: '💥' },
+    { key: 'space', label: 'SPACE', icon: '🛰' },
+    { key: 'weather', label: 'WEATHER', icon: '🌤' },
+    { key: 'nature', label: 'NATURE', icon: '🌿' },
+  ];
+
+  const newsChannels = LIVESTREAM_FEEDS.filter(f => catFilter === 'all' || f.category === catFilter);
+
+  const handleSelect = (ch: LivestreamFeed) => {
+    setSelectedChannel(ch);
+    setActiveLivestream(ch.id);
+  };
+
+  // Build iframe URL with volume parameter
+  const getIframeUrl = (ch: LivestreamFeed) => {
+    const base = ch.url.replace('mute=1', 'mute=0').replace('autoplay=0', 'autoplay=1');
+    return base;
+  };
+
+  return (
+    <div className="flex h-full">
+      {/* Channel list */}
+      <div className="w-[200px] border-r border-border overflow-y-auto p-1.5 flex-shrink-0">
+        <div className="flex items-center gap-0.5 mb-1.5 flex-wrap">
+          {cats.map(c => (
+            <button key={c.key} onClick={() => setCatFilter(c.key)}
+              className={`text-[7px] font-data tracking-wider px-1 py-0.5 rounded ${catFilter === c.key ? 'bg-primary/10 text-primary border border-primary/20' : 'text-muted-foreground hover:text-foreground'}`}>
+              {c.icon} {c.label}
+            </button>
+          ))}
+        </div>
+        <div className="space-y-0.5">
+          {newsChannels.map(ch => (
+            <button key={ch.id} onClick={() => handleSelect(ch)}
+              className={`w-full text-left px-1.5 py-1 rounded text-[9px] transition-colors flex items-center gap-1.5 ${
+                selectedChannel?.id === ch.id ? 'bg-primary/10 border border-primary/20' : 'hover:bg-card-hover border border-transparent'
+              }`}>
+              <span className="w-1.5 h-1.5 rounded-full bg-alert-critical animate-pulse-dot flex-shrink-0" />
+              <div className="min-w-0 flex-1">
+                <div className="text-foreground font-display tracking-wide truncate text-[9px]">{ch.title.replace(' – LIVE', '')}</div>
+                <div className="text-[7px] font-data text-muted-foreground">{ch.source} • {ch.region}</div>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* TV screen + volume controls */}
+      <div className="flex-1 flex flex-col bg-void/50">
+        {selectedChannel ? (
+          <>
+            <div className="flex-1 relative min-h-0">
+              <iframe
+                ref={iframeRef}
+                src={getIframeUrl(selectedChannel)}
+                className="w-full h-full"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                title={selectedChannel.title}
+              />
+              {/* Live badge */}
+              <div className="absolute top-2 left-2 flex items-center gap-1.5 bg-void/80 backdrop-blur-sm rounded px-2 py-1">
+                <span className="w-2 h-2 rounded-full bg-alert-critical animate-pulse" />
+                <span className="text-[9px] font-data text-alert-critical font-bold">LIVE</span>
+                <span className="text-[9px] font-display tracking-wider text-foreground">{selectedChannel.title}</span>
+              </div>
+            </div>
+            {/* Volume + controls bar */}
+            <div className="flex items-center gap-3 px-3 py-1.5 border-t border-border bg-card-bg/60 flex-shrink-0">
+              <span className="text-[10px]">🔊</span>
+              <input
+                type="range" min="0" max="100" value={volume}
+                onChange={e => setVolume(Number(e.target.value))}
+                className="flex-1 h-1 accent-primary cursor-pointer"
+                style={{ maxWidth: 120 }}
+              />
+              <span className="text-[8px] font-data text-muted-foreground w-8">{volume}%</span>
+              <div className="ml-auto flex items-center gap-2">
+                <span className="text-[8px] font-data text-primary/50">{newsChannels.length} CHANNELS</span>
+                <span className="text-[8px] font-data text-muted-foreground">{selectedChannel.source}</span>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <span className="text-3xl mb-2 block opacity-30">📺</span>
+              <p className="text-[10px] font-display tracking-[0.15em] text-muted-foreground">SELECT A CHANNEL</p>
+              <p className="text-[8px] font-data text-muted-foreground/50 mt-1">{LIVESTREAM_FEEDS.length} live channels worldwide</p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+});
+WorldTVCard.displayName = 'WorldTVCard';
+
 const BottomFeed = memo(() => {
   const [forexRates, setForexRates] = useState<ForexRate[]>([]);
   const [airQuality, setAirQuality] = useState<AirQualityStation[]>([]);
@@ -175,9 +285,16 @@ const BottomFeed = memo(() => {
 
       {/* All sections in grid view with collapsible rows */}
       <div>
-        {/* Row 0: Live War Status (always visible in war mode, collapsible otherwise) */}
-        <CollapsibleRow title="ACTIVE CONFLICTS" icon="💥" defaultOpen={true}>
-          <WarStatusPanel />
+        {/* Row 0: Live War Status + World TV */}
+        <CollapsibleRow title="ACTIVE CONFLICTS & WORLD TV" icon="💥" defaultOpen={true}>
+          <div className="grid grid-cols-1 lg:grid-cols-2">
+            <div className="border-r border-border max-h-[420px] overflow-y-auto scrollbar-thin">
+              <WarStatusPanel />
+            </div>
+            <div className="max-h-[420px] overflow-hidden">
+              <WorldTVCard />
+            </div>
+          </div>
         </CollapsibleRow>
 
         {/* Row 1: Intel Feed + Markets */}
