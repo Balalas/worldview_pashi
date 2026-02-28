@@ -350,9 +350,9 @@ const Index = () => {
   }
 
   return (
-    <div className="min-h-screen w-screen bg-void relative">
-      {/* Full-screen map — takes full viewport height */}
-      <div className="h-screen w-full relative z-0" style={{ isolation: 'isolate', ...(circularViewport ? { clipPath: 'circle(50% at 50% 50%)' } : {}) }}>
+    <div className="h-screen w-screen bg-void overflow-hidden relative">
+      {/* Full-screen map */}
+      <div className="absolute inset-0 z-0" style={{ isolation: 'isolate', ...(circularViewport ? { clipPath: 'circle(50% at 50% 50%)' } : {}) }}>
         {/* SVG filters for CRT effects */}
         <svg className="absolute w-0 h-0">
           <defs>
@@ -366,7 +366,6 @@ const Index = () => {
               <feBlend in="redOnly" in2="greenOnly" mode="screen" result="rg" />
               <feBlend in="rg" in2="blueOnly" mode="screen" />
             </filter>
-            {/* Fisheye barrel distortion filter */}
             <filter id="crt-fisheye" x="-10%" y="-10%" width="120%" height="120%">
               <feImage xlinkHref="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Cdefs%3E%3CradialGradient id='g'%3E%3Cstop offset='0%25' stop-color='rgb(128,128,128)'/%3E%3Cstop offset='55%25' stop-color='rgb(140,140,140)'/%3E%3Cstop offset='80%25' stop-color='rgb(160,160,160)'/%3E%3Cstop offset='100%25' stop-color='rgb(190,190,190)'/%3E%3C/radialGradient%3E%3C/defs%3E%3Crect width='400' height='400' fill='url(%23g)'/%3E%3C/svg%3E" result="map" preserveAspectRatio="none" x="0%" y="0%" width="100%" height="100%" />
               <feDisplacementMap in="SourceGraphic" in2="map" scale="35" xChannelSelector="R" yChannelSelector="G" />
@@ -374,7 +373,6 @@ const Index = () => {
           </defs>
         </svg>
 
-        {/* CRT barrel distortion + fisheye wrapper */}
         <div className="absolute inset-0"
           style={styleConfig.crt ? {
             borderRadius: '18px', overflow: 'hidden',
@@ -397,15 +395,12 @@ const Index = () => {
           </div>
         </div>
 
-        {/* Weather Radar overlay */}
         <WeatherRadarOverlay />
 
-        {/* Style tint overlay */}
         {styleConfig.tint && (
           <div className="absolute inset-0 pointer-events-none z-10" style={{ backgroundColor: styleConfig.tint, mixBlendMode: visualStyle === 'nvg' ? 'multiply' : 'normal', ...(styleConfig.crt ? { borderRadius: '18px' } : {}) }} />
         )}
 
-        {/* CRT overlays */}
         {styleConfig.crt && (
           <>
             <div className="absolute inset-0 pointer-events-none z-10" style={{ opacity: styleConfig.scanlineOpacity ?? 0.12, backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.6) 2px, rgba(0,0,0,0.6) 4px)', borderRadius: '18px' }} />
@@ -416,20 +411,16 @@ const Index = () => {
           </>
         )}
 
-        {/* Scanlines (non-CRT) */}
         {styleConfig.scanlines && !styleConfig.crt && (
           <div className="absolute inset-0 pointer-events-none z-10" style={{ opacity: styleConfig.scanlineOpacity ?? 0.08, backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 1px, rgba(0,0,0,0.3) 1px, rgba(0,0,0,0.3) 2px)' }} />
         )}
 
-        {/* Vignette (non-CRT) */}
         {styleConfig.vignette && !styleConfig.crt && (
           <div className="absolute inset-0 pointer-events-none z-10" style={{ background: `radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,${styleConfig.vignetteStrength ?? 0.6}) 100%)` }} />
         )}
 
-        {/* AI mode overlay — neon grid + scanning line */}
         {visualStyle === 'ai' && (
           <>
-            {/* Grid overlay */}
             <div className="absolute inset-0 pointer-events-none z-10"
               style={{
                 backgroundImage: `
@@ -438,7 +429,6 @@ const Index = () => {
                 backgroundSize: '60px 60px',
               }}
             />
-            {/* Scanning line */}
             <div className="absolute inset-0 pointer-events-none z-10 overflow-hidden">
               <div className="absolute left-0 right-0 h-[2px]"
                 style={{
@@ -448,20 +438,15 @@ const Index = () => {
                 }}
               />
             </div>
-            {/* Edge glow */}
             <div className="absolute inset-0 pointer-events-none z-10"
-              style={{
-                boxShadow: 'inset 0 0 60px rgba(0,255,255,0.05), inset 0 0 120px rgba(255,0,255,0.03)',
-              }}
+              style={{ boxShadow: 'inset 0 0 60px rgba(0,255,255,0.05), inset 0 0 120px rgba(255,0,255,0.03)' }}
             />
           </>
         )}
 
-        {/* Street View Overlay */}
         <StreetViewOverlay />
       </div>
 
-      {/* War mode red vignette overlay */}
       {warMode && (
         <div className="absolute inset-0 pointer-events-none z-15"
           style={{
@@ -471,9 +456,8 @@ const Index = () => {
         />
       )}
 
-      {/* Floating UI layer — all panels overlay on top of full-screen map */}
-      <div className="fixed inset-0 pointer-events-none z-20">
-        {/* HUD elements hidden during screensaver or immersive */}
+      {/* Floating UI layer */}
+      <div className="absolute inset-0 pointer-events-none z-20">
         {!isScreensaver && (
           <>
             <HudOverlay />
@@ -489,49 +473,43 @@ const Index = () => {
           </>
         )}
 
-        {/* Right Panel — compact floating box */}
         {!isScreensaver && <RightPanel />}
 
-        {/* Globe Controls — landmark navigation */}
         {!isScreensaver && (
           <div className="pointer-events-auto">
             <GlobeControls />
           </div>
         )}
 
-        {/* Style Presets Bar */}
         {!isScreensaver && (
           <div className="pointer-events-auto">
             <StylePresetsBar />
           </div>
         )}
 
-        {/* CCTV PiP */}
         <CctvPip />
 
-        {/* Tactical Alerts */}
         {!isScreensaver && (
           <div className="pointer-events-auto">
             <TacticalAlerts />
           </div>
         )}
 
-        {/* Minimap Radar */}
         {!isScreensaver && <MinimapRadar />}
 
-        {/* Keyboard shortcut hints */}
+        {/* Bottom Feed — full grid, scrollable overlay */}
+        {!isScreensaver && !immersiveMode && (
+          <div className="absolute bottom-0 left-0 right-0 pointer-events-auto"
+            style={{ height: bottomPanelCollapsed ? '26px' : '70vh', transition: 'height 0.3s cubic-bezier(0.16,1,0.3,1)' }}
+          >
+            <BottomFeed />
+          </div>
+        )}
+
         {!isScreensaver && <KeyboardHints />}
 
-        {/* Screensaver overlay */}
         {isScreensaver && <ScreensaverOverlay />}
       </div>
-
-      {/* Bottom Feed — grid view below the map, scrollable */}
-      {!isScreensaver && !immersiveMode && (
-        <div className="relative z-10">
-          <BottomFeed />
-        </div>
-      )}
     </div>
   );
 };
