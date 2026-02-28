@@ -86,6 +86,63 @@ const RSS_FEEDS = [
   { url: 'https://liveuamap.com/rss', source: 'LiveUAMap', tier: 1 as const },
 ];
 
+// ── Country extraction from headlines ──
+const COUNTRY_KEYWORDS: Record<string, string> = {
+  'ukraine': 'ukraine', 'kyiv': 'ukraine', 'kharkiv': 'ukraine', 'odesa': 'ukraine', 'donbas': 'ukraine', 'crimea': 'ukraine',
+  'russia': 'russia', 'moscow': 'russia', 'kremlin': 'russia', 'putin': 'russia',
+  'gaza': 'gaza', 'hamas': 'gaza', 'rafah': 'gaza',
+  'israel': 'israel', 'netanyahu': 'israel', 'idf': 'israel', 'jerusalem': 'israel', 'tel aviv': 'israel',
+  'iran': 'iran', 'tehran': 'iran', 'irgc': 'iran', 'ayatollah': 'iran',
+  'iraq': 'iraq', 'baghdad': 'iraq',
+  'syria': 'syria', 'damascus': 'syria', 'idlib': 'syria', 'aleppo': 'syria',
+  'yemen': 'yemen', 'houthi': 'yemen', 'sanaa': 'yemen',
+  'sudan': 'sudan', 'khartoum': 'sudan', 'darfur': 'sudan',
+  'china': 'china', 'beijing': 'china', 'xi jinping': 'china',
+  'taiwan': 'taiwan', 'taipei': 'taiwan',
+  'north korea': 'north korea', 'pyongyang': 'north korea', 'kim jong': 'north korea',
+  'south korea': 'south korea', 'seoul': 'south korea',
+  'japan': 'japan', 'tokyo': 'japan',
+  'india': 'india', 'delhi': 'india', 'modi': 'india', 'mumbai': 'india',
+  'pakistan': 'pakistan', 'islamabad': 'pakistan',
+  'afghanistan': 'afghanistan', 'kabul': 'afghanistan', 'taliban': 'afghanistan',
+  'myanmar': 'myanmar', 'burma': 'myanmar',
+  'lebanon': 'lebanon', 'beirut': 'lebanon', 'hezbollah': 'lebanon',
+  'libya': 'libya', 'tripoli': 'libya',
+  'turkey': 'turkey', 'ankara': 'turkey', 'erdogan': 'turkey',
+  'egypt': 'egypt', 'cairo': 'egypt',
+  'saudi': 'saudi arabia', 'riyadh': 'saudi arabia',
+  'somalia': 'somalia', 'mogadishu': 'somalia',
+  'nigeria': 'nigeria', 'lagos': 'nigeria', 'abuja': 'nigeria',
+  'ethiopia': 'ethiopia', 'addis ababa': 'ethiopia',
+  'congo': 'congo', 'kinshasa': 'congo',
+  'haiti': 'haiti',
+  'venezuela': 'venezuela', 'caracas': 'venezuela',
+  'colombia': 'colombia', 'bogota': 'colombia',
+  'mexico': 'mexico', 'mexico city': 'mexico',
+  'brazil': 'brazil', 'brasilia': 'brazil',
+  'united states': 'united states', 'washington': 'united states', 'pentagon': 'united states', 'u.s.': 'united states',
+  'united kingdom': 'united kingdom', 'london': 'united kingdom', 'britain': 'united kingdom',
+  'france': 'france', 'paris': 'france', 'macron': 'france',
+  'germany': 'germany', 'berlin': 'germany',
+  'poland': 'poland', 'warsaw': 'poland',
+  'south africa': 'south africa', 'johannesburg': 'south africa',
+  'australia': 'australia', 'canberra': 'australia', 'sydney': 'australia',
+  'philippines': 'philippines', 'manila': 'philippines',
+  'indonesia': 'indonesia', 'jakarta': 'indonesia',
+  'thailand': 'thailand', 'bangkok': 'thailand',
+  'vietnam': 'vietnam', 'hanoi': 'vietnam',
+  'morocco': 'morocco', 'algeria': 'algeria', 'tunisia': 'tunisia',
+};
+const COUNTRY_KEYS_SORTED = Object.keys(COUNTRY_KEYWORDS).sort((a, b) => b.length - a.length);
+
+function extractCountryFromTitle(title: string): string | undefined {
+  const lower = title.toLowerCase();
+  for (const key of COUNTRY_KEYS_SORTED) {
+    if (lower.includes(key)) return COUNTRY_KEYWORDS[key];
+  }
+  return undefined;
+}
+
 const SEVERITY_KEYWORDS: Record<string, NewsItem['severity']> = {
   explosion: 'critical', attack: 'critical', killed: 'critical', missile: 'critical', war: 'critical', dead: 'critical', bomb: 'critical',
   military: 'high', troops: 'high', sanctions: 'high', threat: 'high', nuclear: 'high', crisis: 'high', invasion: 'high',
@@ -131,6 +188,7 @@ export const fetchLiveNews = async (): Promise<NewsItem[]> => {
               time: new Date(item.pubDate),
               link: item.link,
               category: classifyCategory(item.title),
+              country: extractCountryFromTitle(item.title),
             });
           });
         }
