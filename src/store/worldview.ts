@@ -2,7 +2,6 @@ import { create } from 'zustand';
 import { WeatherAlert, VolcanoData } from '@/services/weatherService';
 import { CountryData } from '@/services/countryService';
 import { GlobalCamera } from '@/services/cameraService';
-import { AIFeedEnrichment } from '@/services/aiEnrichmentService';
 
 export type LayerType =
   | 'aircraft' | 'satellites' | 'cameras' | 'militaryFlights'
@@ -453,9 +452,6 @@ export interface WorldViewState {
   countryDossier: CountryData | null;
   openCountryDossier: (country: CountryData) => void;
   closeCountryDossier: () => void;
-
-  aiEnrichment: AIFeedEnrichment | null;
-  setAIEnrichment: (data: AIFeedEnrichment | null) => void;
 }
 
 export const useWorldViewStore = create<WorldViewState>((set) => ({
@@ -662,9 +658,6 @@ export const useWorldViewStore = create<WorldViewState>((set) => ({
   countryDossier: null,
   openCountryDossier: (country) => set({ countryDossier: country }),
   closeCountryDossier: () => set({ countryDossier: null }),
-
-  aiEnrichment: null,
-  setAIEnrichment: (data) => set({ aiEnrichment: data }),
 }));
 
 // Keyboard shortcuts

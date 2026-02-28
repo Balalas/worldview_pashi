@@ -441,16 +441,8 @@ const BottomFeed = memo(() => {
 
 const WAR_NEWS_KEYWORDS = /\b(war|airstrike|strike|missile|killed|casualties|troops|offensive|invasion|bombing|shelling|artillery|mortar|combat|battle|drone strike|frontline|ceasefire|military|conflict|attack|dead|bomb|weapon|army|navy|soldier)\b/i;
 
-const THREAT_COLORS: Record<string, string> = {
-  CRITICAL: 'text-alert-critical bg-alert-critical/10 border-alert-critical/30',
-  HIGH: 'text-alert-high bg-alert-high/10 border-alert-high/30',
-  ELEVATED: 'text-alert-medium bg-alert-medium/10 border-alert-medium/30',
-  GUARDED: 'text-primary bg-primary/10 border-primary/30',
-  LOW: 'text-muted-foreground bg-muted/10 border-border',
-};
-
 const NewsFeed = memo(() => {
-  const { news, newsLoading, warMode, aiEnrichment } = useWorldViewStore();
+  const { news, newsLoading, warMode } = useWorldViewStore();
   const [filter, setFilter] = useState<NewsFilter>('ALL');
 
   const filtered = news.filter((item) => {
@@ -469,26 +461,6 @@ const NewsFeed = memo(() => {
 
   return (
     <div className="p-2">
-      {/* AI Threat Level Banner */}
-      {aiEnrichment && (
-        <div className={`mb-2 flex items-center gap-2 px-2 py-1.5 rounded border ${THREAT_COLORS[aiEnrichment.globalThreatLevel] || THREAT_COLORS.GUARDED}`}>
-          <span className="text-[9px] font-display tracking-[0.2em]">🤖 AI THREAT LEVEL</span>
-          <span className={`text-[10px] font-display tracking-[0.15em] font-bold ${aiEnrichment.globalThreatLevel === 'CRITICAL' ? 'animate-pulse' : ''}`}>
-            {aiEnrichment.globalThreatLevel}
-          </span>
-          {aiEnrichment.emergingThreats?.length > 0 && (
-            <span className="text-[8px] font-data text-muted-foreground ml-auto truncate max-w-[300px]">
-              ⚡ {aiEnrichment.emergingThreats.slice(0, 2).join(' • ')}
-            </span>
-          )}
-          {aiEnrichment.hotspots?.length > 0 && (
-            <span className="text-[7px] font-data text-muted-foreground">
-              🎯 {aiEnrichment.hotspots.length} hotspots
-            </span>
-          )}
-        </div>
-      )}
-
       <div className="flex items-center gap-2 mb-2">
         <h2 className="text-[10px] font-display tracking-[0.2em] text-muted-foreground">INTELLIGENCE FEED</h2>
         {newsLoading && <span className="text-[9px] font-data text-primary animate-pulse-dot">FETCHING...</span>}
@@ -500,23 +472,6 @@ const NewsFeed = memo(() => {
           ))}
         </div>
       </div>
-
-      {/* AI Hotspots row */}
-      {aiEnrichment?.hotspots && aiEnrichment.hotspots.length > 0 && (
-        <div className="flex gap-1.5 mb-2 overflow-x-auto">
-          {aiEnrichment.hotspots.slice(0, 6).map((h, i) => (
-            <div key={i} className={`flex-shrink-0 px-2 py-1 rounded border text-[8px] font-data ${
-              h.risk === 'HIGH' ? 'border-alert-critical/30 bg-alert-critical/5 text-alert-critical' :
-              h.risk === 'MEDIUM' ? 'border-alert-medium/30 bg-alert-medium/5 text-alert-medium' :
-              'border-border bg-muted/5 text-muted-foreground'
-            }`}>
-              <span className="font-display tracking-wider">{h.region}</span>
-              <span className="text-[7px] ml-1 opacity-70">{h.reason}</span>
-            </div>
-          ))}
-        </div>
-      )}
-
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-1.5">
         {filtered.slice(0, 20).map((item) => <NewsCard key={item.id} item={item} />)}
       </div>
