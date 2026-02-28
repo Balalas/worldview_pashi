@@ -31,13 +31,14 @@ const AIInsightsPanel = memo(() => {
     }
   }, [news.length > 0]);
 
-  const sentimentColor = brief?.sentiment.label === 'CRITICAL' ? 'text-alert-critical' : 
-    brief?.sentiment.label === 'TENSE' ? 'text-alert-high' : 
-    brief?.sentiment.label === 'CAUTIOUS' ? 'text-alert-medium' : 'text-signal-aircraft';
+  const sentimentLabel = brief?.sentiment?.label;
+  const sentimentColor = sentimentLabel === 'CRITICAL' ? 'text-alert-critical' : 
+    sentimentLabel === 'TENSE' ? 'text-alert-high' : 
+    sentimentLabel === 'CAUTIOUS' ? 'text-alert-medium' : 'text-signal-aircraft';
 
-  const sentimentBg = brief?.sentiment.label === 'CRITICAL' ? 'bg-alert-critical' : 
-    brief?.sentiment.label === 'TENSE' ? 'bg-alert-high' : 
-    brief?.sentiment.label === 'CAUTIOUS' ? 'bg-alert-medium' : 'bg-signal-aircraft';
+  const sentimentBg = sentimentLabel === 'CRITICAL' ? 'bg-alert-critical' : 
+    sentimentLabel === 'TENSE' ? 'bg-alert-high' : 
+    sentimentLabel === 'CAUTIOUS' ? 'bg-alert-medium' : 'bg-signal-aircraft';
 
   return (
     <div className="p-3">
@@ -87,19 +88,19 @@ const AIInsightsPanel = memo(() => {
             <div className="grid grid-cols-3 gap-2 mt-2">
               <div className="bg-alert-critical/5 rounded border border-alert-critical/20 p-2">
                 <h4 className="text-[8px] font-display tracking-wider text-alert-critical mb-1.5">↗ ESCALATING</h4>
-                {brief.velocity.escalating.map((t, i) => (
+                {(brief.velocity?.escalating ?? []).map((t, i) => (
                   <div key={i} className="text-[9px] font-data text-foreground mb-0.5">• {t}</div>
                 ))}
               </div>
               <div className="bg-signal-aircraft/5 rounded border border-signal-aircraft/20 p-2">
                 <h4 className="text-[8px] font-display tracking-wider text-signal-aircraft mb-1.5">↘ DE-ESCALATING</h4>
-                {brief.velocity.deescalating.map((t, i) => (
+                {(brief.velocity?.deescalating ?? []).map((t, i) => (
                   <div key={i} className="text-[9px] font-data text-foreground mb-0.5">• {t}</div>
                 ))}
               </div>
               <div className="bg-primary/5 rounded border border-primary/20 p-2">
                 <h4 className="text-[8px] font-display tracking-wider text-primary mb-1.5">⬆ EMERGING</h4>
-                {brief.velocity.emerging.map((t, i) => (
+                {(brief.velocity?.emerging ?? []).map((t, i) => (
                   <div key={i} className="text-[9px] font-data text-foreground mb-0.5">• {t}</div>
                 ))}
               </div>
@@ -112,17 +113,17 @@ const AIInsightsPanel = memo(() => {
             <div className="bg-card-bg/60 rounded border border-border p-3 text-center">
               <h4 className="text-[8px] font-display tracking-wider text-muted-foreground mb-2">GLOBAL SENTIMENT</h4>
               <div className={`text-[32px] font-data font-bold ${sentimentColor} leading-none`}>
-                {brief.sentiment.score > 0 ? '+' : ''}{brief.sentiment.score}
+                {(brief.sentiment?.score ?? 0) > 0 ? '+' : ''}{brief.sentiment?.score ?? 0}
               </div>
               <div className={`text-[10px] font-display tracking-[0.15em] ${sentimentColor} mt-1`}>
-                {brief.sentiment.label}
+                {brief.sentiment?.label ?? 'UNKNOWN'}
               </div>
               <div className="w-full h-2 bg-card-hover rounded-full overflow-hidden mt-2">
                 <div className={`h-full rounded-full ${sentimentBg} transition-all`}
-                  style={{ width: `${Math.min(Math.abs(brief.sentiment.score), 100)}%` }} />
+                  style={{ width: `${Math.min(Math.abs(brief.sentiment?.score ?? 0), 100)}%` }} />
               </div>
               <div className="mt-2 space-y-0.5">
-                {brief.sentiment.drivers.map((d, i) => (
+                {(brief.sentiment?.drivers ?? []).map((d, i) => (
                   <div key={i} className="text-[8px] font-data text-text-secondary">• {d}</div>
                 ))}
               </div>
@@ -132,7 +133,7 @@ const AIInsightsPanel = memo(() => {
             <div className="bg-card-bg/60 rounded border border-border p-3">
               <h4 className="text-[8px] font-display tracking-wider text-muted-foreground mb-2">FOCAL POINTS</h4>
               <div className="space-y-1.5">
-                {brief.focalPoints.map((fp, i) => {
+                {(brief.focalPoints ?? []).map((fp, i) => {
                   const threatColor = fp.threat === 'HIGH' ? 'border-l-alert-critical text-alert-critical' : fp.threat === 'MEDIUM' ? 'border-l-alert-medium text-alert-medium' : 'border-l-primary/30 text-signal-aircraft';
                   return (
                     <div key={i} className={`border-l-2 ${threatColor.split(' ')[0]} pl-2 py-1`}>
