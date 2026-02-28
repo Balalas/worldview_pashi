@@ -103,7 +103,7 @@ const GlobeControls = memo(() => {
   const getValue = (key: string, def: number) => filterParams[key] ?? def;
 
   return (
-    <div className={`absolute left-1/2 -translate-x-1/2 z-30 pointer-events-auto transition-all duration-300 ${bottomPanelCollapsed ? 'bottom-[62px]' : 'bottom-[238px]'}`}>
+    <div className={`absolute left-1/2 -translate-x-1/2 z-30 pointer-events-auto transition-all duration-300 bottom-[28px]`}>
       {/* Style parameter sliders */}
       {styleSettingsOpen && activeParams.length > 0 && (
         <div className="mb-1 bg-background/40 backdrop-blur-sm border border-border/30 rounded-lg p-2 w-[180px] mx-auto animate-fade-in">
