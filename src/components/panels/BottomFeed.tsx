@@ -1,4 +1,4 @@
-import { memo, useState, useRef, useEffect, useCallback, ReactNode } from 'react';
+import { memo, useState, useRef, useEffect, useCallback, ReactNode, useMemo } from 'react';
 import { useWorldViewStore, MARKET_DATA, NewsItem, BottomPanelTab, INSTABILITY_DATA } from '@/store/worldview';
 import { fetchForexRates, ForexRate } from '@/services/forexService';
 import { fetchAirQuality, AirQualityStation } from '@/services/airQualityService';
@@ -20,6 +20,7 @@ import { ACTIVE_SANCTIONS_REGIMES } from '@/services/sanctionsService';
 import { CABLE_INCIDENTS, getCableIncidentStats } from '@/services/cableCutService';
 import AIInsightsPanel from './AIInsightsPanel';
 import WebcamGrid from './WebcamGrid';
+import { fetchAINewsEnrichment, AINewsEnrichment } from '@/services/aiEnrichService';
 import RegionalNewsPanel from './RegionalNewsPanel';
 import InfrastructureCascade from './InfrastructureCascade';
 
@@ -441,6 +442,85 @@ const BottomFeed = memo(() => {
 
 const WAR_NEWS_KEYWORDS = /\b(war|airstrike|strike|missile|killed|casualties|troops|offensive|invasion|bombing|shelling|artillery|mortar|combat|battle|drone strike|frontline|ceasefire|military|conflict|attack|dead|bomb|weapon|army|navy|soldier)\b/i;
 
+const AIFeedBanner = memo(({ headlines, context, countryName }: { headlines: string[]; context: 'global' | 'country'; countryName?: string }) => {
+  const [enrichment, setEnrichment] = useState<AINewsEnrichment | null>(null);
+  const [loading, setLoading] = useState(false);
+  const lastHeadlineCountRef = useRef(0);
+
+  const fetchEnrichment = useCallback(async () => {
+    if (headlines.length === 0) return;
+    setLoading(true);
+    const result = await fetchAINewsEnrichment(headlines, context, countryName);
+    if (result) setEnrichment(result);
+    setLoading(false);
+  }, [headlines.length, context, countryName]);
+
+  // Auto-fetch when headlines change significantly
+  useEffect(() => {
+    if (headlines.length > 0 && Math.abs(headlines.length - lastHeadlineCountRef.current) >= 2) {
+      lastHeadlineCountRef.current = headlines.length;
+      fetchEnrichment();
+    }
+  }, [headlines.length, fetchEnrichment]);
+
+  // Auto-refresh every 60s
+  useEffect(() => {
+    if (headlines.length === 0) return;
+    const interval = setInterval(fetchEnrichment, 60_000);
+    return () => clearInterval(interval);
+  }, [fetchEnrichment, headlines.length]);
+
+  const threatColor = enrichment?.threatLevel === 'CRITICAL' ? 'text-alert-critical border-alert-critical/30 bg-alert-critical/5' :
+    enrichment?.threatLevel === 'HIGH' ? 'text-alert-high border-alert-high/30 bg-alert-high/5' :
+    enrichment?.threatLevel === 'MEDIUM' ? 'text-alert-medium border-alert-medium/30 bg-alert-medium/5' :
+    'text-signal-aircraft border-primary/20 bg-primary/5';
+
+  if (!enrichment && !loading) return null;
+
+  return (
+    <div className={`rounded border px-3 py-2 mb-2 ${enrichment ? threatColor : 'border-border bg-card-bg/40'}`}>
+      <div className="flex items-center gap-2 mb-1">
+        <span className="text-[10px]">🧠</span>
+        <span className="text-[9px] font-display tracking-[0.15em] text-primary">AI ANALYSIS</span>
+        {loading && <span className="text-[8px] font-data text-primary animate-pulse">ANALYZING...</span>}
+        {enrichment?.threatLevel && (
+          <span className={`text-[8px] font-data font-bold tracking-wider ${threatColor.split(' ')[0]}`}>
+            ● {enrichment.threatLevel}
+          </span>
+        )}
+        <button onClick={fetchEnrichment} disabled={loading}
+          className="text-[7px] font-data text-primary/60 hover:text-primary ml-auto disabled:opacity-50">🔄 REFRESH</button>
+      </div>
+      {enrichment && (
+        <>
+          <p className="text-[10px] font-data text-foreground leading-relaxed mb-1.5">{enrichment.summary}</p>
+          {enrichment.flashAlert && (
+            <div className="text-[9px] font-data text-alert-critical bg-alert-critical/10 px-2 py-1 rounded mb-1.5">
+              ⚡ FLASH: {enrichment.flashAlert}
+            </div>
+          )}
+          <div className="flex flex-wrap gap-1">
+            {enrichment.keyDevelopments?.slice(0, 3).map((d, i) => (
+              <span key={i} className="text-[8px] font-data text-foreground/80 bg-card-bg/60 px-1.5 py-0.5 rounded">↗ {d}</span>
+            ))}
+          </div>
+          {enrichment.hotTopics && enrichment.hotTopics.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1">
+              {enrichment.hotTopics.map((t, i) => (
+                <span key={i} className="text-[7px] font-data text-primary/70 bg-primary/5 px-1 py-0.5 rounded border border-primary/10">#{t}</span>
+              ))}
+            </div>
+          )}
+          {enrichment.outlook && (
+            <p className="text-[8px] font-data text-muted-foreground mt-1 italic">📊 Outlook: {enrichment.outlook}</p>
+          )}
+        </>
+      )}
+    </div>
+  );
+});
+AIFeedBanner.displayName = 'AIFeedBanner';
+
 const NewsFeed = memo(() => {
   const { news, newsLoading, warMode } = useWorldViewStore();
   const [filter, setFilter] = useState<NewsFilter>('ALL');
@@ -459,6 +539,8 @@ const NewsFeed = memo(() => {
     return true;
   });
 
+  const headlines = filtered.slice(0, 25).map(n => `[${n.severity.toUpperCase()}] ${n.source}: ${n.title}`);
+
   return (
     <div className="p-2">
       <div className="flex items-center gap-2 mb-2">
@@ -472,6 +554,7 @@ const NewsFeed = memo(() => {
           ))}
         </div>
       </div>
+      <AIFeedBanner headlines={headlines} context="global" />
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-1.5">
         {filtered.slice(0, 20).map((item) => <NewsCard key={item.id} item={item} />)}
       </div>

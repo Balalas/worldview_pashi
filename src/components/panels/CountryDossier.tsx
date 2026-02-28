@@ -1,9 +1,10 @@
-import { memo, useMemo, useState, useRef } from 'react';
+import { memo, useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import { useWorldViewStore, NewsItem } from '@/store/worldview';
 import { CountryData } from '@/services/countryService';
 import { PUBLIC_CAMERAS } from '@/data/publicCameras';
 import { CONFLICT_ZONES } from '@/data/conflictZones';
 import { LIVESTREAM_FEEDS, LivestreamFeed } from '@/services/dataServices';
+import { fetchAINewsEnrichment, AINewsEnrichment } from '@/services/aiEnrichService';
 
 
 type DossierTab = 'war' | 'intelligence' | 'cyber' | 'crime' | 'cameras' | 'tv' | 'all';
@@ -299,7 +300,10 @@ const CountryDossier = memo(() => {
               ) : activeTab === 'tv' ? (
                 <CountryTVPanel channels={countryTVChannels} />
               ) : (
-                <NewsFeed news={filteredNews} onNewsClick={handleNewsClick} />
+                <>
+                  <CountryAIBanner news={filteredNews} countryName={country.name} />
+                  <NewsFeed news={filteredNews} onNewsClick={handleNewsClick} />
+                </>
               )}
             </div>
           </div>
@@ -308,6 +312,76 @@ const CountryDossier = memo(() => {
     </div>
   );
 });
+
+// Country AI Banner
+const CountryAIBanner = memo(({ news, countryName }: { news: NewsItem[]; countryName: string }) => {
+  const [enrichment, setEnrichment] = useState<AINewsEnrichment | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const fetchEnrichment = useCallback(async () => {
+    if (news.length === 0) return;
+    setLoading(true);
+    const headlines = news.slice(0, 20).map(n => `[${n.severity.toUpperCase()}] ${n.source}: ${n.title}`);
+    const result = await fetchAINewsEnrichment(headlines, 'country', countryName);
+    if (result) setEnrichment(result);
+    setLoading(false);
+  }, [news.length, countryName]);
+
+  useEffect(() => {
+    if (news.length > 0) fetchEnrichment();
+  }, [news.length, countryName]);
+
+  useEffect(() => {
+    if (news.length === 0) return;
+    const interval = setInterval(fetchEnrichment, 60_000);
+    return () => clearInterval(interval);
+  }, [fetchEnrichment, news.length]);
+
+  const threatColor = enrichment?.threatLevel === 'CRITICAL' ? 'text-alert-critical border-alert-critical/30 bg-alert-critical/5' :
+    enrichment?.threatLevel === 'HIGH' ? 'text-alert-high border-alert-high/30 bg-alert-high/5' :
+    enrichment?.threatLevel === 'MEDIUM' ? 'text-alert-medium border-alert-medium/30 bg-alert-medium/5' :
+    'text-signal-aircraft border-primary/20 bg-primary/5';
+
+  if (!enrichment && !loading) return null;
+
+  return (
+    <div className={`rounded border px-3 py-2 mb-3 ${enrichment ? threatColor : 'border-border bg-card-bg/40'}`}>
+      <div className="flex items-center gap-2 mb-1">
+        <span className="text-[10px]">🧠</span>
+        <span className="text-[9px] font-display tracking-[0.15em] text-primary">AI COUNTRY ANALYSIS</span>
+        {loading && <span className="text-[8px] font-data text-primary animate-pulse">ANALYZING...</span>}
+        {enrichment?.threatLevel && (
+          <span className={`text-[8px] font-data font-bold tracking-wider ${threatColor.split(' ')[0]}`}>
+            ● {enrichment.threatLevel}
+          </span>
+        )}
+        <button onClick={fetchEnrichment} disabled={loading}
+          className="text-[7px] font-data text-primary/60 hover:text-primary ml-auto disabled:opacity-50">🔄</button>
+      </div>
+      {enrichment && (
+        <>
+          <p className="text-[10px] font-data text-foreground leading-relaxed mb-1.5">{enrichment.summary}</p>
+          {enrichment.outlook && (
+            <p className="text-[8px] font-data text-muted-foreground italic mb-1">📊 {enrichment.outlook}</p>
+          )}
+          <div className="flex flex-wrap gap-1">
+            {enrichment.keyDevelopments?.slice(0, 3).map((d, i) => (
+              <span key={i} className="text-[8px] font-data text-foreground/80 bg-card-bg/60 px-1.5 py-0.5 rounded">↗ {d}</span>
+            ))}
+          </div>
+          {enrichment.hotTopics && enrichment.hotTopics.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1">
+              {enrichment.hotTopics.map((t, i) => (
+                <span key={i} className="text-[7px] font-data text-primary/70 bg-primary/5 px-1 py-0.5 rounded border border-primary/10">#{t}</span>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+});
+CountryAIBanner.displayName = 'CountryAIBanner';
 
 // Sub-components
 
