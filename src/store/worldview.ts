@@ -50,6 +50,13 @@ export interface Earthquake {
   time: number;
   place: string;
   url: string;
+  felt?: number;
+  tsunami?: number;
+  alert?: string;
+  significance?: number;
+  mmi?: number;
+  status?: string;
+  type?: string;
 }
 
 export interface Vessel {
@@ -266,6 +273,7 @@ export interface LayerSubFilters {
   showPassenger: boolean;
   // Earthquakes
   minMagnitude: number;
+  earthquakeTimeWindow: '1H' | '6H' | '24H' | '48H' | '7D';
   // Weather
   showExtremeOnly: boolean;
   showClouds: boolean;
@@ -298,6 +306,7 @@ export const DEFAULT_SUB_FILTERS: LayerSubFilters = {
   showFishing: true,
   showPassenger: true,
   minMagnitude: 2.5,
+  earthquakeTimeWindow: '24H' as const,
   showExtremeOnly: false,
   showClouds: true,
   showRadar: false,

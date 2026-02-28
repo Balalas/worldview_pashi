@@ -104,18 +104,38 @@ const SatelliteDetail = ({ data }: { data: any }) => (
   </div>
 );
 
-const EarthquakeDetail = ({ data }: { data: any }) => (
-  <div className="space-y-0.5">
-    <DataRow label="MAG" value={`M${data.magnitude.toFixed(1)}`} />
-    <DataRow label="DEPTH" value={`${data.depth.toFixed(1)} km`} />
-    <DataRow label="LOC" value={data.place} />
-    <DataRow label="TIME" value={new Date(data.time).toLocaleTimeString('en-US', { hour12: false, timeZone: 'UTC' })} sub="UTC" />
-    <div className="flex gap-1.5 mt-2">
-      <ActionButton label="📍 LOCATE" onClick={() => useWorldViewStore.getState().setMapCenter({ lat: data.lat, lon: data.lon, zoom: 7 })} />
-      <ActionButton label="🔗 USGS" onClick={() => window.open(data.url, '_blank')} />
+const EarthquakeDetail = ({ data }: { data: any }) => {
+  const depthLabel = data.depth < 70 ? 'SHALLOW' : data.depth < 300 ? 'INTERMEDIATE' : 'DEEP';
+  const magColor = data.magnitude >= 7 ? 'text-destructive' : data.magnitude >= 5 ? 'text-amber-500' : 'text-amber-300';
+  return (
+    <div className="space-y-0.5">
+      <DataRow label="MAG" value={`M${data.magnitude.toFixed(1)}`} />
+      <div className="flex items-center justify-between py-0.5">
+        <span className="text-[9px] font-display tracking-wider text-muted-foreground">SEVERITY</span>
+        <div className="flex items-center gap-1">
+          <div className="flex gap-[2px]">
+            {Array.from({ length: 10 }).map((_, i) => (
+              <div key={i} className={`w-[3px] h-[8px] rounded-[1px] ${i < Math.round(data.magnitude) ? (data.magnitude >= 7 ? 'bg-destructive' : data.magnitude >= 5 ? 'bg-amber-500' : 'bg-amber-300') : 'bg-border/40'}`} />
+            ))}
+          </div>
+          <span className={`text-[9px] font-data ${magColor}`}>{data.magnitude >= 7 ? 'MAJOR' : data.magnitude >= 5 ? 'MODERATE' : data.magnitude >= 3 ? 'MINOR' : 'MICRO'}</span>
+        </div>
+      </div>
+      <DataRow label="DEPTH" value={`${data.depth.toFixed(1)} km`} sub={depthLabel} />
+      <DataRow label="LOC" value={data.place} />
+      <DataRow label="TIME" value={new Date(data.time).toLocaleTimeString('en-US', { hour12: false, timeZone: 'UTC' })} sub="UTC" />
+      {data.felt && <DataRow label="FELT" value={`${data.felt} reports`} />}
+      {data.tsunami === 1 && <DataRow label="⚠ TSUNAMI" value="WARNING ISSUED" />}
+      {data.alert && <DataRow label="ALERT" value={data.alert.toUpperCase()} />}
+      {data.significance && <DataRow label="SIG" value={String(data.significance)} />}
+      {data.mmi && <DataRow label="MMI" value={`${data.mmi.toFixed(1)}`} />}
+      <div className="flex gap-1.5 mt-2">
+        <ActionButton label="📍 LOCATE" onClick={() => useWorldViewStore.getState().setMapCenter({ lat: data.lat, lon: data.lon, zoom: 7 })} />
+        <ActionButton label="🔗 USGS" onClick={() => window.open(data.url, '_blank')} />
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const VolcanoDetail = ({ data }: { data: any }) => (
   <div className="space-y-0.5">
