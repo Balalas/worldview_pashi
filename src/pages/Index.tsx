@@ -25,6 +25,7 @@ import { fetchFires } from '@/services/fireService';
 import { fetchGdeltData } from '@/services/gdeltService';
 import { fetchUserLocation } from '@/services/geolocateService';
 import { fetchAllCountries } from '@/services/countryService';
+import { fetchAllCameras } from '@/services/cameraService';
 
 const Google3DGlobe = lazy(() => import('@/components/map/Google3DGlobe'));
 
@@ -148,7 +149,7 @@ const CctvPip = memo(() => {
 CctvPip.displayName = 'CctvPip';
 
 const Index = () => {
-  const { setAircraft, setSatellites, setEarthquakes, setNews, setLastRefresh, setNewsLoading, setWeatherAlerts, setVolcanoes, setVessels, setProtests, setOutages, setFires, toggleLayer, closeDetailPanel, mapMode, setFollowTarget, visualStyle, setVisualStyle, filterParams, bottomPanelCollapsed, bottomPanelExpanded, setMapCenter, isScreensaver, setScreensaver, immersiveMode, circularViewport, hudLayout, warMode, setGeoEvents, layerSubFilters } = useWorldViewStore();
+  const { setAircraft, setSatellites, setEarthquakes, setNews, setLastRefresh, setNewsLoading, setWeatherAlerts, setVolcanoes, setVessels, setProtests, setOutages, setFires, setLiveCameras, toggleLayer, closeDetailPanel, mapMode, setFollowTarget, visualStyle, setVisualStyle, filterParams, bottomPanelCollapsed, bottomPanelExpanded, setMapCenter, isScreensaver, setScreensaver, immersiveMode, circularViewport, hudLayout, warMode, setGeoEvents, layerSubFilters } = useWorldViewStore();
   const earthquakeTimeWindow = layerSubFilters.earthquakeTimeWindow || '24H';
   const styleConfig = computeStyleConfig(visualStyle, filterParams);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -233,6 +234,9 @@ const Index = () => {
     // Pre-load country enrichment data
     fetchAllCountries();
 
+    // Fetch live cameras from multi-source aggregator
+    fetchAllCameras().then(setLiveCameras);
+
     // Auto-center map on user location via IP geolocation
     fetchUserLocation().then((loc) => {
       if (loc) {
@@ -258,7 +262,7 @@ const Index = () => {
     const eqInterval = setInterval(() => {
       const tw = useWorldViewStore.getState().layerSubFilters.earthquakeTimeWindow || '24H';
       fetchEarthquakes(tw).then(setEarthquakes);
-    }, 60000); // 60s refresh (was 300s)
+    }, 60000);
 
     const newsInterval = setInterval(async () => {
       try {
@@ -278,11 +282,11 @@ const Index = () => {
       } catch (e) {
         console.warn('News refresh error:', e);
       }
-    }, 60000); // 60s live refresh
+    }, 60000);
 
-    const weatherInterval = setInterval(() => fetchGlobalWeather().then(setWeatherAlerts), 300000); // 5 min
-
-    const fireInterval = setInterval(() => fetchFires('24H').then(setFires), 120000); // 2 min
+    const weatherInterval = setInterval(() => fetchGlobalWeather().then(setWeatherAlerts), 300000);
+    const fireInterval = setInterval(() => fetchFires('24H').then(setFires), 120000);
+    const cameraInterval = setInterval(() => fetchAllCameras().then(setLiveCameras), 120000); // 2 min
 
     return () => {
       clearInterval(aircraftInterval);
@@ -292,6 +296,7 @@ const Index = () => {
       clearInterval(newsInterval);
       clearInterval(weatherInterval);
       clearInterval(fireInterval);
+      clearInterval(cameraInterval);
     };
   }, []);
 
