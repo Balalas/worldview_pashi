@@ -26,6 +26,7 @@ import { fetchGdeltData } from '@/services/gdeltService';
 import { fetchUserLocation } from '@/services/geolocateService';
 import { fetchAllCountries } from '@/services/countryService';
 import { fetchAllCameras } from '@/services/cameraService';
+import { fetchAIFeedEnrichment } from '@/services/aiEnrichmentService';
 
 const Google3DGlobe = lazy(() => import('@/components/map/Google3DGlobe'));
 
@@ -149,7 +150,7 @@ const CctvPip = memo(() => {
 CctvPip.displayName = 'CctvPip';
 
 const Index = () => {
-  const { setAircraft, setSatellites, setEarthquakes, setNews, setLastRefresh, setNewsLoading, setWeatherAlerts, setVolcanoes, setVessels, setProtests, setOutages, setFires, setLiveCameras, toggleLayer, closeDetailPanel, mapMode, setFollowTarget, visualStyle, setVisualStyle, filterParams, bottomPanelCollapsed, bottomPanelExpanded, setMapCenter, isScreensaver, setScreensaver, immersiveMode, circularViewport, hudLayout, warMode, setGeoEvents, layerSubFilters } = useWorldViewStore();
+  const { setAircraft, setSatellites, setEarthquakes, setNews, setLastRefresh, setNewsLoading, setWeatherAlerts, setVolcanoes, setVessels, setProtests, setOutages, setFires, setLiveCameras, toggleLayer, closeDetailPanel, mapMode, setFollowTarget, visualStyle, setVisualStyle, filterParams, bottomPanelCollapsed, bottomPanelExpanded, setMapCenter, isScreensaver, setScreensaver, immersiveMode, circularViewport, hudLayout, warMode, setGeoEvents, layerSubFilters, setAIEnrichment } = useWorldViewStore();
   const earthquakeTimeWindow = layerSubFilters.earthquakeTimeWindow || '24H';
   const styleConfig = computeStyleConfig(visualStyle, filterParams);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -205,6 +206,8 @@ const Index = () => {
         setProtests(extractProtestsFromNews(allNews));
         setOutages(extractOutagesFromNews(allNews));
         setNewsLoading(false);
+        // AI enrichment (async, non-blocking)
+        fetchAIFeedEnrichment(allNews).then(ai => { if (ai) setAIEnrichment(ai); });
       } catch (e) {
         console.warn('News fetch error:', e);
         // Fallback to RSS only
@@ -281,6 +284,8 @@ const Index = () => {
         setGeoEvents(gdeltResult.events);
         setProtests(extractProtestsFromNews(allNews));
         setOutages(extractOutagesFromNews(allNews));
+        // AI enrichment on each refresh
+        fetchAIFeedEnrichment(allNews).then(ai => { if (ai) setAIEnrichment(ai); });
       } catch (e) {
         console.warn('News refresh error:', e);
       }
