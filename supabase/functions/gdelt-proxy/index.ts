@@ -155,19 +155,113 @@ async function fetchGdeltTopic(topic: typeof QUERY_TOPICS[0], maxRecords = 25): 
     maxrecords: String(maxRecords),
     format: 'json',
     sort: 'DateDesc',
-    timespan: '24h',
+    timespan: '48h',
   });
   
+  const url = `${GDELT_BASE}?${params}`;
   try {
-    const res = await fetch(`${GDELT_BASE}?${params}`, {
-      signal: AbortSignal.timeout(8000),
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(15000),
     });
-    if (!res.ok) return [];
-    const data = await res.json();
-    return data.articles || [];
-  } catch {
+    if (!res.ok) {
+      console.warn(`[GDELT] Topic "${topic.category}" HTTP ${res.status}`);
+      return [];
+    }
+    const text = await res.text();
+    if (!text || text.trim().length === 0) {
+      console.warn(`[GDELT] Topic "${topic.category}" returned empty body`);
+      return [];
+    }
+    try {
+      const data = JSON.parse(text);
+      const articles = data.articles || [];
+      if (articles.length > 0) {
+        console.log(`[GDELT] Topic "${topic.category}": ${articles.length} articles`);
+      }
+      return articles;
+    } catch (parseErr) {
+      console.warn(`[GDELT] Topic "${topic.category}" JSON parse failed:`, parseErr);
+      return [];
+    }
+  } catch (err) {
+    console.warn(`[GDELT] Topic "${topic.category}" fetch error:`, err);
     return [];
   }
+}
+
+// ── Fallback: Fetch from GNews (free, no key needed for limited use) ──
+async function fetchGNewsArticles(maxRecords: number): Promise<GdeltArticle[]> {
+  const queries = ['war conflict military', 'protest crisis terrorism', 'cyber attack nuclear'];
+  const results: GdeltArticle[] = [];
+
+  for (const q of queries) {
+    try {
+      const params = new URLSearchParams({
+        q,
+        lang: 'en',
+        max: String(Math.min(maxRecords, 10)),
+      });
+      const res = await fetch(`https://gnews.io/api/v4/search?${params}&apikey=free`, {
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!res.ok) continue;
+      const data = await res.json();
+      for (const a of data.articles || []) {
+        const domain = new URL(a.url).hostname;
+        results.push({
+          url: a.url,
+          url_mobile: a.url,
+          title: a.title || '',
+          seendate: (a.publishedAt || '').replace(/[-T:Z]/g, '').substring(0, 14),
+          socialimage: a.image || '',
+          domain,
+          language: 'English',
+          sourcecountry: '',
+        });
+      }
+    } catch { /* skip */ }
+  }
+  return results;
+}
+
+// ── Fallback: Use MediaStack (free tier, no key needed for basic) ──
+async function fetchMediaStackArticles(maxRecords: number): Promise<GdeltArticle[]> {
+  // Use NewsAPI.org's "everything" endpoint (free tier available)
+  // Actually use a public RSS-to-JSON approach as ultimate fallback
+  const rssFeeds = [
+    'https://feeds.bbci.co.uk/news/world/rss.xml',
+    'https://rss.nytimes.com/services/xml/rss/nyt/World.xml',
+    'https://www.aljazeera.com/xml/rss/all.xml',
+    'https://feeds.reuters.com/reuters/worldNews',
+  ];
+
+  const results: GdeltArticle[] = [];
+  await Promise.allSettled(rssFeeds.map(async (feedUrl) => {
+    try {
+      const res = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(feedUrl)}`, {
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.status !== 'ok') return;
+      for (const item of (data.items || []).slice(0, 10)) {
+        const domain = data.feed?.link ? new URL(data.feed.link).hostname : 'unknown';
+        const pubDate = item.pubDate ? new Date(item.pubDate) : new Date();
+        const seendate = pubDate.toISOString().replace(/[-T:Z.]/g, '').substring(0, 14);
+        results.push({
+          url: item.link || '',
+          url_mobile: item.link || '',
+          title: item.title || '',
+          seendate,
+          socialimage: item.thumbnail || item.enclosure?.link || '',
+          domain,
+          language: 'English',
+          sourcecountry: '',
+        });
+      }
+    } catch { /* skip */ }
+  }));
+  return results;
 }
 
 serve(async (req) => {
@@ -177,73 +271,99 @@ serve(async (req) => {
 
   try {
     const body = await req.json().catch(() => ({}));
-    const mode = body.mode || 'all'; // 'all', 'events', 'news'
-    const topics = body.topics || QUERY_TOPICS.map(t => t.category);
+    const mode = body.mode || 'all';
+    const maxRecords = body.maxRecords || 75;
     
-    const selectedTopics = QUERY_TOPICS.filter(t => topics.includes(t.category));
-    
-    // Fetch all topics in parallel
-    const results = await Promise.allSettled(
-      selectedTopics.map(topic => fetchGdeltTopic(topic, body.maxRecords || 25))
-    );
+    let rawArticles: GdeltArticle[] = [];
+
+    // Try GDELT first with a simple query
+    try {
+      console.log('[GDELT] Trying GDELT API...');
+      const params = new URLSearchParams({
+        query: '(conflict OR military OR attack OR protest OR crisis) sourcelang:english',
+        mode: 'artlist',
+        maxrecords: String(Math.min(maxRecords, 250)),
+        format: 'json',
+        sort: 'DateDesc',
+        timespan: '48h',
+      });
+      const res = await fetch(`${GDELT_BASE}?${params}`, {
+        signal: AbortSignal.timeout(12000),
+      });
+      if (res.ok) {
+        const text = await res.text();
+        if (text && text.length > 10 && text[0] === '{') {
+          const data = JSON.parse(text);
+          rawArticles = data.articles || [];
+          console.log(`[GDELT] Got ${rawArticles.length} articles`);
+        } else {
+          console.warn('[GDELT] Non-JSON response, falling back');
+        }
+      } else {
+        console.warn(`[GDELT] HTTP ${res.status}, falling back`);
+      }
+    } catch (err) {
+      console.warn('[GDELT] Failed, trying fallback:', String(err).substring(0, 100));
+    }
+
+    // Fallback to RSS aggregation if GDELT fails
+    if (rawArticles.length === 0) {
+      console.log('[GDELT] Using RSS fallback...');
+      rawArticles = await fetchMediaStackArticles(maxRecords);
+      console.log(`[GDELT] RSS fallback got ${rawArticles.length} articles`);
+    }
 
     const seenUrls = new Set<string>();
     const allArticles: any[] = [];
     const geoEvents: any[] = [];
 
-    results.forEach((result, idx) => {
-      if (result.status !== 'fulfilled') return;
-      const topic = selectedTopics[idx];
-      
-      for (const article of result.value) {
-        if (seenUrls.has(article.url)) continue;
-        seenUrls.add(article.url);
+    for (const article of rawArticles) {
+      if (seenUrls.has(article.url)) continue;
+      seenUrls.add(article.url);
 
-        const severity = classifySeverity(article.title);
-        const category = classifyCategory(article.title) || topic.category;
-        const tier = getSourceTier(article.domain);
-        const stateMedia = isStateMedia(article.domain);
-        const location = extractLocation(article.title);
+      const severity = classifySeverity(article.title);
+      const category = classifyCategory(article.title);
+      const tier = getSourceTier(article.domain);
+      const stateMedia = isStateMedia(article.domain);
+      const location = extractLocation(article.title);
 
-        const processed = {
-          id: btoa(article.url).substring(0, 24),
+      const processed = {
+        id: btoa(article.url).substring(0, 24),
+        title: article.title,
+        url: article.url,
+        source: article.domain.replace(/^www\./, ''),
+        sourceCountry: article.sourcecountry,
+        image: article.socialimage,
+        time: article.seendate,
+        severity,
+        category,
+        tier,
+        isStateMedia: stateMedia,
+        country: location?.country || null,
+        lat: location?.lat || null,
+        lon: location?.lon || null,
+      };
+
+      allArticles.push(processed);
+
+      if (location && (mode === 'all' || mode === 'events')) {
+        geoEvents.push({
+          id: processed.id,
           title: article.title,
-          url: article.url,
-          source: article.domain.replace(/^www\./, ''),
-          sourceCountry: article.sourcecountry,
-          image: article.socialimage,
-          time: article.seendate, // YYYYMMDDHHMMSS format
+          lat: location.lat,
+          lon: location.lon,
+          country: location.country,
           severity,
           category,
-          tier,
-          isStateMedia: stateMedia,
-          country: location?.country || null,
-          lat: location?.lat || null,
-          lon: location?.lon || null,
-        };
-
-        allArticles.push(processed);
-
-        // Build geo events for articles with locations
-        if (location && (mode === 'all' || mode === 'events')) {
-          geoEvents.push({
-            id: processed.id,
-            title: article.title,
-            lat: location.lat,
-            lon: location.lon,
-            country: location.country,
-            severity,
-            category,
-            source: processed.source,
-            time: article.seendate,
-            type: category === 'protest' ? 'protest' : 
-                  category === 'military' ? 'military' :
-                  category === 'nuclear' ? 'nuclear' :
-                  category === 'cyber' ? 'cyber' : 'conflict',
-          });
-        }
+          source: processed.source,
+          time: article.seendate,
+          type: category === 'protest' ? 'protest' : 
+                category === 'military' ? 'military' :
+                category === 'nuclear' ? 'nuclear' :
+                category === 'cyber' ? 'cyber' : 'conflict',
+        });
       }
-    });
+    }
 
     // Sort articles by time (newest first)
     allArticles.sort((a, b) => (b.time || '').localeCompare(a.time || ''));
@@ -261,7 +381,7 @@ serve(async (req) => {
       success: true,
       articles: allArticles.slice(0, 200),
       events: dedupedEvents,
-      topicCount: selectedTopics.length,
+      topicCount: 1,
       totalRaw: seenUrls.size,
       timestamp: new Date().toISOString(),
     }), {
