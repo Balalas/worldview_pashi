@@ -2,7 +2,7 @@ import { memo, useEffect, useState } from 'react';
 import { useWorldViewStore, MapMode, DashboardMode, DetectionMode } from '@/store/worldview';
 
 const TopBar = memo(() => {
-  const { aircraft, satellites, earthquakes, vessels, toggleLeftPanel, mapMode, setMapMode, detectionMode, toggleDetectionMode, visualStyle } = useWorldViewStore();
+  const { aircraft, satellites, earthquakes, vessels, toggleLeftPanel, mapMode, setMapMode, detectionMode, toggleDetectionMode, visualStyle, circularViewport, toggleCircularViewport, panopticEnabled, togglePanoptic, hudLayout, immersiveMode } = useWorldViewStore();
   const militaryCount = aircraft.filter(a => a.isMilitary).length;
   const [utc, setUtc] = useState('');
 
@@ -73,6 +73,33 @@ const TopBar = memo(() => {
             <span className="text-[8px] font-data text-amber-400 tracking-wider">[{styleLabel}]</span>
           </>
         )}
+
+        <span className="text-primary/20 mx-1">│</span>
+
+        {/* Panoptic toggle */}
+        <button onClick={togglePanoptic}
+          className={`px-2 py-0.5 text-[8px] font-display tracking-[0.15em] rounded border transition-all ${
+            panopticEnabled
+              ? 'bg-primary/15 text-primary border-primary/25'
+              : 'text-muted-foreground border-transparent hover:border-primary/10'
+          }`}
+        >
+          {panopticEnabled ? '◉ PAN' : '○ PAN'}
+        </button>
+
+        {/* Circular viewport toggle */}
+        <button onClick={toggleCircularViewport}
+          className={`px-2 py-0.5 text-[8px] font-display tracking-[0.15em] rounded border transition-all ${
+            circularViewport
+              ? 'bg-primary/15 text-primary border-primary/25'
+              : 'text-muted-foreground border-transparent hover:border-primary/10'
+          }`}
+        >
+          {circularViewport ? '⊙ CIRC' : '⊘ CIRC'}
+        </button>
+
+        {/* HUD layout indicator */}
+        <span className="text-[8px] font-data text-muted-foreground/50 tracking-wider">[{hudLayout.toUpperCase()}]</span>
       </div>
 
       {/* Right — LIVE + UTC */}

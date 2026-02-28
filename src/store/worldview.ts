@@ -5,7 +5,10 @@ export type LayerType =
   | 'aircraft' | 'satellites' | 'cameras' | 'militaryFlights'
   | 'vessels' | 'nuclearSites' | 'underseaCables' | 'conflicts'
   | 'protests' | 'earthquakes' | 'fires' | 'outages'
-  | 'pipelines' | 'datacenters' | 'volcanoes' | 'weather';
+  | 'pipelines' | 'datacenters' | 'volcanoes' | 'weather'
+  | 'militaryBases' | 'spaceports' | 'chokepoints' | 'criticalMinerals';
+
+export type HudLayout = 'full' | 'tactical' | 'clean';
 
 export interface Aircraft {
   icao24: string;
@@ -127,7 +130,7 @@ export interface CountryInstability {
   level: 'critical' | 'high' | 'medium' | 'low';
 }
 
-export type BottomPanelTab = 'news' | 'livestream' | 'radio' | 'pizza' | 'weather' | 'stats' | 'posture' | 'instability' | 'risk' | 'indexes' | 'markets' | 'trending' | 'convergence';
+export type BottomPanelTab = 'news' | 'livestream' | 'radio' | 'pizza' | 'weather' | 'stats' | 'posture' | 'instability' | 'risk' | 'indexes' | 'markets' | 'trending' | 'convergence' | 'sources' | 'predictions';
 export type MapMode = '2d' | 'google3d';
 export type DashboardMode = 'WORLD' | 'TECH' | 'FINANCE';
 export type VisualStyle = 'normal' | 'crt' | 'nvg' | 'flir' | 'anime' | 'noir' | 'snow' | 'ai';
@@ -379,6 +382,20 @@ export interface WorldViewState {
 
   isScreensaver: boolean;
   setScreensaver: (v: boolean) => void;
+
+  immersiveMode: boolean;
+  toggleImmersiveMode: () => void;
+
+  hudLayout: HudLayout;
+  cycleHudLayout: () => void;
+
+  panopticEnabled: boolean;
+  togglePanoptic: () => void;
+  panopticDensity: number;
+  setPanopticDensity: (n: number) => void;
+
+  circularViewport: boolean;
+  toggleCircularViewport: () => void;
 }
 
 export const useWorldViewStore = create<WorldViewState>((set) => ({
@@ -399,6 +416,10 @@ export const useWorldViewStore = create<WorldViewState>((set) => ({
     datacenters: false,
     volcanoes: false,
     weather: false,
+    militaryBases: false,
+    spaceports: false,
+    chokepoints: false,
+    criticalMinerals: false,
   },
   toggleLayer: (layer) => set((s) => ({
     layers: { ...s.layers, [layer]: !s.layers[layer] }
@@ -500,6 +521,24 @@ export const useWorldViewStore = create<WorldViewState>((set) => ({
 
   isScreensaver: false,
   setScreensaver: (isScreensaver) => set({ isScreensaver }),
+
+  immersiveMode: false,
+  toggleImmersiveMode: () => set((s) => ({ immersiveMode: !s.immersiveMode })),
+
+  hudLayout: 'full' as HudLayout,
+  cycleHudLayout: () => set((s) => {
+    const order: HudLayout[] = ['full', 'tactical', 'clean'];
+    const next = order[(order.indexOf(s.hudLayout) + 1) % order.length];
+    return { hudLayout: next };
+  }),
+
+  panopticEnabled: false,
+  togglePanoptic: () => set((s) => ({ panopticEnabled: !s.panopticEnabled })),
+  panopticDensity: 50,
+  setPanopticDensity: (panopticDensity) => set({ panopticDensity }),
+
+  circularViewport: false,
+  toggleCircularViewport: () => set((s) => ({ circularViewport: !s.circularViewport })),
 }));
 
 // Keyboard shortcuts
