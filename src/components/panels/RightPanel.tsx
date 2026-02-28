@@ -78,32 +78,49 @@ const getCardinal = (deg: number): string => {
   return dirs[Math.round(deg / 45) % 8];
 };
 
-const AircraftDetail = ({ data }: { data: any }) => (
-  <div className="space-y-0.5">
-    <DataRow label="CALLSIGN" value={data.callsign} />
-    <DataRow label="ICAO" value={data.icao24.toUpperCase()} />
-    <DataRow label="COUNTRY" value={data.country} />
-    <DataRow label="ALT" value={`${data.altitudeFt.toLocaleString()} ft`} sub={`FL${Math.round(data.altitudeFt / 100)}`} />
-    <DataRow label="SPEED" value={`${Math.round(data.speedKts)} kts`} />
-    <DataRow label="HDG" value={`${Math.round(data.heading)}°`} sub={getCardinal(data.heading)} />
-    <div className="flex gap-1.5 mt-2">
-      <ActionButton label="📍 TRACK" onClick={() => useWorldViewStore.getState().setMapCenter({ lat: data.lat, lon: data.lon, zoom: 8 })} />
-      <ActionButton label="📋 COPY" onClick={() => navigator.clipboard.writeText(`${data.callsign} | ${data.lat.toFixed(4)},${data.lon.toFixed(4)}`)} />
+const AircraftDetail = ({ data }: { data: any }) => {
+  const adsbUrl = `https://globe.adsbexchange.com/?icao=${data.icao24}`;
+  const fr24Url = `https://www.flightradar24.com/${data.callsign?.trim()}`;
+  return (
+    <div className="space-y-0.5">
+      <DataRow label="CALLSIGN" value={data.callsign} />
+      <DataRow label="ICAO" value={data.icao24.toUpperCase()} />
+      <DataRow label="COUNTRY" value={data.country} />
+      <DataRow label="ALT" value={`${data.altitudeFt.toLocaleString()} ft`} sub={`FL${Math.round(data.altitudeFt / 100)}`} />
+      <DataRow label="SPEED" value={`${Math.round(data.speedKts)} kts`} />
+      <DataRow label="HDG" value={`${Math.round(data.heading)}°`} sub={getCardinal(data.heading)} />
+      <div className="flex gap-1.5 mt-2">
+        <ActionButton label="📍 TRACK" onClick={() => useWorldViewStore.getState().setMapCenter({ lat: data.lat, lon: data.lon, zoom: 8 })} />
+        <ActionButton label="📋 COPY" onClick={() => navigator.clipboard.writeText(`${data.callsign} | ${data.lat.toFixed(4)},${data.lon.toFixed(4)}`)} />
+      </div>
+      <div className="flex gap-1.5 mt-1">
+        <ActionButton label="🔗 ADSB-X" onClick={() => window.open(adsbUrl, '_blank')} />
+        <ActionButton label="🔗 FR24" onClick={() => window.open(fr24Url, '_blank')} />
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
-const SatelliteDetail = ({ data }: { data: any }) => (
-  <div className="space-y-0.5">
-    <DataRow label="NAME" value={data.name} />
-    <DataRow label="ALT" value={`${Math.round(data.alt)} km`} />
-    <DataRow label="VEL" value={`${data.velocity.toFixed(2)} km/s`} />
-    <div className="flex gap-1.5 mt-2">
-      <ActionButton label="📡 TRACK" onClick={() => useWorldViewStore.getState().setMapCenter({ lat: data.lat, lon: data.lon, zoom: 5 })} />
-      <ActionButton label="📋 COPY" onClick={() => navigator.clipboard.writeText(`${data.name} | ${data.alt}km`)} />
+const SatelliteDetail = ({ data }: { data: any }) => {
+  const n2yoUrl = data.noradId ? `https://www.n2yo.com/satellite/?s=${data.noradId}` : `https://www.n2yo.com/?s=${encodeURIComponent(data.name)}`;
+  const heavensUrl = data.noradId ? `https://heavens-above.com/satinfo.aspx?satid=${data.noradId}` : null;
+  return (
+    <div className="space-y-0.5">
+      <DataRow label="NAME" value={data.name} />
+      {data.noradId && <DataRow label="NORAD" value={data.noradId} />}
+      <DataRow label="ALT" value={`${Math.round(data.alt)} km`} />
+      <DataRow label="VEL" value={`${data.velocity.toFixed(2)} km/s`} />
+      <div className="flex gap-1.5 mt-2">
+        <ActionButton label="📡 TRACK" onClick={() => useWorldViewStore.getState().setMapCenter({ lat: data.lat, lon: data.lon, zoom: 5 })} />
+        <ActionButton label="📋 COPY" onClick={() => navigator.clipboard.writeText(`${data.name} | ${data.alt}km`)} />
+      </div>
+      <div className="flex gap-1.5 mt-1">
+        <ActionButton label="🔗 N2YO" onClick={() => window.open(n2yoUrl, '_blank')} />
+        {heavensUrl && <ActionButton label="🔗 HEAVENS" onClick={() => window.open(heavensUrl, '_blank')} />}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const EarthquakeDetail = ({ data }: { data: any }) => {
   const depthLabel = data.depth < 70 ? 'SHALLOW' : data.depth < 300 ? 'INTERMEDIATE' : 'DEEP';
