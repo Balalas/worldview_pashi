@@ -127,10 +127,10 @@ export interface CountryInstability {
   level: 'critical' | 'high' | 'medium' | 'low';
 }
 
-export type BottomPanelTab = 'news' | 'livestream' | 'radio' | 'pizza' | 'weather' | 'stats' | 'posture' | 'instability' | 'risk' | 'indexes';
+export type BottomPanelTab = 'news' | 'livestream' | 'radio' | 'pizza' | 'weather' | 'stats' | 'posture' | 'instability' | 'risk' | 'indexes' | 'markets' | 'trending' | 'convergence';
 export type MapMode = '2d' | 'google3d';
 export type DashboardMode = 'WORLD' | 'TECH' | 'FINANCE';
-export type VisualStyle = 'normal' | 'crt' | 'nvg' | 'flir' | 'anime' | 'noir' | 'snow';
+export type VisualStyle = 'normal' | 'crt' | 'nvg' | 'flir' | 'anime' | 'noir' | 'snow' | 'ai';
 export type DetectionMode = 'full' | 'sparse';
 
 export interface MapCenter {

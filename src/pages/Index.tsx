@@ -13,6 +13,7 @@ import StylePresetsBar, { computeStyleConfig } from '@/components/hud/StylePrese
 import WeatherRadarOverlay from '@/components/map/WeatherRadarOverlay';
 import TacticalAlerts from '@/components/hud/TacticalAlerts';
 import MinimapRadar from '@/components/hud/MinimapRadar';
+import BootScreen from '@/components/hud/BootScreen';
 import { useWorldViewStore, LAYER_SHORTCUTS, LANDMARK_PRESETS, VisualStyle } from '@/store/worldview';
 import { fetchEarthquakes, fetchLiveNews, fetchLiveAircraft } from '@/services/dataServices';
 import { generateRealisticSatellites, fetchISSPosition } from '@/services/satelliteService';
@@ -24,7 +25,7 @@ const Google3DGlobe = lazy(() => import('@/components/map/Google3DGlobe'));
 
 // Visual mode shortcuts: 1-7
 const VISUAL_SHORTCUTS: Record<string, VisualStyle> = {
-  '1': 'normal', '2': 'crt', '3': 'nvg', '4': 'flir', '5': 'anime', '6': 'noir', '7': 'snow',
+  '1': 'normal', '2': 'crt', '3': 'nvg', '4': 'flir', '5': 'anime', '6': 'noir', '7': 'snow', '8': 'ai',
 };
 
 // Landmark shortcuts: Q,W,E,R,T
@@ -145,7 +146,8 @@ const Index = () => {
   const { setAircraft, setSatellites, setEarthquakes, setNews, setLastRefresh, setNewsLoading, setWeatherAlerts, setVolcanoes, setVessels, setProtests, setOutages, setFires, toggleLayer, closeDetailPanel, mapMode, setFollowTarget, visualStyle, setVisualStyle, filterParams, bottomPanelCollapsed, bottomPanelExpanded, setMapCenter, isScreensaver, setScreensaver } = useWorldViewStore();
   const styleConfig = computeStyleConfig(visualStyle, filterParams);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const IDLE_TIMEOUT = 25000; // 25 seconds
+  const IDLE_TIMEOUT = 25000;
+  const [booting, setBooting] = useState(true);
 
   // Idle / Screensaver detection
   useEffect(() => {
@@ -267,6 +269,10 @@ const Index = () => {
     return () => window.removeEventListener('keydown', handler);
   }, [toggleLayer, closeDetailPanel, setFollowTarget, setVisualStyle, setMapCenter]);
 
+  if (booting) {
+    return <BootScreen onComplete={() => setBooting(false)} />;
+  }
+
   return (
     <div className="h-screen w-screen bg-void overflow-hidden relative">
       {/* Full-screen map — no flex layout, map fills everything */}
@@ -342,6 +348,37 @@ const Index = () => {
         {/* Vignette (non-CRT) */}
         {styleConfig.vignette && !styleConfig.crt && (
           <div className="absolute inset-0 pointer-events-none z-10" style={{ background: `radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,${styleConfig.vignetteStrength ?? 0.6}) 100%)` }} />
+        )}
+
+        {/* AI mode overlay — neon grid + scanning line */}
+        {visualStyle === 'ai' && (
+          <>
+            {/* Grid overlay */}
+            <div className="absolute inset-0 pointer-events-none z-10"
+              style={{
+                backgroundImage: `
+                  linear-gradient(rgba(0,255,255,${(filterParams.gridOpacity ?? 40) / 1000}) 1px, transparent 1px),
+                  linear-gradient(90deg, rgba(0,255,255,${(filterParams.gridOpacity ?? 40) / 1000}) 1px, transparent 1px)`,
+                backgroundSize: '60px 60px',
+              }}
+            />
+            {/* Scanning line */}
+            <div className="absolute inset-0 pointer-events-none z-10 overflow-hidden">
+              <div className="absolute left-0 right-0 h-[2px]"
+                style={{
+                  background: 'linear-gradient(90deg, transparent, rgba(0,255,255,0.4), transparent)',
+                  boxShadow: '0 0 20px rgba(0,255,255,0.3)',
+                  animation: `scan-line ${6 - (filterParams.scanSpeed ?? 50) / 20}s linear infinite`,
+                }}
+              />
+            </div>
+            {/* Edge glow */}
+            <div className="absolute inset-0 pointer-events-none z-10"
+              style={{
+                boxShadow: 'inset 0 0 60px rgba(0,255,255,0.05), inset 0 0 120px rgba(255,0,255,0.03)',
+              }}
+            />
+          </>
         )}
 
         {/* Street View Overlay */}
@@ -434,7 +471,7 @@ const KeyboardHints = memo(() => {
       </button>
       {show && (
         <div className="mt-1 bg-background/80 backdrop-blur-sm border border-border/30 rounded p-2 text-[7px] font-data text-muted-foreground/50 space-y-0.5 animate-fade-in">
-          <div><span className="text-primary/60">1-7</span> Visual modes (Normal/CRT/NVG/FLIR/Anime/Noir/Snow)</div>
+          <div><span className="text-primary/60">1-8</span> Visual modes (Normal/CRT/NVG/FLIR/Anime/Noir/Snow/AI)</div>
           <div><span className="text-primary/60">Q,W,E,R,T</span> Fly to NYC / London / Tokyo / Dubai / Sydney</div>
           <div><span className="text-primary/60">D</span> Toggle sparse/full detection</div>
           <div><span className="text-primary/60">/</span> Search</div>

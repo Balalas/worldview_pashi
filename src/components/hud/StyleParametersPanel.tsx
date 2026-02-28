@@ -35,6 +35,11 @@ const STYLE_PARAMS: Record<VisualStyle, { label: string; key: string; default: n
     { label: 'Bloom', key: 'bloom', default: 40 },
     { label: 'Frost', key: 'frost', default: 30 },
   ],
+  ai: [
+    { label: 'Edge Strength', key: 'edge', default: 60 },
+    { label: 'Scan Speed', key: 'scanSpeed', default: 50 },
+    { label: 'Grid Opacity', key: 'gridOpacity', default: 40 },
+  ],
 };
 
 const GLOBAL_PARAMS = [
@@ -54,6 +59,7 @@ const StyleParametersPanel = memo(() => {
   const styleColors: Record<string, string> = {
     nvg: 'text-green-400', flir: 'text-cyan-300', crt: 'text-amber-400',
     noir: 'text-foreground', anime: 'text-pink-400', snow: 'text-blue-300',
+    ai: 'text-cyan-400',
   };
   const styleColor = styleColors[visualStyle] || 'text-primary';
 
