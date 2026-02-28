@@ -127,7 +127,7 @@ export interface CountryInstability {
   level: 'critical' | 'high' | 'medium' | 'low';
 }
 
-export type BottomPanelTab = 'news' | 'livestream' | 'radio' | 'pizza' | 'weather' | 'stats';
+export type BottomPanelTab = 'news' | 'livestream' | 'radio' | 'pizza' | 'weather' | 'stats' | 'posture' | 'instability' | 'risk';
 export type MapMode = '2d' | 'google3d';
 export type DashboardMode = 'WORLD' | 'TECH' | 'FINANCE';
 export type VisualStyle = 'normal' | 'crt' | 'nvg' | 'flir' | 'anime' | 'noir' | 'snow';
