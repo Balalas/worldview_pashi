@@ -101,6 +101,70 @@ function iconSvg(icon: string, color: string, label: string, sublabel?: string) 
   </svg>`);
 }
 
+function explosionSvg(intensity: number, color: string, label: string) {
+  const s = Math.max(intensity * 10, 60);
+  const cx = s / 2 + 10;
+  const cy = s / 2;
+  const w = s + 20;
+  const h = s + 30;
+  // Randomize durations slightly per marker for organic feel
+  const d1 = (1.2 + intensity * 0.1).toFixed(1);
+  const d2 = (0.8 + intensity * 0.15).toFixed(1);
+  const d3 = (2.0 + intensity * 0.05).toFixed(1);
+  return svgEl(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+    <!-- outer shockwave ring -->
+    <circle cx="${cx}" cy="${cy}" r="${s * 0.15}" fill="none" stroke="${color}" stroke-width="1.5" opacity="0">
+      <animate attributeName="r" values="${s*0.15};${s*0.6};${s*0.15}" dur="${d3}s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.6;0;0.6" dur="${d3}s" repeatCount="indefinite"/>
+    </circle>
+    <!-- secondary shockwave -->
+    <circle cx="${cx}" cy="${cy}" r="${s * 0.1}" fill="none" stroke="${color}" stroke-width="0.8" opacity="0">
+      <animate attributeName="r" values="${s*0.1};${s*0.45};${s*0.1}" dur="${d3}s" repeatCount="indefinite" begin="0.5s"/>
+      <animate attributeName="opacity" values="0.4;0;0.4" dur="${d3}s" repeatCount="indefinite" begin="0.5s"/>
+    </circle>
+    <!-- fire glow -->
+    <circle cx="${cx}" cy="${cy}" r="${s * 0.2}" fill="${color}" opacity="0.15">
+      <animate attributeName="r" values="${s*0.18};${s*0.3};${s*0.18}" dur="${d1}s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.15;0.35;0.15" dur="${d1}s" repeatCount="indefinite"/>
+    </circle>
+    <!-- core explosion burst -->
+    <circle cx="${cx}" cy="${cy}" r="${s * 0.08}" fill="#ffcc00" opacity="0.9">
+      <animate attributeName="r" values="${s*0.06};${s*0.16};${s*0.06}" dur="${d2}s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.9;0.4;0.9" dur="${d2}s" repeatCount="indefinite"/>
+    </circle>
+    <!-- hot white center -->
+    <circle cx="${cx}" cy="${cy}" r="${s * 0.04}" fill="#fff" opacity="0.95">
+      <animate attributeName="opacity" values="0.95;0.5;0.95" dur="0.6s" repeatCount="indefinite"/>
+    </circle>
+    <!-- sparks / debris particles -->
+    <circle cx="${cx - s*0.12}" cy="${cy - s*0.15}" r="1.5" fill="#ff6600" opacity="0">
+      <animate attributeName="cy" values="${cy};${cy - s*0.35};${cy}" dur="${d3}s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.8;0;0.8" dur="${d3}s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="${cx + s*0.14}" cy="${cy - s*0.1}" r="1.2" fill="#ffaa00" opacity="0">
+      <animate attributeName="cy" values="${cy};${cy - s*0.3};${cy}" dur="${d3}s" repeatCount="indefinite" begin="0.3s"/>
+      <animate attributeName="opacity" values="0.7;0;0.7" dur="${d3}s" repeatCount="indefinite" begin="0.3s"/>
+    </circle>
+    <circle cx="${cx + s*0.08}" cy="${cy + s*0.12}" r="1" fill="#ff4400" opacity="0">
+      <animate attributeName="cy" values="${cy};${cy + s*0.28};${cy}" dur="${d3}s" repeatCount="indefinite" begin="0.6s"/>
+      <animate attributeName="opacity" values="0.6;0;0.6" dur="${d3}s" repeatCount="indefinite" begin="0.6s"/>
+    </circle>
+    <circle cx="${cx - s*0.1}" cy="${cy + s*0.08}" r="1.3" fill="#ff8800" opacity="0">
+      <animate attributeName="cx" values="${cx};${cx - s*0.25};${cx}" dur="${d3}s" repeatCount="indefinite" begin="0.2s"/>
+      <animate attributeName="opacity" values="0.7;0;0.7" dur="${d3}s" repeatCount="indefinite" begin="0.2s"/>
+    </circle>
+    <!-- smoke plume -->
+    <circle cx="${cx}" cy="${cy - s*0.1}" r="${s * 0.12}" fill="#333" opacity="0">
+      <animate attributeName="cy" values="${cy};${cy - s*0.4};${cy}" dur="${(parseFloat(d3)+1).toFixed(1)}s" repeatCount="indefinite" begin="0.4s"/>
+      <animate attributeName="r" values="${s*0.08};${s*0.2};${s*0.08}" dur="${(parseFloat(d3)+1).toFixed(1)}s" repeatCount="indefinite" begin="0.4s"/>
+      <animate attributeName="opacity" values="0.3;0;0.3" dur="${(parseFloat(d3)+1).toFixed(1)}s" repeatCount="indefinite" begin="0.4s"/>
+    </circle>
+    <!-- label -->
+    <rect x="2" y="${h-16}" width="${w-4}" height="14" rx="2" fill="#000" fill-opacity="0.8"/>
+    <text x="${w/2}" y="${h-6}" text-anchor="middle" font-family="monospace" font-size="7" fill="${color}" font-weight="bold">⚔ ${label}</text>
+  </svg>`);
+}
+
 function cameraSvg(name: string, official?: boolean) {
   const badge = official ? `<rect x="52" y="2" width="22" height="9" rx="2" fill="#fbbf24" fill-opacity="0.9"/><text x="63" y="9" text-anchor="middle" font-family="monospace" font-size="6" fill="#000" font-weight="bold">DOT</text>` : '';
   return svgEl(`<svg xmlns="http://www.w3.org/2000/svg" width="80" height="44" viewBox="0 0 80 44">
@@ -868,12 +932,12 @@ const Google3DGlobe = memo(() => {
         });
     }
 
-    // Conflict zones
+    // Conflict zones — animated explosions
     if (layers.conflicts) {
       CONFLICT_ZONES.forEach(cz => {
         const color = cz.intensity >= 8 ? '#ff0044' : cz.intensity >= 6 ? '#ff6b35' : '#ffb000';
         addMarker(cz.lat, cz.lon,
-          iconSvg('⚔️', color, cz.name.split('–')[0]),
+          explosionSvg(cz.intensity, color, cz.name.split('–')[0].trim()),
           0, true
         );
       });
