@@ -1,6 +1,13 @@
 import { memo, useState, useCallback, useRef, useEffect } from 'react';
 import { useWorldViewStore, LayerType } from '@/store/worldview';
 import { CONFLICT_ZONES } from '@/data/conflictZones';
+import { SUBMARINE_CABLES } from '@/data/submarineCables';
+import { PIPELINES } from '@/data/pipelines';
+import { MILITARY_BASES, SPACEPORTS, CHOKEPOINTS, DATACENTERS, CRITICAL_MINERALS } from '@/data/staticLayers';
+import { RADIO_STATIONS } from '@/data/radioStations';
+import { PUBLIC_CAMERAS } from '@/data/publicCameras';
+import { LIVESTREAM_FEEDS } from '@/services/dataServices';
+import { INFRA_NODES } from '@/data/regionalFeeds';
 
 // Map result types to the layer that must be enabled to see them
 const TYPE_TO_LAYER: Record<string, LayerType | null> = {
@@ -16,6 +23,17 @@ const TYPE_TO_LAYER: Record<string, LayerType | null> = {
   weather: 'weather',
   news: null,
   location: null,
+  cable: 'underseaCables',
+  pipeline: 'pipelines',
+  base: 'militaryBases',
+  spaceport: 'spaceports',
+  chokepoint: 'chokepoints',
+  datacenter: 'datacenters',
+  mineral: 'criticalMinerals',
+  camera: 'cameras',
+  radio: null,
+  livestream: null,
+  infra: null,
 };
 
 const SearchBar = memo(() => {
@@ -58,7 +76,7 @@ const SearchBar = memo(() => {
     const term = q.toLowerCase();
     const found: SearchResult[] = [];
 
-    // Aircraft — always search, regardless of layer
+    // Aircraft
     aircraft.filter(a => a.callsign.toLowerCase().includes(term) || a.country.toLowerCase().includes(term))
       .slice(0, 5).forEach(a => found.push({ type: 'aircraft', label: `✈ ${a.callsign}`, sub: `${a.country} | FL${Math.round(a.altitudeFt / 100)}`, lat: a.lat, lon: a.lon, zoom: 8, data: a }));
 
@@ -90,7 +108,7 @@ const SearchBar = memo(() => {
     outages.filter(o => o.title.toLowerCase().includes(term) || o.type.toLowerCase().includes(term))
       .slice(0, 3).forEach(o => found.push({ type: 'outage', label: `⚡ ${o.title}`, sub: `${o.type} | ${o.severity}`, lat: o.lat, lon: o.lon, zoom: 8, data: o }));
 
-    // Conflict zones (static data)
+    // Conflict zones
     CONFLICT_ZONES.filter(c => c.name.toLowerCase().includes(term))
       .slice(0, 3).forEach(c => found.push({ type: 'conflict', label: `⚔ ${c.name}`, sub: `${c.type} | intensity ${c.intensity}/10`, lat: c.lat, lon: c.lon, zoom: 7, data: c }));
 
@@ -98,9 +116,59 @@ const SearchBar = memo(() => {
     weatherAlerts.filter(w => w.city.toLowerCase().includes(term) || w.description.toLowerCase().includes(term))
       .slice(0, 3).forEach(w => found.push({ type: 'weather', label: `🌪 ${w.description}`, sub: w.city, lat: w.lat, lon: w.lon, zoom: 7, data: w }));
 
-    // News (no coordinates — show if title matches, no fly-to)
+    // News
     news.filter(n => n.title.toLowerCase().includes(term))
       .slice(0, 3).forEach(n => found.push({ type: 'news', label: `📰 ${n.title.slice(0, 60)}`, sub: `${n.source} | ${n.severity}`, lat: 0, lon: 0, zoom: 3, data: n }));
+
+    // ── Submarine Cables ──
+    SUBMARINE_CABLES.filter(c => c.name.toLowerCase().includes(term) || c.capacity.toLowerCase().includes(term))
+      .slice(0, 3).forEach(c => {
+        const mid = c.coordinates[Math.floor(c.coordinates.length / 2)];
+        found.push({ type: 'cable', label: `🔌 ${c.name}`, sub: `${c.capacity} | ${c.length}`, lat: mid[0], lon: mid[1], zoom: 4, data: c });
+      });
+
+    // ── Pipelines ──
+    PIPELINES.filter(p => p.name.toLowerCase().includes(term) || p.operator.toLowerCase().includes(term))
+      .slice(0, 3).forEach(p => {
+        const mid = p.coordinates[Math.floor(p.coordinates.length / 2)];
+        found.push({ type: 'pipeline', label: `🛢️ ${p.name}`, sub: `${p.type} | ${p.operator}`, lat: mid[0], lon: mid[1], zoom: 5, data: p });
+      });
+
+    // ── Military Bases ──
+    MILITARY_BASES.filter(b => b.name.toLowerCase().includes(term) || b.country.toLowerCase().includes(term) || b.operator.toLowerCase().includes(term))
+      .slice(0, 5).forEach(b => found.push({ type: 'base', label: `🎖️ ${b.name}`, sub: `${b.operator} | ${b.type} | ${b.country}`, lat: b.lat, lon: b.lon, zoom: 10, data: b }));
+
+    // ── Spaceports ──
+    SPACEPORTS.filter(s => s.name.toLowerCase().includes(term) || s.country.toLowerCase().includes(term))
+      .slice(0, 3).forEach(s => found.push({ type: 'spaceport', label: `🚀 ${s.name}`, sub: s.country, lat: s.lat, lon: s.lon, zoom: 10, data: s }));
+
+    // ── Chokepoints ──
+    CHOKEPOINTS.filter(c => c.name.toLowerCase().includes(term))
+      .slice(0, 3).forEach(c => found.push({ type: 'chokepoint', label: `⚓ ${c.name}`, sub: c.flow, lat: c.lat, lon: c.lon, zoom: 7, data: c }));
+
+    // ── Datacenters ──
+    DATACENTERS.filter(d => d.name.toLowerCase().includes(term) || d.operator.toLowerCase().includes(term))
+      .slice(0, 3).forEach(d => found.push({ type: 'datacenter', label: `🖥️ ${d.name}`, sub: `${d.operator} | ${d.capacity}`, lat: d.lat, lon: d.lon, zoom: 10, data: d }));
+
+    // ── Critical Minerals ──
+    CRITICAL_MINERALS.filter(m => m.name.toLowerCase().includes(term) || m.mineral.toLowerCase().includes(term) || m.country.toLowerCase().includes(term))
+      .slice(0, 3).forEach(m => found.push({ type: 'mineral', label: `💎 ${m.name}`, sub: `${m.mineral} | ${m.country}`, lat: m.lat, lon: m.lon, zoom: 8, data: m }));
+
+    // ── Public Cameras ──
+    PUBLIC_CAMERAS.filter(c => c.name.toLowerCase().includes(term) || c.city.toLowerCase().includes(term) || c.country.toLowerCase().includes(term))
+      .slice(0, 3).forEach(c => found.push({ type: 'camera', label: `📷 ${c.name}`, sub: `${c.city}, ${c.country}`, lat: c.lat, lon: c.lon, zoom: 12, data: c }));
+
+    // ── Radio Stations ──
+    RADIO_STATIONS.filter(r => r.name.toLowerCase().includes(term) || r.country.toLowerCase().includes(term) || r.genre.toLowerCase().includes(term))
+      .slice(0, 3).forEach(r => found.push({ type: 'radio', label: `📻 ${r.name}`, sub: `${r.country} | ${r.genre}`, lat: r.lat, lon: r.lon, zoom: 10, data: r }));
+
+    // ── Livestreams ──
+    LIVESTREAM_FEEDS.filter(l => l.title.toLowerCase().includes(term) || l.source.toLowerCase().includes(term) || l.region.toLowerCase().includes(term))
+      .slice(0, 3).forEach(l => found.push({ type: 'livestream', label: `📺 ${l.title}`, sub: `${l.source} | ${l.region}`, lat: 0, lon: 0, zoom: 3, data: l }));
+
+    // ── Infrastructure Nodes ──
+    INFRA_NODES.filter(n => n.name.toLowerCase().includes(term) || n.type.toLowerCase().includes(term))
+      .slice(0, 3).forEach(n => found.push({ type: 'infra', label: `🏗️ ${n.name}`, sub: `${n.type} | ${n.criticality}`, lat: n.lat, lon: n.lon, zoom: 7, data: n }));
 
     setResults(found);
     geocode(q);
@@ -113,12 +181,12 @@ const SearchBar = memo(() => {
       toggleLayer(neededLayer);
     }
 
-    // Fly to location (skip for news without coords)
-    if (result.type !== 'news') {
+    // Fly to location (skip for items without coords)
+    if (result.lat !== 0 || result.lon !== 0) {
       setMapCenter({ lat: result.lat, lon: result.lon, zoom: result.zoom });
     }
 
-    if (result.data && result.type !== 'search' && result.type !== 'location' && result.type !== 'news') {
+    if (result.data && result.type !== 'search' && result.type !== 'location' && result.type !== 'news' && result.type !== 'livestream') {
       setDetailPanel({ type: result.type as any, data: result.data });
     }
     setQuery('');
