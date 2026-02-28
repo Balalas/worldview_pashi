@@ -46,6 +46,9 @@ const LAYER_SUB_OPTIONS: Partial<Record<LayerType, SubOption[]>> = {
     { key: 'showFishing', label: 'FISHING' },
     { key: 'showPassenger', label: 'PASSENGER' },
   ],
+  underseaCables: [
+    { key: 'showLandCables', label: 'LAND SEGMENTS' },
+  ],
   earthquakes: [
     { key: 'minMagnitude', label: 'MIN MAG', min: 1, max: 8, step: 0.5, suffix: '' },
   ],
