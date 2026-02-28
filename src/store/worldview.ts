@@ -103,6 +103,11 @@ export interface FireEvent {
   title: string;
   lat: number;
   lon: number;
+  brightness: number;    // Kelvin (VIIRS bright_ti4 or MODIS brightness)
+  frp: number;           // Fire Radiative Power in MW
+  confidence: string;    // 'low' | 'nominal' | 'high' (VIIRS) or percentage (MODIS)
+  acq_date: string;      // 'YYYY-MM-DD'
+  acq_time: string;      // 'HHMM' (UTC)
   date: string;
   source: string;
   link?: string;

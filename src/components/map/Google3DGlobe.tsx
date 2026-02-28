@@ -272,6 +272,59 @@ function cameraSvg(name: string, official?: boolean) {
   </svg>`);
 }
 
+// ── FRP-scaled fire flame SVG ──
+function fireFrpSvg(frp: number, brightness: number, confidence: string) {
+  // Size scales with FRP: min 16px, max 32px
+  const raw = frp / 15;
+  const clamped = Math.max(3, Math.min(12, raw));
+  const size = Math.max(16, clamped * 2.5);
+  const w = size + 24;
+  const h = size + 30;
+  const cx = w / 2;
+  const cy = h / 2 - 4;
+  // Color intensity based on brightness (hotter = more white/yellow)
+  const isHot = brightness > 400;
+  const isExtreme = frp > 100;
+  const coreColor = isHot ? '#ffdd00' : '#ff6600';
+  const outerColor = isExtreme ? '#ff2200' : '#ff4400';
+  const confLabel = confidence === 'high' ? 'H' : confidence === 'low' ? 'L' : 'N';
+  const glowRadius = size * 0.6;
+  
+  return svgEl(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+    <!-- Heat glow -->
+    <circle cx="${cx}" cy="${cy}" r="${glowRadius}" fill="${outerColor}" opacity="0.12">
+      <animate attributeName="r" values="${glowRadius};${glowRadius*1.4};${glowRadius}" dur="1.5s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.12;0.25;0.12" dur="1.5s" repeatCount="indefinite"/>
+    </circle>
+    <!-- Outer flame ring -->
+    <circle cx="${cx}" cy="${cy}" r="${size/2}" fill="none" stroke="${outerColor}" stroke-width="1.2" opacity="0">
+      <animate attributeName="r" values="${size/2};${size*0.9};${size/2}" dur="2s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.5;0;0.5" dur="2s" repeatCount="indefinite"/>
+    </circle>
+    <!-- Fire core -->
+    <circle cx="${cx}" cy="${cy}" r="${size/4}" fill="${outerColor}" opacity="0.7">
+      <animate attributeName="r" values="${size/4};${size/3};${size/4}" dur="1s" repeatCount="indefinite"/>
+    </circle>
+    <!-- Hot center -->
+    <circle cx="${cx}" cy="${cy}" r="${size/6}" fill="${coreColor}" opacity="0.9">
+      <animate attributeName="opacity" values="0.9;0.5;0.9" dur="0.7s" repeatCount="indefinite"/>
+    </circle>
+    ${isExtreme ? `<circle cx="${cx}" cy="${cy}" r="${size/10}" fill="#fff" opacity="0.8"><animate attributeName="opacity" values="0.8;0.3;0.8" dur="0.5s" repeatCount="indefinite"/></circle>` : ''}
+    <!-- Spark particles -->
+    <circle cx="${cx-size*0.15}" cy="${cy-size*0.2}" r="1.2" fill="#ff8800" opacity="0">
+      <animate attributeName="cy" values="${cy};${cy-size*0.5};${cy}" dur="2s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.7;0;0.7" dur="2s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="${cx+size*0.12}" cy="${cy-size*0.15}" r="1" fill="#ffaa00" opacity="0">
+      <animate attributeName="cy" values="${cy};${cy-size*0.4};${cy}" dur="2s" repeatCount="indefinite" begin="0.5s"/>
+      <animate attributeName="opacity" values="0.6;0;0.6" dur="2s" repeatCount="indefinite" begin="0.5s"/>
+    </circle>
+    <!-- Label -->
+    <rect x="2" y="${h-14}" width="${w-4}" height="12" rx="2" fill="#000" fill-opacity="0.8"/>
+    <text x="${cx}" y="${h-5}" text-anchor="middle" font-family="monospace" font-size="7" fill="${outerColor}" font-weight="bold">🔥${frp > 0 ? frp.toFixed(0)+'MW' : ''} ${confLabel}</text>
+  </svg>`);
+}
+
 // ── Trajectory helpers ──
 
 /** Generate a projected trajectory path (past + future) from heading & speed */
@@ -1279,20 +1332,31 @@ const Google3DGlobe = memo(() => {
       })();
     }
 
-    // Fires (NASA EONET) — filtered
+    // Fires (NASA FIRMS + EONET) — FRP-scaled flame rendering
     if (layers.fires) {
       fires.forEach(f => {
         const isWildfire = f.category === 'wildfire' || f.category === 'volcano';
         const isStorm = f.category === 'storm' || f.category === 'flood';
         if (isWildfire && !layerSubFilters.showWildfires) return;
         if (isStorm && !layerSubFilters.showStorms) return;
-        const icons: Record<string, string> = { wildfire: '🔥', volcano: '🌋', storm: '🌀', flood: '🌊', earthquake: '💥', drought: '☀️', landslide: '⛰️', other: '⚠️' };
-        const colors: Record<string, string> = { wildfire: '#ff4400', volcano: '#ff0044', storm: '#00d4ff', flood: '#4488ff', earthquake: '#ff6600', drought: '#ffb000', landslide: '#aa6633', other: '#ff6b35' };
-        addMarker(f.lat, f.lon,
-          iconSvg(icons[f.category] || '🔥', colors[f.category] || '#ff4400', f.title.substring(0, 16)),
-          0, true,
-          () => { stopFollow(); setDetailPanel({ type: 'fire', data: f }); }
-        );
+
+        if (isWildfire && f.frp !== undefined && f.frp > 0) {
+          // FRP-scaled flame reticle for FIRMS data
+          addMarker(f.lat, f.lon,
+            fireFrpSvg(f.frp, f.brightness || 350, f.confidence || 'nominal'),
+            0, true,
+            () => { stopFollow(); setDetailPanel({ type: 'fire', data: f }); }
+          );
+        } else {
+          // Fallback icon for non-wildfire events or events without FRP
+          const icons: Record<string, string> = { wildfire: '🔥', volcano: '🌋', storm: '🌀', flood: '🌊', earthquake: '💥', drought: '☀️', landslide: '⛰️', other: '⚠️' };
+          const colors: Record<string, string> = { wildfire: '#ff4400', volcano: '#ff0044', storm: '#00d4ff', flood: '#4488ff', earthquake: '#ff6600', drought: '#ffb000', landslide: '#aa6633', other: '#ff6b35' };
+          addMarker(f.lat, f.lon,
+            iconSvg(icons[f.category] || '🔥', colors[f.category] || '#ff4400', f.title.substring(0, 16)),
+            0, true,
+            () => { stopFollow(); setDetailPanel({ type: 'fire', data: f }); }
+          );
+        }
       });
     }
 

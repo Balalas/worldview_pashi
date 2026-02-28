@@ -52,6 +52,7 @@ const RightPanel = memo(() => {
           {detailPanel.type === 'camera' && <CameraDetail data={detailPanel.data} />}
           {detailPanel.type === 'country' && <CountryDetail data={detailPanel.data} />}
           {detailPanel.type === 'conflict' && <ConflictDetail data={detailPanel.data} />}
+          {detailPanel.type === 'fire' && <FireDetail data={detailPanel.data} />}
         </div>
       </div>
     </div>
@@ -319,6 +320,43 @@ const ConflictDetail = ({ data }: { data: any }) => {
       <div className="flex gap-1.5 mt-2">
         <ActionButton label="📍 LOCATE" onClick={() => useWorldViewStore.getState().setMapCenter({ lat: data.lat, lon: data.lon, zoom: 7 })} />
         <ActionButton label="📋 COPY" onClick={() => navigator.clipboard.writeText(`${data.name} | ${data.lat.toFixed(4)},${data.lon.toFixed(4)}`)} />
+      </div>
+    </div>
+  );
+};
+
+const FireDetail = ({ data }: { data: any }) => {
+  const frpLevel = data.frp >= 100 ? 'EXTREME' : data.frp >= 50 ? 'HIGH' : data.frp >= 20 ? 'MODERATE' : 'LOW';
+  const frpColor = data.frp >= 100 ? 'text-destructive' : data.frp >= 50 ? 'text-amber-500' : 'text-amber-300';
+  return (
+    <div className="space-y-0.5">
+      <DataRow label="EVENT" value={data.title?.substring(0, 30) || 'Fire'} />
+      {data.frp > 0 && (
+        <>
+          <DataRow label="FRP" value={`${data.frp.toFixed(1)} MW`} />
+          <div className="flex items-center justify-between py-0.5">
+            <span className="text-[9px] font-display tracking-wider text-muted-foreground">INTENSITY</span>
+            <div className="flex items-center gap-1">
+              <div className="flex gap-[2px]">
+                {Array.from({ length: 10 }).map((_, i) => (
+                  <div key={i} className={`w-[3px] h-[8px] rounded-[1px] ${i < Math.min(10, Math.round(data.frp / 15)) ? (data.frp >= 100 ? 'bg-destructive' : data.frp >= 50 ? 'bg-amber-500' : 'bg-amber-300') : 'bg-border/40'}`} />
+                ))}
+              </div>
+              <span className={`text-[9px] font-data ${frpColor}`}>{frpLevel}</span>
+            </div>
+          </div>
+        </>
+      )}
+      {data.brightness > 0 && <DataRow label="TEMP" value={`${data.brightness.toFixed(0)} K`} />}
+      {data.confidence && <DataRow label="CONF" value={data.confidence.toUpperCase()} />}
+      <DataRow label="SRC" value={data.source} />
+      {data.acq_date && <DataRow label="DATE" value={data.acq_date} />}
+      {data.acq_time && <DataRow label="TIME" value={`${String(data.acq_time).padStart(4, '0').slice(0,2)}:${String(data.acq_time).padStart(4, '0').slice(2)} UTC`} />}
+      <DataRow label="POS" value={`${data.lat.toFixed(4)}°, ${data.lon.toFixed(4)}°`} />
+      <div className="flex gap-1.5 mt-2">
+        <ActionButton label="📍 LOCATE" onClick={() => useWorldViewStore.getState().setMapCenter({ lat: data.lat, lon: data.lon, zoom: 8 })} />
+        {data.link && <ActionButton label="🔗 SRC" onClick={() => window.open(data.link, '_blank')} />}
+        <ActionButton label="📋 COPY" onClick={() => navigator.clipboard.writeText(`${data.lat.toFixed(4)},${data.lon.toFixed(4)} FRP:${data.frp}`)} />
       </div>
     </div>
   );
