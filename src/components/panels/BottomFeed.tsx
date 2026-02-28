@@ -1,5 +1,7 @@
 import { memo, useState, useRef, useEffect, useCallback } from 'react';
 import { useWorldViewStore, MARKET_DATA, NewsItem, BottomPanelTab, INSTABILITY_DATA } from '@/store/worldview';
+import { fetchForexRates, ForexRate } from '@/services/forexService';
+import { fetchAirQuality, AirQualityStation } from '@/services/airQualityService';
 import { PENTAGON_PIZZA_DATA, LIVESTREAM_FEEDS, LivestreamFeed } from '@/services/dataServices';
 import { ACTIVE_VOLCANOES } from '@/services/weatherService';
 import { SUBMARINE_CABLES } from '@/data/submarineCables';
@@ -34,12 +36,28 @@ const TABS: { key: BottomPanelTab; label: string; icon: string }[] = [
 type NewsFilter = 'ALL' | 'CRITICAL' | 'MILITARY' | 'CONFLICT' | 'PROTEST' | 'CYBER' | 'NUCLEAR' | 'ECONOMIC';
 
 const BottomFeed = memo(() => {
+  const [forexRates, setForexRates] = useState<ForexRate[]>([]);
+  const [airQuality, setAirQuality] = useState<AirQualityStation[]>([]);
+
+  useEffect(() => {
+    fetchForexRates().then(setForexRates);
+    fetchAirQuality().then(setAirQuality);
+    const forexInterval = setInterval(() => fetchForexRates().then(setForexRates), 60000);
+    const aqInterval = setInterval(() => fetchAirQuality().then(setAirQuality), 300000);
+    return () => { clearInterval(forexInterval); clearInterval(aqInterval); };
+  }, []);
+
+  const allTicker = [
+    ...MARKET_DATA,
+    ...forexRates.map(r => ({ symbol: r.symbol, value: r.value, change: r.change, up: r.up })),
+  ];
+
   return (
     <div className="glass-panel border-t border-primary/8 flex flex-col z-30">
       {/* Market ticker */}
       <div className="h-7 border-b border-border flex items-center overflow-hidden bg-card-bg/50 relative flex-shrink-0">
         <div className="flex items-center animate-ticker-scroll whitespace-nowrap">
-          {[...MARKET_DATA, ...MARKET_DATA].map((m, i) => (
+          {[...allTicker, ...allTicker].map((m, i) => (
             <span key={i} className="inline-flex items-center gap-1.5 mx-4 text-[10px] font-data">
               <span className="text-muted-foreground">{m.symbol}</span>
               <span className="text-foreground">{m.value}</span>
@@ -88,15 +106,18 @@ const BottomFeed = memo(() => {
         </div>
 
         {/* Row 4: Combined Indexes + World Stats + Weather */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 border-b border-border">
+        <div className="grid grid-cols-1 lg:grid-cols-4 border-b border-border">
           <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
             <CombinedIndexesPanel />
           </div>
           <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
             <WorldStatsPanel />
           </div>
-          <div className="max-h-[380px] overflow-y-auto scrollbar-thin">
+          <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
             <WeatherPanel />
+          </div>
+          <div className="max-h-[380px] overflow-y-auto scrollbar-thin">
+            <AirQualityPanel stations={airQuality} />
           </div>
         </div>
 
@@ -308,6 +329,56 @@ const WeatherPanel = memo(() => {
     </div>
   );
 });
+
+const AirQualityPanel = memo(({ stations }: { stations: AirQualityStation[] }) => {
+  const aqiColor = (level: string) => {
+    switch (level) {
+      case 'good': return 'text-signal-aircraft bg-signal-aircraft/10 border-signal-aircraft/20';
+      case 'moderate': return 'text-alert-medium bg-alert-medium/10 border-alert-medium/20';
+      case 'unhealthy_sensitive': return 'text-alert-high bg-alert-high/10 border-alert-high/20';
+      case 'unhealthy': return 'text-alert-critical bg-alert-critical/10 border-alert-critical/20';
+      case 'very_unhealthy': return 'text-alert-critical bg-alert-critical/20 border-alert-critical/30';
+      case 'hazardous': return 'text-alert-critical bg-alert-critical/30 border-alert-critical/40';
+      default: return 'text-muted-foreground bg-card-bg border-border';
+    }
+  };
+
+  const sorted = [...stations].sort((a, b) => b.aqi - a.aqi);
+
+  return (
+    <div className="p-3">
+      <div className="flex items-center gap-2 mb-3">
+        <h2 className="text-[10px] font-display tracking-[0.2em] text-muted-foreground">🌫️ GLOBAL AIR QUALITY INDEX</h2>
+        <span className="text-[9px] font-data text-text-secondary">● {stations.length} STATIONS</span>
+      </div>
+      <div className="space-y-1">
+        {sorted.map((s) => {
+          const colors = aqiColor(s.level);
+          return (
+            <div key={s.id} className={`flex items-center justify-between px-2 py-1.5 rounded bg-card-bg/60 border ${colors.split(' ').pop()}`}>
+              <div className="min-w-0 flex-1">
+                <div className="text-[10px] font-display tracking-wide text-foreground truncate">{s.city}</div>
+                <div className="text-[8px] font-data text-text-muted-custom">PM2.5: {s.pm25}{s.pm10 ? ` · PM10: ${s.pm10}` : ''}</div>
+              </div>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <span className={`text-[11px] font-data font-bold ${colors.split(' ')[0]}`}>{s.aqi}</span>
+                <span className={`text-[7px] font-data font-bold px-1 py-0.5 rounded ${colors}`}>
+                  {s.level.replace(/_/g, ' ').toUpperCase()}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+        {stations.length === 0 && (
+          <div className="text-center py-4">
+            <span className="text-[10px] font-data text-muted-foreground">Loading air quality data...</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+});
+AirQualityPanel.displayName = 'AirQualityPanel';
 
 const WorldStatsPanel = memo(() => {
   const { aircraft, satellites, earthquakes, volcanoes, vessels, protests, outages } = useWorldViewStore();

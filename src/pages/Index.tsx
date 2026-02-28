@@ -22,6 +22,8 @@ import { fetchGlobalWeather, ACTIVE_VOLCANOES } from '@/services/weatherService'
 import { generateVessels, extractProtestsFromNews, extractOutagesFromNews, fetchCyberNews } from '@/services/vesselService';
 import { fetchFires } from '@/services/fireService';
 import { fetchGdeltData } from '@/services/gdeltService';
+import { fetchUserLocation } from '@/services/geolocateService';
+import { fetchAllCountries } from '@/services/countryService';
 
 const Google3DGlobe = lazy(() => import('@/components/map/Google3DGlobe'));
 
@@ -226,6 +228,17 @@ const Index = () => {
 
     // Fetch active fires from NASA FIRMS + EONET
     fetchFires('24H').then(setFires);
+
+    // Pre-load country enrichment data
+    fetchAllCountries();
+
+    // Auto-center map on user location via IP geolocation
+    fetchUserLocation().then((loc) => {
+      if (loc) {
+        setMapCenter({ lat: loc.lat, lon: loc.lon, zoom: 6 });
+        console.log(`Auto-centered on ${loc.city}, ${loc.country}`);
+      }
+    });
 
     // Refresh intervals
     const aircraftInterval = setInterval(() => {
