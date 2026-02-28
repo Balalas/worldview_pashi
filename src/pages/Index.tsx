@@ -144,7 +144,7 @@ const CctvPip = memo(() => {
 CctvPip.displayName = 'CctvPip';
 
 const Index = () => {
-  const { setAircraft, setSatellites, setEarthquakes, setNews, setLastRefresh, setNewsLoading, setWeatherAlerts, setVolcanoes, setVessels, setProtests, setOutages, setFires, toggleLayer, closeDetailPanel, mapMode, setFollowTarget, visualStyle, setVisualStyle, filterParams, bottomPanelCollapsed, bottomPanelExpanded, setMapCenter, isScreensaver, setScreensaver, immersiveMode, circularViewport, hudLayout } = useWorldViewStore();
+  const { setAircraft, setSatellites, setEarthquakes, setNews, setLastRefresh, setNewsLoading, setWeatherAlerts, setVolcanoes, setVessels, setProtests, setOutages, setFires, toggleLayer, closeDetailPanel, mapMode, setFollowTarget, visualStyle, setVisualStyle, filterParams, bottomPanelCollapsed, bottomPanelExpanded, setMapCenter, isScreensaver, setScreensaver, immersiveMode, circularViewport, hudLayout, warMode } = useWorldViewStore();
   const styleConfig = computeStyleConfig(visualStyle, filterParams);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const IDLE_TIMEOUT = 25000;
@@ -225,7 +225,7 @@ const Index = () => {
         setProtests(extractProtestsFromNews(allNews));
         setOutages(extractOutagesFromNews(allNews));
       });
-    }, 180000);
+    }, 180000); // 3 min default
 
     const weatherInterval = setInterval(() => fetchGlobalWeather().then(setWeatherAlerts), 600000);
 
@@ -241,6 +241,23 @@ const Index = () => {
       clearInterval(fireInterval);
     };
   }, []);
+
+  // WAR MODE — 60s rapid news refresh when active
+  useEffect(() => {
+    if (!warMode) return;
+    const warNewsInterval = setInterval(() => {
+      Promise.all([fetchLiveNews(), fetchCyberNews()]).then(([mainNews, cyberNews]) => {
+        const allNews = [...mainNews, ...cyberNews].sort((a, b) => b.time.getTime() - a.time.getTime());
+        setNews(allNews);
+      });
+    }, 60000);
+    // Also fetch immediately on toggle
+    Promise.all([fetchLiveNews(), fetchCyberNews()]).then(([mainNews, cyberNews]) => {
+      const allNews = [...mainNews, ...cyberNews].sort((a, b) => b.time.getTime() - a.time.getTime());
+      setNews(allNews);
+    });
+    return () => clearInterval(warNewsInterval);
+  }, [warMode, setNews]);
 
   // Keyboard shortcuts — layers, visual modes (1-7), landmarks (Q,W,E,R,T)
   useEffect(() => {
@@ -392,6 +409,16 @@ const Index = () => {
         {/* Street View Overlay */}
         <StreetViewOverlay />
       </div>
+
+      {/* War mode red vignette overlay */}
+      {warMode && (
+        <div className="absolute inset-0 pointer-events-none z-15"
+          style={{
+            boxShadow: 'inset 0 0 120px 40px rgba(255,30,30,0.12), inset 0 0 300px 80px rgba(255,0,0,0.05)',
+            border: '1px solid rgba(255,50,50,0.15)',
+          }}
+        />
+      )}
 
       {/* Floating UI layer — all panels overlay on top of full-screen map */}
       <div className="absolute inset-0 pointer-events-none z-20">
