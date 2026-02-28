@@ -54,18 +54,36 @@ export const fetchEarthquakes = async (timeWindow: EarthquakeTimeWindow = '24H')
   }
 };
 
-// Live RSS news from major outlets
+// Live RSS news from major outlets + OSINT intelligence accounts
 const RSS_FEEDS = [
+  // Tier 1 — Major wire services & networks
   { url: 'https://feeds.bbci.co.uk/news/world/rss.xml', source: 'BBC', tier: 1 as const },
   { url: 'https://rss.nytimes.com/services/xml/rss/nyt/World.xml', source: 'NY Times', tier: 1 as const },
   { url: 'https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRFp1ZEdvU0FtVnVHZ0pWVXlnQVAB?hl=en-US&gl=US&ceid=US:en', source: 'Google News', tier: 1 as const },
-  { url: 'https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml', source: 'NYT Top', tier: 2 as const },
   { url: 'https://feeds.reuters.com/reuters/worldNews', source: 'Reuters', tier: 1 as const },
   { url: 'https://www.aljazeera.com/xml/rss/all.xml', source: 'Al Jazeera', tier: 1 as const },
-  { url: 'https://rss.dw.com/rdf/rss-en-world', source: 'DW', tier: 2 as const },
   { url: 'https://feeds.washingtonpost.com/rss/world', source: 'WashPost', tier: 1 as const },
+  // Tier 2 — Regional & specialty
+  { url: 'https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml', source: 'NYT Top', tier: 2 as const },
+  { url: 'https://rss.dw.com/rdf/rss-en-world', source: 'DW', tier: 2 as const },
   { url: 'https://feeds.feedburner.com/ndaborsa/world', source: 'NDTV', tier: 2 as const },
   { url: 'https://www.france24.com/en/rss', source: 'France24', tier: 2 as const },
+  // OSINT & Intelligence — X/Twitter accounts via RSS bridges
+  { url: 'https://rss.app/feeds/v1.1/tPYJNbNqo1sQpMlV.xml', source: 'OSINT-X', tier: 1 as const }, // @IntelCrab
+  { url: 'https://rss.app/feeds/v1.1/t4K2HJdqH9kF8wLm.xml', source: 'OSINT-X', tier: 1 as const }, // @sentdefender
+  { url: 'https://rss.app/feeds/v1.1/tR7nGvYqZ3sVmXk8.xml', source: 'OSINT-X', tier: 1 as const }, // @Liveuamap
+  { url: 'https://rss.app/feeds/v1.1/tB5xMwPqN2sTfYj6.xml', source: 'OSINT-X', tier: 1 as const }, // @TheIntelPoint
+  // OSINT blogs & feeds
+  { url: 'https://www.bellingcat.com/feed/', source: 'Bellingcat', tier: 1 as const },
+  { url: 'https://krebsonsecurity.com/feed/', source: 'KrebsSec', tier: 1 as const },
+  { url: 'https://therecord.media/feed', source: 'The Record', tier: 1 as const },
+  { url: 'https://www.bleepingcomputer.com/feed/', source: 'BleepComp', tier: 1 as const },
+  // Conflict & defense
+  { url: 'https://www.janes.com/feeds/news', source: 'Janes', tier: 1 as const },
+  { url: 'https://www.defensenews.com/arc/outboundfeeds/rss/?outputType=xml', source: 'DefenseNews', tier: 1 as const },
+  { url: 'https://www.criticalthreats.org/feed', source: 'CritThreats', tier: 1 as const },
+  // Liveuamap direct
+  { url: 'https://liveuamap.com/rss', source: 'LiveUAMap', tier: 1 as const },
 ];
 
 const SEVERITY_KEYWORDS: Record<string, NewsItem['severity']> = {

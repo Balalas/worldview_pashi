@@ -245,7 +245,9 @@ const Index = () => {
       }
     });
 
-    // Refresh intervals
+    // ── Refresh intervals — ALL intelligence feeds every 60s ──
+    const INTEL_REFRESH_MS = 60_000; // 1 minute
+
     const aircraftInterval = setInterval(() => {
       fetchLiveAircraft().then((a) => {
         if (a.length > 0) { setAircraft(a); setLastRefresh(new Date()); }
@@ -262,7 +264,7 @@ const Index = () => {
     const eqInterval = setInterval(() => {
       const tw = useWorldViewStore.getState().layerSubFilters.earthquakeTimeWindow || '24H';
       fetchEarthquakes(tw).then(setEarthquakes);
-    }, 60000);
+    }, INTEL_REFRESH_MS);
 
     const newsInterval = setInterval(async () => {
       try {
@@ -282,11 +284,11 @@ const Index = () => {
       } catch (e) {
         console.warn('News refresh error:', e);
       }
-    }, 60000);
+    }, INTEL_REFRESH_MS);
 
-    const weatherInterval = setInterval(() => fetchGlobalWeather().then(setWeatherAlerts), 300000);
-    const fireInterval = setInterval(() => fetchFires('24H').then(setFires), 120000);
-    const cameraInterval = setInterval(() => fetchAllCameras().then(setLiveCameras), 120000); // 2 min
+    const weatherInterval = setInterval(() => fetchGlobalWeather().then(setWeatherAlerts), INTEL_REFRESH_MS * 3); // 3 min
+    const fireInterval = setInterval(() => fetchFires('24H').then(setFires), INTEL_REFRESH_MS);
+    const cameraInterval = setInterval(() => fetchAllCameras().then(setLiveCameras), INTEL_REFRESH_MS * 2);
 
     return () => {
       clearInterval(aircraftInterval);
