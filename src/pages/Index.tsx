@@ -20,7 +20,7 @@ import { fetchEarthquakes, fetchLiveNews, fetchLiveAircraft } from '@/services/d
 import { generateRealisticSatellites, fetchISSPosition } from '@/services/satelliteService';
 import { fetchGlobalWeather, ACTIVE_VOLCANOES } from '@/services/weatherService';
 import { generateVessels, extractProtestsFromNews, extractOutagesFromNews, fetchCyberNews } from '@/services/vesselService';
-import { fetchActiveFiresEONET } from '@/services/fireService';
+import { fetchFires } from '@/services/fireService';
 import { fetchGdeltData } from '@/services/gdeltService';
 
 const Google3DGlobe = lazy(() => import('@/components/map/Google3DGlobe'));
@@ -224,8 +224,8 @@ const Index = () => {
     // Set volcanoes
     setVolcanoes(ACTIVE_VOLCANOES);
 
-    // Fetch active fires from NASA EONET
-    fetchActiveFiresEONET().then(setFires);
+    // Fetch active fires from NASA FIRMS + EONET
+    fetchFires('24H').then(setFires);
 
     // Refresh intervals
     const aircraftInterval = setInterval(() => {
@@ -268,7 +268,7 @@ const Index = () => {
 
     const weatherInterval = setInterval(() => fetchGlobalWeather().then(setWeatherAlerts), 600000);
 
-    const fireInterval = setInterval(() => fetchActiveFiresEONET().then(setFires), 600000);
+    const fireInterval = setInterval(() => fetchFires('24H').then(setFires), 300000); // 5 min
 
     return () => {
       clearInterval(aircraftInterval);
