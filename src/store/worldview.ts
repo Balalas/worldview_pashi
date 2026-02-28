@@ -127,7 +127,7 @@ export interface CountryInstability {
   level: 'critical' | 'high' | 'medium' | 'low';
 }
 
-export type BottomPanelTab = 'news' | 'livestream' | 'radio' | 'pizza' | 'weather' | 'stats' | 'posture' | 'instability' | 'risk';
+export type BottomPanelTab = 'news' | 'livestream' | 'radio' | 'pizza' | 'weather' | 'stats' | 'posture' | 'instability' | 'risk' | 'indexes';
 export type MapMode = '2d' | 'google3d';
 export type DashboardMode = 'WORLD' | 'TECH' | 'FINANCE';
 export type VisualStyle = 'normal' | 'crt' | 'nvg' | 'flir' | 'anime' | 'noir' | 'snow';
@@ -336,6 +336,9 @@ export interface WorldViewState {
   bottomPanelCollapsed: boolean;
   toggleBottomPanel: () => void;
 
+  bottomPanelExpanded: boolean;
+  setBottomPanelExpanded: (v: boolean) => void;
+
   bottomTab: BottomPanelTab;
   setBottomTab: (tab: BottomPanelTab) => void;
 
@@ -453,6 +456,9 @@ export const useWorldViewStore = create<WorldViewState>((set) => ({
 
   bottomPanelCollapsed: false,
   toggleBottomPanel: () => set((s) => ({ bottomPanelCollapsed: !s.bottomPanelCollapsed })),
+
+  bottomPanelExpanded: false,
+  setBottomPanelExpanded: (v) => set({ bottomPanelExpanded: v }),
 
   bottomTab: 'news',
   setBottomTab: (bottomTab) => set({ bottomTab }),
