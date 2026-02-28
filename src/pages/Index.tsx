@@ -350,9 +350,9 @@ const Index = () => {
   }
 
   return (
-    <div className="h-screen w-screen bg-void overflow-hidden relative">
-      {/* Full-screen map — no flex layout, map fills everything */}
-      <div className="absolute inset-0 z-0" style={{ isolation: 'isolate', ...(circularViewport ? { clipPath: 'circle(50% at 50% 50%)' } : {}) }}>
+    <div className="min-h-screen w-screen bg-void overflow-y-auto overflow-x-hidden relative">
+      {/* Full-screen map — takes full viewport height */}
+      <div className="h-screen w-screen sticky top-0 z-0 relative" style={{ isolation: 'isolate', ...(circularViewport ? { clipPath: 'circle(50% at 50% 50%)' } : {}) }}>
         {/* SVG filters for CRT effects */}
         <svg className="absolute w-0 h-0">
           <defs>
@@ -472,7 +472,7 @@ const Index = () => {
       )}
 
       {/* Floating UI layer — all panels overlay on top of full-screen map */}
-      <div className="absolute inset-0 pointer-events-none z-20">
+      <div className="fixed inset-0 pointer-events-none z-20">
         {/* HUD elements hidden during screensaver or immersive */}
         {!isScreensaver && (
           <>
@@ -519,21 +519,19 @@ const Index = () => {
         {/* Minimap Radar */}
         {!isScreensaver && <MinimapRadar />}
 
-        {/* Bottom Feed — floating ticker */}
-        {!isScreensaver && !immersiveMode && (
-          <div className={`absolute bottom-0 left-0 right-0 pointer-events-auto ${bottomPanelCollapsed ? 'h-[26px]' : bottomPanelExpanded ? 'h-[70vh]' : 'h-[200px]'}`}
-            style={{ transition: 'height 0.3s cubic-bezier(0.16,1,0.3,1)' }}
-          >
-            <BottomFeed />
-          </div>
-        )}
-
         {/* Keyboard shortcut hints */}
         {!isScreensaver && <KeyboardHints />}
 
         {/* Screensaver overlay */}
         {isScreensaver && <ScreensaverOverlay />}
       </div>
+
+      {/* Bottom Feed — grid view below the map, scrollable */}
+      {!isScreensaver && !immersiveMode && (
+        <div className="relative z-10">
+          <BottomFeed />
+        </div>
+      )}
     </div>
   );
 };
