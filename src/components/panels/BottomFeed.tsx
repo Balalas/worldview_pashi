@@ -8,6 +8,10 @@ import { CONFLICT_ZONES } from '@/data/conflictZones';
 import { fetchMarketSnapshot, MarketSnapshot } from '@/services/marketService';
 import { fetchTrendingSignals, TrendingSignal } from '@/services/trendingService';
 import { detectConvergenceZones, ConvergenceZone } from '@/services/convergenceService';
+import AIInsightsPanel from './AIInsightsPanel';
+import WebcamGrid from './WebcamGrid';
+import RegionalNewsPanel from './RegionalNewsPanel';
+import InfrastructureCascade from './InfrastructureCascade';
 
 const TABS: { key: BottomPanelTab; label: string; icon: string }[] = [
   { key: 'news', label: 'INTEL FEED', icon: '📡' },
@@ -96,7 +100,27 @@ const BottomFeed = memo(() => {
           </div>
         </div>
 
-        {/* Row 5: Livestreams + Radio + Sources + Pizza */}
+        {/* Row 5: AI Insights */}
+        <div className="border-b border-border">
+          <AIInsightsPanel />
+        </div>
+
+        {/* Row 6: Live Webcams */}
+        <div className="border-b border-border">
+          <WebcamGrid />
+        </div>
+
+        {/* Row 7: Regional News */}
+        <div className="border-b border-border">
+          <RegionalNewsPanel />
+        </div>
+
+        {/* Row 8: Infrastructure Cascade */}
+        <div className="border-b border-border">
+          <InfrastructureCascade />
+        </div>
+
+        {/* Row 9: Livestreams + Radio + Sources + Pizza */}
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 border-b border-border">
           <div className="border-r border-border">
             <LivestreamPanel />
