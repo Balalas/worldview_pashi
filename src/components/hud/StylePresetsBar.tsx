@@ -9,6 +9,7 @@ const PRESETS: { id: VisualStyle; label: string; icon: string }[] = [
   { id: 'anime', label: 'Anime', icon: '✦' },
   { id: 'noir', label: 'Noir', icon: '◐' },
   { id: 'snow', label: 'Snow', icon: '❄' },
+  { id: 'ai', label: 'AI', icon: '⬡' },
 ];
 
 export interface StyleConfig {
@@ -54,6 +55,11 @@ const STYLE_PARAMS: Record<VisualStyle, { label: string; key: string; default: n
     { label: 'Intensity', key: 'intensity', default: 50 },
     { label: 'Bloom', key: 'bloom', default: 40 },
     { label: 'Frost', key: 'frost', default: 30 },
+  ],
+  ai: [
+    { label: 'Edge Strength', key: 'edge', default: 60 },
+    { label: 'Scan Speed', key: 'scanSpeed', default: 50 },
+    { label: 'Grid Opacity', key: 'gridOpacity', default: 40 },
   ],
 };
 
@@ -132,6 +138,19 @@ export function computeStyleConfig(style: VisualStyle, params: Record<string, nu
         tint: `hsla(200, 80%, 95%, ${0.05 + intensity * 0.1})`,
         vignette: true,
         vignetteStrength: 0.3 + frost * 0.3,
+      };
+    }
+    case 'ai': {
+      const edge = p('edge', 60) / 100;
+      const scanSpeed = p('scanSpeed', 50) / 100;
+      const gridOpacity = p('gridOpacity', 40) / 100;
+      return {
+        filter: `saturate(${0.3 + (1 - edge) * 0.3}) contrast(${1.1 + edge * 0.4}) brightness(${0.85 + scanSpeed * 0.2})`,
+        tint: `hsla(180, 100%, 50%, ${0.02 + gridOpacity * 0.04})`,
+        scanlines: true,
+        scanlineOpacity: 0.03 + gridOpacity * 0.04,
+        vignette: true,
+        vignetteStrength: 0.3 + edge * 0.3,
       };
     }
     default:

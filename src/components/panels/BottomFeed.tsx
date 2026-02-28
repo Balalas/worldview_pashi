@@ -5,11 +5,17 @@ import { ACTIVE_VOLCANOES } from '@/services/weatherService';
 import { SUBMARINE_CABLES } from '@/data/submarineCables';
 import { RADIO_STATIONS, RadioStation } from '@/data/radioStations';
 import { CONFLICT_ZONES } from '@/data/conflictZones';
+import { fetchMarketSnapshot, MarketSnapshot } from '@/services/marketService';
+import { fetchTrendingSignals, TrendingSignal } from '@/services/trendingService';
+import { detectConvergenceZones, ConvergenceZone } from '@/services/convergenceService';
 
 const TABS: { key: BottomPanelTab; label: string; icon: string }[] = [
   { key: 'news', label: 'INTEL FEED', icon: '📡' },
   { key: 'livestream', label: 'LIVESTREAMS', icon: '📺' },
   { key: 'radio', label: 'RADIO', icon: '📻' },
+  { key: 'markets', label: 'MARKETS', icon: '📈' },
+  { key: 'trending', label: 'TRENDING', icon: '🔥' },
+  { key: 'convergence', label: 'CONVERGENCE', icon: '🎯' },
   { key: 'indexes', label: 'INDEXES', icon: '📊' },
   { key: 'posture', label: 'STRATEGIC POSTURE', icon: '🎯' },
   { key: 'instability', label: 'INSTABILITY INDEX', icon: '⚠' },
@@ -24,7 +30,7 @@ type NewsFilter = 'ALL' | 'CRITICAL' | 'MILITARY' | 'PROTEST' | 'CYBER';
 const BottomFeed = memo(() => {
   const { bottomTab, setBottomTab, bottomPanelCollapsed, toggleBottomPanel, bottomPanelExpanded, setBottomPanelExpanded } = useWorldViewStore();
 
-  const isExpandable = bottomTab === 'indexes' || bottomTab === 'posture' || bottomTab === 'instability' || bottomTab === 'risk';
+  const isExpandable = bottomTab === 'indexes' || bottomTab === 'posture' || bottomTab === 'instability' || bottomTab === 'risk' || bottomTab === 'markets' || bottomTab === 'trending' || bottomTab === 'convergence';
 
   return (
     <div className="glass-panel border-t border-primary/8 flex flex-col overflow-hidden z-30 h-full">
@@ -63,6 +69,9 @@ const BottomFeed = memo(() => {
             {bottomTab === 'news' && <NewsFeed />}
             {bottomTab === 'livestream' && <LivestreamPanel />}
             {bottomTab === 'radio' && <RadioPanel />}
+            {bottomTab === 'markets' && <MarketsPanel />}
+            {bottomTab === 'trending' && <TrendingPanel />}
+            {bottomTab === 'convergence' && <ConvergencePanel />}
             {bottomTab === 'indexes' && <CombinedIndexesPanel />}
             {bottomTab === 'posture' && <StrategicPosturePanel />}
             {bottomTab === 'instability' && <InstabilityIndexPanel />}
@@ -936,9 +945,166 @@ const CombinedIndexesPanel = memo(() => {
   );
 });
 
+// ── Markets Panel ──
+const MarketsPanel = memo(() => {
+  const [snapshot, setSnapshot] = useState<MarketSnapshot | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchMarketSnapshot().then(s => { setSnapshot(s); setLoading(false); });
+    const interval = setInterval(() => fetchMarketSnapshot().then(setSnapshot), 120000);
+    return () => clearInterval(interval);
+  }, []);
+
+  if (loading) return <div className="h-full flex items-center justify-center"><span className="text-[10px] font-data text-primary animate-pulse-dot">FETCHING MARKET DATA...</span></div>;
+
+  const fgColor = (snapshot?.fearGreed?.value ?? 50) <= 25 ? 'text-alert-critical' : (snapshot?.fearGreed?.value ?? 50) >= 75 ? 'text-signal-aircraft' : (snapshot?.fearGreed?.value ?? 50) >= 50 ? 'text-alert-medium' : 'text-alert-high';
+
+  return (
+    <div className="h-full overflow-y-auto p-3">
+      <div className="flex items-center gap-2 mb-3">
+        <h2 className="text-[10px] font-display tracking-[0.2em] text-muted-foreground">📈 MARKETS & CRYPTO</h2>
+        <span className="text-[8px] font-data text-primary animate-pulse-dot">● LIVE</span>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {/* Fear & Greed + BTC Hashrate */}
+        <div className="bg-card-bg/60 rounded border border-border p-3">
+          <h3 className="text-[9px] font-display tracking-wider text-muted-foreground mb-2">SENTIMENT</h3>
+          {snapshot?.fearGreed && (
+            <div className="text-center mb-3">
+              <div className={`text-[36px] font-data font-bold ${fgColor}`}>{snapshot.fearGreed.value}</div>
+              <div className={`text-[9px] font-display tracking-wider ${fgColor}`}>{snapshot.fearGreed.classification.toUpperCase()}</div>
+              <div className="text-[7px] font-data text-muted-foreground mt-1">FEAR & GREED INDEX</div>
+            </div>
+          )}
+          {snapshot?.btcHashrate && (
+            <div className="flex justify-between items-center border-t border-border pt-2">
+              <span className="text-[8px] font-data text-muted-foreground">BTC HASHRATE</span>
+              <span className="text-[10px] font-data text-data-text font-bold">{snapshot.btcHashrate.toFixed(0)} EH/s</span>
+            </div>
+          )}
+          {snapshot?.globalMarketCap && (
+            <div className="flex justify-between items-center mt-1.5">
+              <span className="text-[8px] font-data text-muted-foreground">GLOBAL MCAP</span>
+              <span className="text-[10px] font-data text-data-text font-bold">${(snapshot.globalMarketCap / 1e12).toFixed(2)}T</span>
+            </div>
+          )}
+        </div>
+        {/* Crypto prices */}
+        <div className="col-span-2 bg-card-bg/60 rounded border border-border p-3">
+          <h3 className="text-[9px] font-display tracking-wider text-muted-foreground mb-2">CRYPTO</h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+            {snapshot?.crypto.map(c => (
+              <div key={c.id} className="bg-card-bg/40 rounded border border-border p-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-display tracking-wide text-foreground">{c.symbol}</span>
+                  <span className={`text-[8px] font-data ${c.change24h >= 0 ? 'text-signal-aircraft' : 'text-alert-critical'}`}>
+                    {c.change24h >= 0 ? '▲' : '▼'}{Math.abs(c.change24h).toFixed(1)}%
+                  </span>
+                </div>
+                <div className="text-[14px] font-data font-bold text-data-text mt-0.5">
+                  ${c.price >= 1000 ? c.price.toLocaleString(undefined, { maximumFractionDigits: 0 }) : c.price.toFixed(2)}
+                </div>
+                <div className="text-[7px] font-data text-muted-foreground">{c.name}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+// ── Trending Signals Panel ──
+const TrendingPanel = memo(() => {
+  const [signals, setSignals] = useState<TrendingSignal[]>([]);
+  useEffect(() => {
+    fetchTrendingSignals().then(setSignals);
+    const interval = setInterval(() => fetchTrendingSignals().then(setSignals), 300000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="h-full overflow-y-auto p-3">
+      <div className="flex items-center gap-2 mb-3">
+        <h2 className="text-[10px] font-display tracking-[0.2em] text-muted-foreground">🔥 TRENDING SIGNALS</h2>
+        <span className="text-[8px] font-data text-text-secondary">● {signals.length} TOPICS</span>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+        {signals.map(s => {
+          const levelColor = s.level === 'critical' ? 'border-l-alert-critical' : s.level === 'high' ? 'border-l-alert-high' : s.level === 'medium' ? 'border-l-alert-medium' : 'border-l-primary/30';
+          const volColor = s.level === 'critical' ? 'bg-alert-critical' : s.level === 'high' ? 'bg-alert-high' : s.level === 'medium' ? 'bg-alert-medium' : 'bg-primary/40';
+          const velIcon = s.velocity === 'rising' ? '↗' : s.velocity === 'falling' ? '↘' : '→';
+          const velColor = s.velocity === 'rising' ? 'text-alert-critical' : s.velocity === 'falling' ? 'text-signal-aircraft' : 'text-muted-foreground';
+          return (
+            <div key={s.id} className={`bg-card-bg/60 border-l-2 ${levelColor} rounded-r px-3 py-2`}>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] font-display tracking-wide text-foreground">{s.name}</span>
+                <span className={`text-[9px] font-data ${velColor}`}>{velIcon} {s.change24h > 0 ? '+' : ''}{s.change24h}%</span>
+              </div>
+              <div className="w-full h-1.5 bg-card-hover rounded-full overflow-hidden">
+                <div className={`h-full rounded-full ${volColor}`} style={{ width: `${s.volume}%` }} />
+              </div>
+              <div className="text-[7px] font-data text-muted-foreground mt-1">VOL: {s.volume} | {s.velocity.toUpperCase()}</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+});
+
+// ── Convergence Detection Panel ──
+const ConvergencePanel = memo(() => {
+  const { earthquakes, protests, outages, fires, aircraft, setMapCenter } = useWorldViewStore();
+  const milCount = aircraft.filter(a => a.isMilitary).length;
+  const zones = detectConvergenceZones(earthquakes, protests, outages, fires, milCount);
+
+  return (
+    <div className="h-full overflow-y-auto p-3">
+      <div className="flex items-center gap-2 mb-3">
+        <h2 className="text-[10px] font-display tracking-[0.2em] text-muted-foreground">🎯 CONVERGENCE ZONES</h2>
+        <span className="text-[8px] font-data text-text-secondary">● {zones.length} DETECTED</span>
+        {zones.some(z => z.level === 'critical') && <span className="text-[8px] font-data text-alert-critical animate-pulse-dot ml-auto">⚠ CRITICAL CONVERGENCE</span>}
+      </div>
+      <div className="text-[8px] font-data text-muted-foreground mb-2">
+        Detects geographic areas where multiple event types co-occur (earthquake + protest + conflict = convergence zone).
+      </div>
+      {zones.length === 0 ? (
+        <div className="text-center py-8 text-muted-foreground text-[10px] font-data">No convergence zones detected. Enable more data layers to improve detection.</div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+          {zones.map((z, i) => {
+            const borderColor = z.level === 'critical' ? 'border-alert-critical/50' : z.level === 'high' ? 'border-alert-high/40' : 'border-border';
+            const scoreColor = z.level === 'critical' ? 'text-alert-critical' : z.level === 'high' ? 'text-alert-high' : 'text-alert-medium';
+            return (
+              <div key={i} onClick={() => setMapCenter({ lat: z.lat, lon: z.lon, zoom: 7 })}
+                className={`bg-card-bg/60 rounded border p-3 cursor-pointer hover:bg-card-hover transition-colors ${borderColor}`}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] font-display tracking-wide text-foreground">{z.locationName || `${z.lat.toFixed(1)}°, ${z.lon.toFixed(1)}°`}</span>
+                  <span className={`text-[14px] font-data font-bold ${scoreColor}`}>{z.score}</span>
+                </div>
+                <div className="flex flex-wrap gap-1 mb-1.5">
+                  {z.types.map(t => (
+                    <span key={t} className="text-[7px] font-data bg-primary/10 text-primary px-1.5 py-0.5 rounded">{t.toUpperCase()}</span>
+                  ))}
+                </div>
+                <div className="text-[7px] font-data text-muted-foreground">{z.eventCount} events • {z.types.length} types • Click to fly</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+});
+
 NewsFeed.displayName = 'NewsFeed';
 LivestreamPanel.displayName = 'LivestreamPanel';
 RadioPanel.displayName = 'RadioPanel';
+MarketsPanel.displayName = 'MarketsPanel';
+TrendingPanel.displayName = 'TrendingPanel';
+ConvergencePanel.displayName = 'ConvergencePanel';
 WeatherPanel.displayName = 'WeatherPanel';
 WorldStatsPanel.displayName = 'WorldStatsPanel';
 PizzaIndexPanel.displayName = 'PizzaIndexPanel';
