@@ -1,5 +1,6 @@
-import { memo } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { useWorldViewStore } from '@/store/worldview';
+import { getCountryByCode, CountryData, formatPopulation, formatArea } from '@/services/countryService';
 
 const RightPanel = memo(() => {
   const { detailPanel, closeDetailPanel, bottomPanelCollapsed } = useWorldViewStore();
@@ -255,6 +256,15 @@ const CameraDetail = ({ data }: { data: any }) => {
 
 const CountryDetail = ({ data }: { data: any }) => {
   const { setActiveLivestream, setDetailPanel, setMapCenter } = useWorldViewStore();
+  const [enriched, setEnriched] = useState<CountryData | null>(null);
+
+  useEffect(() => {
+    if (data.code) {
+      const cd = getCountryByCode(data.code);
+      if (cd) setEnriched(cd);
+    }
+  }, [data.code]);
+
   return (
     <div className="space-y-1">
       <div className="flex items-center gap-2 mb-1">
@@ -264,6 +274,31 @@ const CountryDetail = ({ data }: { data: any }) => {
           <div className="text-[8px] font-data text-muted-foreground">{data.code} • {data.newsCount} NEWS</div>
         </div>
       </div>
+
+      {/* Enriched country data from RestCountries */}
+      {enriched && (
+        <div className="border-t border-border/50 pt-1">
+          <div className="text-[8px] font-display tracking-[0.15em] text-primary mb-1">📊 COUNTRY DATA</div>
+          <DataRow label="POPULATION" value={formatPopulation(enriched.population)} />
+          <DataRow label="AREA" value={formatArea(enriched.area)} />
+          <DataRow label="CAPITAL" value={enriched.capital} />
+          <DataRow label="REGION" value={`${enriched.subregion || enriched.region}`} />
+          {enriched.languages.length > 0 && (
+            <DataRow label="LANGUAGES" value={enriched.languages.slice(0, 3).join(', ')} />
+          )}
+          {enriched.currencies.length > 0 && (
+            <DataRow label="CURRENCY" value={enriched.currencies[0].split('(')[0].trim()} />
+          )}
+          {enriched.gini !== undefined && (
+            <DataRow label="GINI INDEX" value={String(enriched.gini)} sub={enriched.gini > 40 ? 'HIGH INEQUALITY' : 'MODERATE'} />
+          )}
+          <DataRow label="UN MEMBER" value={enriched.unMember ? 'YES' : 'NO'} />
+          {enriched.borders.length > 0 && (
+            <DataRow label="BORDERS" value={`${enriched.borders.length} countries`} />
+          )}
+        </div>
+      )}
+
       {data.news.length > 0 && (
         <div className="border-t border-border/50 pt-1">
           <div className="text-[8px] font-display tracking-[0.15em] text-primary mb-1">📰 NEWS</div>
