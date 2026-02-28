@@ -23,6 +23,9 @@ export interface Aircraft {
   verticalRate: number;
   onGround: boolean;
   isMilitary: boolean;
+  missionType?: 'Tanker/Transport' | 'VIP Transport' | 'Surveillance' | 'Medical Evacuation' | 'Classified' | 'Military';
+  squawk?: string;
+  lastContact?: number;
 }
 
 export interface Satellite {
@@ -31,6 +34,10 @@ export interface Satellite {
   lon: number;
   alt: number;
   velocity: number;
+  category: 'station' | 'starlink' | 'military' | 'active';
+  noradId?: string;
+  tle1?: string;
+  tle2?: string;
 }
 
 export interface Earthquake {

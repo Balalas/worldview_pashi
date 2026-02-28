@@ -1,5 +1,6 @@
 import { useEffect, useRef, memo, useCallback, useState } from 'react';
 import { useWorldViewStore, NUCLEAR_SITES, FollowTarget, LANDMARK_PRESETS } from '@/store/worldview';
+import { computeOrbitTrajectory, projectAircraftPath } from '@/services/satelliteService';
 import { CONFLICT_ZONES } from '@/data/conflictZones';
 import { SUBMARINE_CABLES } from '@/data/submarineCables';
 import { MILITARY_BASES, SPACEPORTS, CHOKEPOINTS, DATACENTERS, CRITICAL_MINERALS } from '@/data/staticLayers';
@@ -34,22 +35,69 @@ function svgEl(svgStr: string): SVGElement {
   return new DOMParser().parseFromString(svgStr, 'image/svg+xml').documentElement as unknown as SVGElement;
 }
 
-function aircraftSvg(heading: number, color: string, callsign: string) {
+// ── Reticle Cache ──
+const reticleCache = new Map<string, SVGElement>();
+
+function aircraftReticleSvg(heading: number, isMilitary: boolean, callsign: string) {
+  const roundedHeading = Math.round(heading / 5) * 5 % 360;
+  const cacheKey = `ac-${roundedHeading}-${isMilitary ? 1 : 0}`;
+  
+  const color = isMilitary ? '#c47a54' : '#22cc66';
+  const s = 36;
+  const inset = s * 0.1;
+  const bracketLen = s * 0.25;
+  const crossGap = s * 0.16;
+  const crossEnd = s * 0.06;
+  const cx = s / 2;
+  const cy = s / 2;
+  
+  // Airplane silhouette rotated by heading
   const w = 80, h = 54;
   return svgEl(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
-    <g transform="translate(40,18) rotate(${heading})">
-      <path d="M0,-14 L-5,8 L-14,12 L-14,14 L-5,10 L-3,16 L-6,18 L-6,20 L0,18 L6,20 L6,18 L3,16 L5,10 L14,14 L14,12 L5,8 Z"
-        fill="${color}" stroke="#000" stroke-width="0.8" opacity="0.95"/>
+    <defs>
+      <filter id="glow-${cacheKey}" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur stdDeviation="0.8" result="blur"/>
+        <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>
+    <g transform="translate(40,18)" filter="url(#glow-${cacheKey})">
+      <!-- Corner brackets -->
+      <line x1="${-14}" y1="${-14}" x2="${-14+bracketLen}" y2="${-14}" stroke="${color}" stroke-width="1.5" opacity="0.63"/>
+      <line x1="${-14}" y1="${-14}" x2="${-14}" y2="${-14+bracketLen}" stroke="${color}" stroke-width="1.5" opacity="0.63"/>
+      <line x1="${14}" y1="${-14}" x2="${14-bracketLen}" y2="${-14}" stroke="${color}" stroke-width="1.5" opacity="0.63"/>
+      <line x1="${14}" y1="${-14}" x2="${14}" y2="${-14+bracketLen}" stroke="${color}" stroke-width="1.5" opacity="0.63"/>
+      <line x1="${-14}" y1="${14}" x2="${-14+bracketLen}" y2="${14}" stroke="${color}" stroke-width="1.5" opacity="0.63"/>
+      <line x1="${-14}" y1="${14}" x2="${-14}" y2="${14-bracketLen}" stroke="${color}" stroke-width="1.5" opacity="0.63"/>
+      <line x1="${14}" y1="${14}" x2="${14-bracketLen}" y2="${14}" stroke="${color}" stroke-width="1.5" opacity="0.63"/>
+      <line x1="${14}" y1="${14}" x2="${14}" y2="${14-bracketLen}" stroke="${color}" stroke-width="1.5" opacity="0.63"/>
+      <!-- Crosshairs -->
+      <line x1="${-14}" y1="0" x2="${-crossGap*18/2}" y2="0" stroke="${color}" stroke-width="0.7" opacity="0.36"/>
+      <line x1="${crossGap*18/2}" y1="0" x2="${14}" y2="0" stroke="${color}" stroke-width="0.7" opacity="0.36"/>
+      <line x1="0" y1="${-14}" x2="0" y2="${-crossGap*18/2}" stroke="${color}" stroke-width="0.7" opacity="0.36"/>
+      <line x1="0" y1="${crossGap*18/2}" x2="0" y2="${14}" stroke="${color}" stroke-width="0.7" opacity="0.36"/>
+      <!-- Aircraft silhouette -->
+      <g transform="rotate(${roundedHeading})">
+        <path d="M0,-10 L-4,6 L-10,9 L-10,10 L-4,8 L-2,13 L-5,15 L-5,16 L0,14 L5,16 L5,15 L2,13 L4,8 L10,10 L10,9 L4,6 Z"
+          fill="${color}" stroke="#000" stroke-width="0.5" opacity="0.95"/>
+      </g>
     </g>
     <rect x="4" y="38" width="${w-8}" height="14" rx="2" fill="#000" fill-opacity="0.7"/>
-    <text x="${w/2}" y="49" text-anchor="middle" font-family="monospace" font-size="9" fill="${color}" font-weight="bold">${callsign}</text>
+    <text x="${w/2}" y="49" text-anchor="middle" font-family="monospace" font-size="9" fill="${color}" font-weight="bold">${callsign}${isMilitary ? ' ★' : ''}</text>
   </svg>`);
 }
 
-function satelliteSvg(color: string, name: string, isISS: boolean) {
+function satelliteReticleSvg(color: string, name: string, isISS: boolean, category?: string) {
   const s = isISS ? 100 : 50;
   const iconSize = isISS ? 22 : 10;
+  // Diamond reticle for regular sats, ring for stations
+  const reticleShape = isISS 
+    ? `<circle cx="${s/2}" cy="${isISS?20:14}" r="${iconSize}" fill="none" stroke="${color}" stroke-width="1.5" opacity="0.6"/>`
+    : `<polygon points="${s/2},${4} ${s/2+8},${14} ${s/2},${24} ${s/2-8},${14}" fill="none" stroke="${color}" stroke-width="1.2" opacity="0.6"/>`;
+  
+  const missionLabel = category === 'military' ? ' ⚔' : category === 'station' ? ' ●LIVE' : '';
+  
   return svgEl(`<svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${s}" viewBox="0 0 ${s} ${s}">
+    ${reticleShape}
     <circle cx="${s/2}" cy="${isISS?20:14}" r="${iconSize/2}" fill="${color}" opacity="0.9">
       <animate attributeName="opacity" values="0.9;0.4;0.9" dur="2s" repeatCount="indefinite"/>
     </circle>
@@ -60,9 +108,9 @@ function satelliteSvg(color: string, name: string, isISS: boolean) {
     ${isISS ? `
       <line x1="${s/2-16}" y1="20" x2="${s/2+16}" y2="20" stroke="${color}" stroke-width="2" opacity="0.7"/>
       <rect x="${s/2-3}" y="38" width="${s-s/2+6}" height="14" rx="2" fill="#000" fill-opacity="0.7" transform="translate(${-s/2+s/2-3},0)"/>
-      <text x="${s/2}" y="49" text-anchor="middle" font-family="monospace" font-size="10" fill="#ff6600" font-weight="bold">ISS ●LIVE</text>
+      <text x="${s/2}" y="49" text-anchor="middle" font-family="monospace" font-size="10" fill="#ff6600" font-weight="bold">ISS${missionLabel}</text>
     ` : `
-      <text x="${s/2}" y="${s-4}" text-anchor="middle" font-family="monospace" font-size="6" fill="${color}" opacity="0.7">${name.substring(0,12)}</text>
+      <text x="${s/2}" y="${s-4}" text-anchor="middle" font-family="monospace" font-size="6" fill="${color}" opacity="0.7">${name.substring(0,12)}${missionLabel}</text>
     `}
   </svg>`);
 }
@@ -595,11 +643,88 @@ const Google3DGlobe = memo(() => {
       }
     };
 
-    drawTrajectory(followTarget);
+    // Spec-based cinematic follow altitudes
+    const drawTrajectorySpec = async (ft: FollowTarget) => {
+      try {
+        trajectoryRef.current.forEach(p => { try { p.remove(); } catch {} });
+        trajectoryRef.current = [];
 
-    // Cinematic initial fly-to with longer duration for smooth entry
-    const defaultRange = followTarget.type === 'satellite' ? 150000 : followTarget.type === 'aircraft' ? 8000 : 3000;
-    const defaultTilt = followTarget.type === 'satellite' ? 55 : 72;
+        const { Polyline3DElement } = await (google.maps as any).importLibrary('maps3d');
+
+        let pathPoints: { lat: number; lng: number; altitude: number }[];
+        let trailColor: string;
+
+        if (ft.type === 'satellite') {
+          // Find satellite with TLE data for proper orbit computation
+          const state = useWorldViewStore.getState();
+          const sat = state.satellites.find(s => s.name === ft.id);
+          if (sat?.tle1 && sat?.tle2) {
+            const orbitPath = computeOrbitTrajectory(sat.tle1, sat.tle2, 360);
+            pathPoints = orbitPath.map(p => ({ lat: p.lat, lng: p.lon, altitude: p.alt * 1000 }));
+            trailColor = '#00d4ff';
+          } else {
+            pathPoints = generateTrajectory(ft.lat, ft.lon, ft.heading, ft.speed, ft.altitude, 'satellite');
+            trailColor = '#ff3333';
+          }
+        } else if (ft.type === 'aircraft') {
+          // 30-min forward projection via Haversine
+          const forwardPath = projectAircraftPath(ft.lat, ft.lon, ft.altitude, ft.heading, ft.speed / 1.852, 30, 60);
+          pathPoints = forwardPath.map(p => ({ lat: p.lat, lng: p.lon, altitude: p.alt }));
+          trailColor = ft.heading ? '#22cc66' : '#ff4444';
+          
+          // Check if military for color
+          const state = useWorldViewStore.getState();
+          const ac = state.aircraft.find(a => a.callsign === ft.id);
+          if (ac?.isMilitary) trailColor = '#c47a54';
+        } else {
+          pathPoints = generateTrajectory(ft.lat, ft.lon, ft.heading, ft.speed, ft.altitude, ft.type);
+          trailColor = '#4488ff';
+        }
+
+        if (pathPoints.length < 2) return;
+
+        // Multi-layered trajectory: glow + core
+        const glow = new Polyline3DElement({
+          strokeColor: trailColor + '40', strokeWidth: 6,
+          altitudeMode: ft.altitude > 100 ? 'ABSOLUTE' : 'CLAMP_TO_GROUND',
+        });
+        glow.path = pathPoints;
+        map.append(glow);
+        trajectoryRef.current.push(glow);
+
+        // Ground track shadow (clamped to ground)
+        const groundTrack = new Polyline3DElement({
+          strokeColor: trailColor + '1F', strokeWidth: 1,
+          altitudeMode: 'CLAMP_TO_GROUND',
+        });
+        groundTrack.path = pathPoints.map(p => ({ ...p, altitude: 0 }));
+        map.append(groundTrack);
+        trajectoryRef.current.push(groundTrack);
+
+        const core = new Polyline3DElement({
+          strokeColor: trailColor, strokeWidth: 2,
+          altitudeMode: ft.altitude > 100 ? 'ABSOLUTE' : 'CLAMP_TO_GROUND',
+        });
+        core.path = pathPoints;
+        map.append(core);
+        trajectoryRef.current.push(core);
+      } catch (err) {
+        console.warn('Trajectory polyline fail:', err);
+      }
+    };
+
+    drawTrajectorySpec(followTarget);
+
+    // Cinematic follow altitude per spec
+    // Aircraft: max(altitude × 0.8, 3000m), Satellite: altitude × 2.5
+    const followAlt = followTarget.type === 'aircraft' 
+      ? Math.max(followTarget.altitude * 0.8, 3000)
+      : followTarget.type === 'satellite'
+        ? followTarget.altitude * 2.5
+        : followTarget.altitude * 1.5;
+    const defaultRange = followTarget.type === 'satellite' ? followAlt : followTarget.type === 'aircraft' ? followAlt : 3000;
+    const defaultTilt = 60; // -30° pitch = 60° tilt
+    const followPitch = -30;
     if (typeof map.flyCameraTo === 'function') {
       map.flyCameraTo({
         endCamera: {
@@ -608,7 +733,7 @@ const Google3DGlobe = memo(() => {
           tilt: defaultTilt,
           heading: (followTarget.heading + 180) % 360,
         },
-        durationMillis: 2500,
+        durationMillis: 1500, // 1.5s per spec
       });
     } else {
       map.center = { lat: followTarget.lat, lng: followTarget.lon, altitude: followTarget.altitude };
@@ -658,14 +783,14 @@ const Google3DGlobe = memo(() => {
           lastTrajectoryDraw = now;
           const updatedTarget: FollowTarget = { ...ft, lat: targetLat, lon: targetLon, altitude: targetAlt, heading: updatedHdg, speed: updatedSpd };
           useWorldViewStore.getState().setFollowTarget(updatedTarget);
-          drawTrajectory(updatedTarget);
+          drawTrajectorySpec(updatedTarget);
         }
 
         rafId = requestAnimationFrame(tick);
       };
 
       rafId = requestAnimationFrame(tick);
-    }, 2800); // slightly after the 2500ms initial fly-to
+    }, 1800); // slightly after the 1500ms initial fly-to
 
     return () => {
       clearTimeout(startFollowTimeout);
@@ -897,10 +1022,9 @@ const Google3DGlobe = memo(() => {
         filteredAircraft = filteredAircraft.slice(0, maxCount);
       }
       filteredAircraft.forEach(ac => {
-        const color = ac.isMilitary ? '#ff6b35' : '#00ff88';
         const alt = Math.max(ac.altitudeFt * 0.3048, 500);
         addMarker(ac.lat, ac.lon,
-          aircraftSvg(ac.heading, color, ac.callsign),
+          aircraftReticleSvg(ac.heading, ac.isMilitary, ac.callsign),
           alt, true,
           () => {
             setDetailPanel({ type: 'aircraft', data: ac });
@@ -919,8 +1043,9 @@ const Google3DGlobe = memo(() => {
     if (layers.satellites) {
       satellites.forEach(sat => {
         const isISS = sat.name.includes('ISS');
-        const isMil = sat.name.includes('COSMOS') || sat.name.includes('USA-') || sat.name.includes('MUOS') || sat.name.includes('NROL') || sat.name.includes('YAOGAN') || sat.name.includes('HAWK');
-        const isStarlink = sat.name.includes('STARLINK');
+        const category = sat.category || 'active';
+        const isMil = category === 'military';
+        const isStarlink = category === 'starlink';
         const isDebris = sat.name.includes('DEBRIS');
 
         // Apply sub-filters
@@ -930,9 +1055,9 @@ const Google3DGlobe = memo(() => {
         if (!isISS && !isMil && !isStarlink && !isDebris && !layerSubFilters.showCommSats) return;
 
         const color = isStarlink ? '#a855f7' : isMil ? '#ff6b35' : isISS ? '#ff6600' : isDebris ? '#666666' : '#00d4ff';
-        const alt = sat.alt * 1000;
+        const alt = sat.alt > 0 ? sat.alt * 1000 : 400000;
         addMarker(sat.lat, sat.lon,
-          satelliteSvg(color, sat.name, isISS),
+          satelliteReticleSvg(color, sat.name, isISS, category),
           alt, true,
           () => {
             setDetailPanel({ type: 'satellite', data: sat });
