@@ -550,10 +550,19 @@ const Google3DGlobe = memo(() => {
     }
   }, [mapCenter]);
 
-  // ── Follow effect: fly-to on click, then update trajectory + telemetry only ──
+  // ── Follow effect: locked-center camera tracking with free orbit/zoom ──
+  // Spec: "locked center" camera follows target coords while user can freely orbit & zoom.
+  // Uses requestAnimationFrame for smooth interpolation instead of overlapping flyCameraTo calls.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !followTarget) return;
+
+    // Smoothing state for lerp-based center lock
+    let smoothLat = followTarget.lat;
+    let smoothLon = followTarget.lon;
+    let smoothAlt = followTarget.altitude;
+    let rafId: number | null = null;
+    let lastTrajectoryDraw = 0;
 
     // Draw trajectory polyline
     const drawTrajectory = async (ft: FollowTarget) => {
@@ -565,7 +574,15 @@ const Google3DGlobe = memo(() => {
         const pathPoints = generateTrajectory(ft.lat, ft.lon, ft.heading, ft.speed, ft.altitude, ft.type);
         const trailColor = ft.type === 'aircraft' ? '#ff4444' : ft.type === 'satellite' ? '#ff3333' : '#4488ff';
 
-        // Thin trajectory line
+        // Multi-layered trajectory: glow + core
+        const glow = new Polyline3DElement({
+          strokeColor: trailColor + '40', strokeWidth: 6,
+          altitudeMode: ft.altitude > 100 ? 'ABSOLUTE' : 'CLAMP_TO_GROUND',
+        });
+        glow.path = pathPoints;
+        map.append(glow);
+        trajectoryRef.current.push(glow);
+
         const core = new Polyline3DElement({
           strokeColor: trailColor, strokeWidth: 2,
           altitudeMode: ft.altitude > 100 ? 'ABSOLUTE' : 'CLAMP_TO_GROUND',
@@ -580,69 +597,81 @@ const Google3DGlobe = memo(() => {
 
     drawTrajectory(followTarget);
 
-    // Cinematic initial fly-to
-    const range = followTarget.type === 'satellite' ? 150000 : followTarget.type === 'aircraft' ? 8000 : 3000;
-    const tilt = followTarget.type === 'satellite' ? 55 : 72;
+    // Cinematic initial fly-to with longer duration for smooth entry
+    const defaultRange = followTarget.type === 'satellite' ? 150000 : followTarget.type === 'aircraft' ? 8000 : 3000;
+    const defaultTilt = followTarget.type === 'satellite' ? 55 : 72;
     if (typeof map.flyCameraTo === 'function') {
       map.flyCameraTo({
         endCamera: {
           center: { lat: followTarget.lat, lng: followTarget.lon, altitude: followTarget.altitude },
-          range,
-          tilt,
+          range: defaultRange,
+          tilt: defaultTilt,
           heading: (followTarget.heading + 180) % 360,
         },
-        durationMillis: 3000,
+        durationMillis: 2500,
       });
     } else {
       map.center = { lat: followTarget.lat, lng: followTarget.lon, altitude: followTarget.altitude };
-      map.range = range;
-      map.tilt = tilt;
-      map.heading = (followTarget.heading + 180) % 360;
+      map.range = defaultRange;
+      map.tilt = defaultTilt;
     }
 
-    // Periodic update: keep camera centered on target smoothly
-    followIntervalRef.current = setInterval(() => {
-      const ft = useWorldViewStore.getState().followTarget;
-      if (!ft) { if (followIntervalRef.current) clearInterval(followIntervalRef.current); return; }
+    // Wait for initial fly-to to finish before starting smooth follow
+    const startFollowTimeout = setTimeout(() => {
+      // Smooth locked-center loop using rAF — only moves the center, preserving user orbit/zoom/tilt
+      const LERP_FACTOR = 0.08; // smooth interpolation speed (lower = smoother, higher = snappier)
 
-      const state = useWorldViewStore.getState();
-      let updatedLat = ft.lat, updatedLon = ft.lon, updatedAlt = ft.altitude, updatedHdg = ft.heading, updatedSpd = ft.speed;
+      const tick = () => {
+        if (!mapRef.current) return;
+        const ft = useWorldViewStore.getState().followTarget;
+        if (!ft) return;
 
-      if (ft.type === 'aircraft') {
-        const ac = state.aircraft.find(a => a.callsign === ft.id);
-        if (ac) { updatedLat = ac.lat; updatedLon = ac.lon; updatedAlt = Math.max(ac.altitudeFt * 0.3048, 500); updatedHdg = ac.heading; updatedSpd = ac.speedKts * 1.852; }
-      } else if (ft.type === 'satellite') {
-        const sat = state.satellites.find(s => s.name === ft.id);
-        if (sat) { updatedLat = sat.lat; updatedLon = sat.lon; updatedAlt = sat.alt * 1000; updatedSpd = sat.velocity * 3600; }
-      } else if (ft.type === 'vessel') {
-        const v = state.vessels.find(v => v.id === ft.id);
-        if (v) { updatedLat = v.lat; updatedLon = v.lon; updatedHdg = v.heading; updatedSpd = v.speedKnots * 1.852; }
-      }
+        // Get latest entity position from store
+        const state = useWorldViewStore.getState();
+        let targetLat = ft.lat, targetLon = ft.lon, targetAlt = ft.altitude;
+        let updatedHdg = ft.heading, updatedSpd = ft.speed;
 
-      const updatedTarget: FollowTarget = { ...ft, lat: updatedLat, lon: updatedLon, altitude: updatedAlt, heading: updatedHdg, speed: updatedSpd };
-      useWorldViewStore.getState().setFollowTarget(updatedTarget);
+        if (ft.type === 'aircraft') {
+          const ac = state.aircraft.find(a => a.callsign === ft.id);
+          if (ac) { targetLat = ac.lat; targetLon = ac.lon; targetAlt = Math.max(ac.altitudeFt * 0.3048, 500); updatedHdg = ac.heading; updatedSpd = ac.speedKts * 1.852; }
+        } else if (ft.type === 'satellite') {
+          const sat = state.satellites.find(s => s.name === ft.id);
+          if (sat) { targetLat = sat.lat; targetLon = sat.lon; targetAlt = sat.alt * 1000; updatedSpd = sat.velocity * 3600; }
+        } else if (ft.type === 'vessel') {
+          const v = state.vessels.find(v2 => v2.id === ft.id);
+          if (v) { targetLat = v.lat; targetLon = v.lon; updatedHdg = v.heading; updatedSpd = v.speedKnots * 1.852; }
+        }
 
-      // Smooth camera follow using flyCameraTo for interpolation
-      if (typeof map.flyCameraTo === 'function') {
-        map.flyCameraTo({
-          endCamera: {
-            center: { lat: updatedLat, lng: updatedLon, altitude: updatedAlt },
-            range: map.range ?? range,
-            tilt: map.tilt ?? tilt,
-            heading: map.heading ?? 0,
-          },
-          durationMillis: 1800,
-        });
-      } else {
-        map.center = { lat: updatedLat, lng: updatedLon, altitude: updatedAlt };
-      }
+        // Lerp center position for buttery-smooth movement
+        smoothLat += (targetLat - smoothLat) * LERP_FACTOR;
+        smoothLon += (targetLon - smoothLon) * LERP_FACTOR;
+        smoothAlt += (targetAlt - smoothAlt) * LERP_FACTOR;
 
-      // Redraw trajectory at new position
-      drawTrajectory(updatedTarget);
-    }, 2000);
+        // Only update center — preserve user's range, tilt, heading (free orbit)
+        try {
+          map.center = { lat: smoothLat, lng: smoothLon, altitude: smoothAlt };
+        } catch {}
+
+        // Update follow target state (for HUD telemetry) at reduced rate
+        const now = Date.now();
+        if (now - lastTrajectoryDraw > 3000) {
+          lastTrajectoryDraw = now;
+          const updatedTarget: FollowTarget = { ...ft, lat: targetLat, lon: targetLon, altitude: targetAlt, heading: updatedHdg, speed: updatedSpd };
+          useWorldViewStore.getState().setFollowTarget(updatedTarget);
+          drawTrajectory(updatedTarget);
+        }
+
+        rafId = requestAnimationFrame(tick);
+      };
+
+      rafId = requestAnimationFrame(tick);
+    }, 2800); // slightly after the 2500ms initial fly-to
 
     return () => {
-      if (followIntervalRef.current) { clearInterval(followIntervalRef.current); followIntervalRef.current = null; }
+      clearTimeout(startFollowTimeout);
+      if (rafId) cancelAnimationFrame(rafId);
+      trajectoryRef.current.forEach(p => { try { p.remove(); } catch {} });
+      trajectoryRef.current = [];
     };
   }, [followTarget?.id, followTarget?.type]);
 
