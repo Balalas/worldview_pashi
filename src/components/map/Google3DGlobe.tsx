@@ -454,7 +454,7 @@ const Google3DGlobe = memo(() => {
   const followIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const initRef = useRef(false);
 
-  const { layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, fires, geoEvents, setDetailPanel, setActiveLivestream, mapCenter, followTarget, setFollowTarget, layerSubFilters } = useWorldViewStore();
+  const { layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, fires, geoEvents, news, setDetailPanel, setActiveLivestream, mapCenter, followTarget, setFollowTarget, layerSubFilters } = useWorldViewStore();
 
   // Start following a target with cinematic camera
   const startFollow = useCallback((target: FollowTarget) => {
@@ -1112,9 +1112,17 @@ const Google3DGlobe = memo(() => {
     if (layers.conflicts) {
       CONFLICT_ZONES.forEach(cz => {
         const color = cz.intensity >= 8 ? '#ff0044' : cz.intensity >= 6 ? '#ff6b35' : '#ffb000';
+        // Find related GDELT news for this conflict zone
+        const relatedNews = news.filter(n => {
+          const zoneName = cz.name.toLowerCase();
+          const title = n.title.toLowerCase();
+          const country = (n.country || '').toLowerCase();
+          return zoneName.split(/[\s–\-]+/).some(w => w.length > 3 && (title.includes(w) || country.includes(w)));
+        }).slice(0, 5);
         addMarker(cz.lat, cz.lon,
           explosionSvg(cz.intensity, color, cz.name.split('–')[0].trim()),
-          0, true
+          0, true,
+          () => { stopFollow(); setDetailPanel({ type: 'conflict', data: { ...cz, relatedNews } }); }
         );
       });
 
@@ -1349,7 +1357,7 @@ const Google3DGlobe = memo(() => {
     expectedCount = 999999; // rely on flush timer for final swap
     // Trigger flush timer-based swap
     return () => { clearTimeout(flushTimer); };
-  }, [layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, fires, geoEvents, setDetailPanel, setActiveLivestream, flyToCamera, setFollowTarget, stopFollow, layerSubFilters]);
+  }, [layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, fires, geoEvents, news, setDetailPanel, setActiveLivestream, flyToCamera, setFollowTarget, stopFollow, layerSubFilters]);
 
   // ── Auto-orbit idle camera ──
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
