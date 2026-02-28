@@ -348,7 +348,7 @@ const MapContainer = memo(() => {
     });
   }, [earthquakes, layers.earthquakes, setDetailPanel]);
 
-  // Render conflict zones
+  // Render conflict zones with explosion/missile hit animations
   useEffect(() => {
     const group = layersRef.current['conflicts'];
     if (!group) return;
@@ -357,14 +357,68 @@ const MapContainer = memo(() => {
     CONFLICT_ZONES.forEach((cz) => {
       const color = cz.intensity >= 8 ? '#ff0044' : cz.intensity >= 6 ? '#ff6b35' : '#ffb000';
       const radius = cz.intensity * 3;
+      const isWar = cz.type === 'war' || cz.intensity >= 8;
+      const isHot = cz.intensity >= 6;
+
+      // Outer blast radius
       group.addLayer(L.circleMarker([cz.lat, cz.lon], { radius: radius * 2, color, fillColor: color, fillOpacity: 0.08, weight: 0.5, interactive: false }));
+
+      // Inner marker
       const inner = L.circleMarker([cz.lat, cz.lon], { radius, color, fillColor: color, fillOpacity: 0.25, weight: 1.5 });
       inner.bindTooltip(`⚔ ${cz.name} [${cz.intensity}/10]`, { direction: 'top', offset: [0, -10] });
+      inner.on('click', () => setDetailPanel({ type: 'conflict', data: cz }));
+      group.addLayer(inner);
+
+      // Pulsing ring
       const pulseIcon = L.divIcon({ className: '', html: `<div style="width:${radius * 4}px;height:${radius * 4}px;border:1.5px solid ${color};border-radius:50%;animation:ping-ring 3s ease-out infinite;opacity:0.4;"></div>`, iconSize: [radius * 4, radius * 4], iconAnchor: [radius * 2, radius * 2] });
       group.addLayer(L.marker([cz.lat, cz.lon], { icon: pulseIcon, interactive: false }));
-      group.addLayer(inner);
+
+      // Explosion/missile-hit SVG animation for war zones
+      if (isWar || isHot) {
+        const explosionSize = isWar ? 48 : 32;
+        const explosionHtml = `<div style="width:${explosionSize}px;height:${explosionSize}px;position:relative;">
+          <svg viewBox="0 0 100 100" width="${explosionSize}" height="${explosionSize}" style="position:absolute;inset:0;">
+            <!-- Shockwave rings -->
+            <circle cx="50" cy="50" r="8" fill="none" stroke="${color}" stroke-width="1.5" opacity="0.6">
+              <animate attributeName="r" values="8;45" dur="2.5s" repeatCount="indefinite"/>
+              <animate attributeName="opacity" values="0.6;0" dur="2.5s" repeatCount="indefinite"/>
+            </circle>
+            <circle cx="50" cy="50" r="8" fill="none" stroke="${color}" stroke-width="1" opacity="0.4">
+              <animate attributeName="r" values="8;45" dur="2.5s" begin="0.8s" repeatCount="indefinite"/>
+              <animate attributeName="opacity" values="0.4;0" dur="2.5s" begin="0.8s" repeatCount="indefinite"/>
+            </circle>
+            <!-- Fire core -->
+            <circle cx="50" cy="50" r="6" fill="${color}" opacity="0.7">
+              <animate attributeName="r" values="4;8;4" dur="1.2s" repeatCount="indefinite"/>
+              <animate attributeName="opacity" values="0.7;1;0.7" dur="1.2s" repeatCount="indefinite"/>
+            </circle>
+            ${isWar ? `<!-- Secondary explosions -->
+            <circle cx="38" cy="42" r="3" fill="${color}" opacity="0.5">
+              <animate attributeName="r" values="2;5;2" dur="1.8s" begin="0.3s" repeatCount="indefinite"/>
+              <animate attributeName="opacity" values="0.5;0.8;0.5" dur="1.8s" begin="0.3s" repeatCount="indefinite"/>
+            </circle>
+            <circle cx="62" cy="55" r="3" fill="${color}" opacity="0.4">
+              <animate attributeName="r" values="2;4;2" dur="2s" begin="0.6s" repeatCount="indefinite"/>
+              <animate attributeName="opacity" values="0.4;0.7;0.4" dur="2s" begin="0.6s" repeatCount="indefinite"/>
+            </circle>` : ''}
+            <!-- Smoke plume -->
+            <circle cx="50" cy="44" r="4" fill="${color}" opacity="0.15">
+              <animate attributeName="cy" values="44;30" dur="3s" repeatCount="indefinite"/>
+              <animate attributeName="r" values="4;12" dur="3s" repeatCount="indefinite"/>
+              <animate attributeName="opacity" values="0.15;0" dur="3s" repeatCount="indefinite"/>
+            </circle>
+          </svg>
+        </div>`;
+        const explosionIcon = L.divIcon({
+          className: '',
+          html: explosionHtml,
+          iconSize: [explosionSize, explosionSize],
+          iconAnchor: [explosionSize / 2, explosionSize / 2],
+        });
+        group.addLayer(L.marker([cz.lat, cz.lon], { icon: explosionIcon, interactive: false }));
+      }
     });
-  }, [layers.conflicts]);
+  }, [layers.conflicts, setDetailPanel]);
 
   // Render weather
   useEffect(() => {
