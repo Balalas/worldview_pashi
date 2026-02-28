@@ -90,11 +90,17 @@ const BottomFeed = memo(() => {
   );
 });
 
+const WAR_NEWS_KEYWORDS = /\b(war|airstrike|strike|missile|killed|casualties|troops|offensive|invasion|bombing|shelling|artillery|mortar|combat|battle|drone strike|frontline|ceasefire|military|conflict|attack|dead|bomb|weapon|army|navy|soldier)\b/i;
+
 const NewsFeed = memo(() => {
-  const { news, newsLoading } = useWorldViewStore();
+  const { news, newsLoading, warMode } = useWorldViewStore();
   const [filter, setFilter] = useState<NewsFilter>('ALL');
 
   const filtered = news.filter((item) => {
+    // War mode overrides — only show war/conflict/military news
+    if (warMode) {
+      return item.category === 'military' || item.category === 'conflict' || WAR_NEWS_KEYWORDS.test(item.title);
+    }
     if (filter === 'CRITICAL') return item.severity === 'critical' || item.severity === 'high';
     if (filter === 'MILITARY') return item.category === 'military' || item.category === 'conflict';
     if (filter === 'PROTEST') return item.category === 'protest';

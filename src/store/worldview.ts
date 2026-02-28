@@ -403,6 +403,11 @@ export interface WorldViewState {
 
   circularViewport: boolean;
   toggleCircularViewport: () => void;
+
+  warMode: boolean;
+  toggleWarMode: () => void;
+  preWarLayers: Record<LayerType, boolean> | null;
+  preWarSubFilters: LayerSubFilters | null;
 }
 
 export const useWorldViewStore = create<WorldViewState>((set) => ({
@@ -546,6 +551,59 @@ export const useWorldViewStore = create<WorldViewState>((set) => ({
 
   circularViewport: false,
   toggleCircularViewport: () => set((s) => ({ circularViewport: !s.circularViewport })),
+
+  warMode: false,
+  preWarLayers: null,
+  preWarSubFilters: null,
+  toggleWarMode: () => set((s) => {
+    if (s.warMode) {
+      // Restore previous layers
+      return {
+        warMode: false,
+        layers: s.preWarLayers || s.layers,
+        layerSubFilters: s.preWarSubFilters || s.layerSubFilters,
+        preWarLayers: null,
+        preWarSubFilters: null,
+      };
+    }
+    // Engage war mode — save current state, force military-only
+    return {
+      warMode: true,
+      preWarLayers: { ...s.layers },
+      preWarSubFilters: { ...s.layerSubFilters },
+      layers: {
+        ...s.layers,
+        aircraft: true,
+        militaryFlights: true,
+        conflicts: true,
+        satellites: false,
+        cameras: false,
+        vessels: false,
+        nuclearSites: false,
+        underseaCables: false,
+        protests: false,
+        earthquakes: false,
+        fires: false,
+        outages: false,
+        pipelines: false,
+        datacenters: false,
+        volcanoes: false,
+        weather: false,
+        militaryBases: true,
+        spaceports: false,
+        chokepoints: true,
+        criticalMinerals: false,
+      },
+      layerSubFilters: {
+        ...s.layerSubFilters,
+        showCivilian: false,
+        showMilitaryAC: true,
+        showHelicopters: true,
+        maxAircraft: 100,
+      },
+      bottomTab: 'news' as BottomPanelTab,
+    };
+  }),
 }));
 
 // Keyboard shortcuts
