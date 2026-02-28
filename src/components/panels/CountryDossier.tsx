@@ -1,11 +1,12 @@
-import { memo, useMemo, useState } from 'react';
+import { memo, useMemo, useState, useRef } from 'react';
 import { useWorldViewStore, NewsItem } from '@/store/worldview';
 import { CountryData } from '@/services/countryService';
 import { PUBLIC_CAMERAS } from '@/data/publicCameras';
 import { CONFLICT_ZONES } from '@/data/conflictZones';
+import { LIVESTREAM_FEEDS, LivestreamFeed } from '@/services/dataServices';
 
 
-type DossierTab = 'war' | 'intelligence' | 'cyber' | 'crime' | 'cameras' | 'all';
+type DossierTab = 'war' | 'intelligence' | 'cyber' | 'crime' | 'cameras' | 'tv' | 'all';
 
 const TAB_CONFIG: { key: DossierTab; label: string; icon: string; keywords: RegExp }[] = [
   { key: 'all', label: 'ALL INTEL', icon: '📡', keywords: /./i },
@@ -13,7 +14,8 @@ const TAB_CONFIG: { key: DossierTab; label: string; icon: string; keywords: RegE
   { key: 'intelligence', label: 'INTELLIGENCE', icon: '🕵️', keywords: /\b(intelligen|espionage|spy|surveillance|covert|classified|cia|mossad|fbi|mi6|fsb|sigint|operation|agent|defect|leak|whistleblow|intercept)\b/i },
   { key: 'cyber', label: 'CYBER', icon: '🔒', keywords: /\b(cyber|hack|breach|ransomware|ddos|malware|phishing|data leak|exploit|vulnerability|zero.day|apt|botnet|encryption)\b/i },
   { key: 'crime', label: 'CRIME', icon: '🚨', keywords: /\b(crime|murder|arrest|drug|cartel|gang|trafficking|smuggling|corruption|fraud|launder|theft|robbery|terrorist|extremist|organized crime)\b/i },
-  { key: 'cameras', label: 'LIVE CAMS', icon: '📹', keywords: /./i },
+  { key: 'tv', label: 'LIVE TV', icon: '📺', keywords: /./i },
+  { key: 'cameras', label: 'CCTV', icon: '📹', keywords: /./i },
 ];
 
 const SEVERITY_COLORS: Record<string, string> = {
@@ -60,6 +62,47 @@ const CountryDossier = memo(() => {
     return PUBLIC_CAMERAS.filter(c =>
       c.country === countryCode &&
       (c.embedUrl || c.snapshotUrl)
+    );
+  }, [countryCode, country]);
+
+  // TV channels matching this country/region
+  const countryTVChannels = useMemo(() => {
+    if (!country) return [];
+    const REGION_MAP: Record<string, string[]> = {
+      'US': ['US', 'Americas'],
+      'GB': ['UK', 'Europe'],
+      'FR': ['Europe'],
+      'DE': ['Germany', 'Europe'],
+      'RU': ['Russia', 'Europe'],
+      'CN': ['China', 'Asia'],
+      'JP': ['Japan', 'Asia'],
+      'IN': ['India', 'Asia'],
+      'KR': ['South Korea', 'Asia'],
+      'TR': ['Turkey', 'Europe'],
+      'IL': ['Middle East'],
+      'PS': ['Middle East'],
+      'SA': ['Middle East'],
+      'QA': ['Middle East', 'Global'],
+      'AE': ['Middle East'],
+      'SG': ['Asia', 'Singapore'],
+      'UA': ['Europe', 'Kyiv'],
+      'IR': ['Middle East'],
+      'IQ': ['Middle East'],
+      'SY': ['Middle East'],
+      'LB': ['Middle East'],
+      'YE': ['Middle East'],
+      'EG': ['Middle East', 'Africa'],
+      'NG': ['Africa'],
+      'AU': ['Asia'],
+      'BR': ['Americas'],
+    };
+    const regions = REGION_MAP[countryCode] || [country.region, country.subregion];
+    // Match by region or 'Global' channels
+    return LIVESTREAM_FEEDS.filter(f =>
+      f.category === 'news' && (
+        regions.some(r => f.region?.toLowerCase().includes(r.toLowerCase())) ||
+        f.region === 'Global'
+      )
     );
   }, [countryCode, country]);
 
@@ -182,6 +225,7 @@ const CountryDossier = memo(() => {
         <div className="flex items-center gap-0.5 px-4 py-2 border-b border-border/30 overflow-x-auto">
           {TAB_CONFIG.map(tab => {
             const count = tab.key === 'cameras' ? countryCameras.length :
+              tab.key === 'tv' ? countryTVChannels.length :
               tab.key === 'all' ? countryNews.length :
                 countryNews.filter(n => tab.keywords.test(n.title)).length;
             return (
@@ -248,10 +292,12 @@ const CountryDossier = memo(() => {
               </div>
             </div>
 
-            {/* Main content — news feed or cameras */}
+            {/* Main content — news feed, cameras, or TV */}
             <div className="flex-1 overflow-y-auto p-4">
               {activeTab === 'cameras' ? (
                 <CameraGrid cameras={countryCameras} onCameraClick={handleCameraClick} />
+              ) : activeTab === 'tv' ? (
+                <CountryTVPanel channels={countryTVChannels} />
               ) : (
                 <NewsFeed news={filteredNews} onNewsClick={handleNewsClick} />
               )}
@@ -391,6 +437,82 @@ const CameraGrid = memo(({ cameras, onCameraClick }: {
   );
 });
 CameraGrid.displayName = 'CameraGrid';
+
+const CountryTVPanel = memo(({ channels }: { channels: LivestreamFeed[] }) => {
+  const [activeChannel, setActiveChannel] = useState<LivestreamFeed | null>(null);
+  const [volume, setVolume] = useState(30);
+
+  if (channels.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center">
+          <div className="text-2xl mb-2 opacity-30">📺</div>
+          <div className="text-[10px] font-data text-muted-foreground tracking-wider">NO TV CHANNELS FOR THIS REGION</div>
+          <div className="text-[8px] font-data text-muted-foreground/50 mt-1">Try checking global news channels</div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex gap-3 h-full" style={{ minHeight: 320 }}>
+      {/* Channel list */}
+      <div className="w-[180px] space-y-1 overflow-y-auto flex-shrink-0">
+        <div className="text-[8px] font-data text-muted-foreground tracking-[0.15em] mb-2">{channels.length} CHANNELS</div>
+        {channels.map(ch => (
+          <button key={ch.id} onClick={() => setActiveChannel(ch)}
+            className={`w-full text-left px-2 py-1.5 rounded text-[9px] transition-colors flex items-center gap-1.5 ${
+              activeChannel?.id === ch.id ? 'bg-primary/10 border border-primary/20' : 'hover:bg-card-hover border border-transparent'
+            }`}>
+            <span className="w-1.5 h-1.5 rounded-full bg-alert-critical animate-pulse-dot flex-shrink-0" />
+            <div className="min-w-0 flex-1">
+              <div className="text-foreground font-display tracking-wide truncate">{ch.title.replace(' – LIVE', '')}</div>
+              <div className="text-[7px] font-data text-muted-foreground">{ch.source} • {ch.region}</div>
+            </div>
+          </button>
+        ))}
+      </div>
+
+      {/* TV player */}
+      <div className="flex-1 flex flex-col rounded overflow-hidden border border-border/30">
+        {activeChannel ? (
+          <>
+            <div className="flex-1 relative min-h-0">
+              <iframe
+                src={activeChannel.url.replace('mute=1', 'mute=0')}
+                className="w-full h-full"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                title={activeChannel.title}
+              />
+              <div className="absolute top-2 left-2 flex items-center gap-1.5 bg-void/80 backdrop-blur-sm rounded px-2 py-1">
+                <span className="w-2 h-2 rounded-full bg-alert-critical animate-pulse" />
+                <span className="text-[9px] font-data text-alert-critical font-bold">LIVE</span>
+                <span className="text-[9px] font-display tracking-wider text-foreground">{activeChannel.title}</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 px-3 py-1.5 border-t border-border bg-card-bg/60 flex-shrink-0">
+              <span className="text-[10px]">🔊</span>
+              <input type="range" min="0" max="100" value={volume}
+                onChange={e => setVolume(Number(e.target.value))}
+                className="flex-1 h-1 accent-primary cursor-pointer" style={{ maxWidth: 120 }} />
+              <span className="text-[8px] font-data text-muted-foreground w-8">{volume}%</span>
+              <span className="text-[8px] font-data text-primary/50 ml-auto">{activeChannel.source}</span>
+            </div>
+          </>
+        ) : (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <span className="text-3xl mb-2 block opacity-30">📺</span>
+              <p className="text-[10px] font-display tracking-[0.15em] text-muted-foreground">SELECT A CHANNEL</p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+});
+CountryTVPanel.displayName = 'CountryTVPanel';
 
 function formatPop(pop: number): string {
   if (pop >= 1e9) return `${(pop / 1e9).toFixed(2)}B`;

@@ -19,4 +19,16 @@ export const CONFLICT_ZONES = [
   { name: 'Libya – Tripoli', lat: 32.9, lon: 13.1, intensity: 4, type: 'instability' },
   { name: 'Mali – North', lat: 17.0, lon: -2.0, intensity: 5, type: 'insurgency' },
   { name: 'Pakistan – Balochistan', lat: 28.5, lon: 65.0, intensity: 4, type: 'insurgency' },
+  // Iran & surroundings — active tensions
+  { name: 'Iran – Tehran', lat: 35.69, lon: 51.39, intensity: 6, type: 'tension' },
+  { name: 'Iran – IRGC Ops', lat: 32.65, lon: 51.68, intensity: 5, type: 'tension' },
+  { name: 'Iran – Strait of Hormuz', lat: 26.56, lon: 56.25, intensity: 7, type: 'conflict' },
+  { name: 'Iran – Kurdistan Border', lat: 36.4, lon: 45.5, intensity: 5, type: 'conflict' },
+  { name: 'Iraq – PMF Militias', lat: 33.3, lon: 44.4, intensity: 5, type: 'conflict' },
+  { name: 'Red Sea – Houthi Attacks', lat: 13.5, lon: 42.5, intensity: 7, type: 'conflict' },
+  { name: 'Korea – DMZ', lat: 37.95, lon: 126.95, intensity: 3, type: 'tension' },
+  { name: 'Kashmir', lat: 34.0, lon: 76.0, intensity: 4, type: 'tension' },
+  { name: 'Nagorno-Karabakh', lat: 39.8, lon: 46.8, intensity: 4, type: 'tension' },
+  { name: 'Mozambique – Cabo Delgado', lat: -12.5, lon: 40.5, intensity: 5, type: 'insurgency' },
+  { name: 'Nigeria – Northeast', lat: 11.8, lon: 13.2, intensity: 6, type: 'insurgency' },
 ];
