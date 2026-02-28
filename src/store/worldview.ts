@@ -293,6 +293,8 @@ export interface LayerSubFilters {
   // Traffic
   trafficDensity: number; // 0-100
   showTraffic: boolean;
+  // Cables
+  showLandCables: boolean;
 }
 
 export const DEFAULT_SUB_FILTERS: LayerSubFilters = {
@@ -322,6 +324,7 @@ export const DEFAULT_SUB_FILTERS: LayerSubFilters = {
   showPower: true,
   trafficDensity: 50,
   showTraffic: true,
+  showLandCables: false,
 };
 
 export interface WorldViewState {
@@ -537,7 +540,7 @@ export const useWorldViewStore = create<WorldViewState>((set) => ({
   newsLoading: false,
   setNewsLoading: (newsLoading) => set({ newsLoading }),
 
-  mapMode: 'google3d',
+  mapMode: '2d',
   setMapMode: (mapMode) => set({ mapMode }),
 
   dashboardMode: 'WORLD',
