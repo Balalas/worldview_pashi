@@ -257,6 +257,24 @@ function gdeltEventSvg(color: string, size: number, label: string, icon: string,
   </svg>`);
 }
 
+// ── Animated Missile SVG ──
+function missileSvg(type: string, status: string, label: string) {
+  const color = status === 'hit' ? '#ff0000' : status === 'intercepted' ? '#00ff88' : '#ff4400';
+  const typeIcon = type === 'ballistic' ? '🚀' : type === 'drone' ? '🛩' : type === 'cruise' ? '💨' : '🎯';
+  return svgEl(`<svg xmlns="http://www.w3.org/2000/svg" width="60" height="50" viewBox="0 0 60 50">
+    <circle cx="30" cy="16" r="8" fill="none" stroke="${color}" stroke-width="1.5" opacity="0">
+      <animate attributeName="r" values="8;20;8" dur="1.5s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.7;0;0.7" dur="1.5s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="30" cy="16" r="5" fill="${color}" opacity="0.8">
+      <animate attributeName="opacity" values="0.8;0.4;0.8" dur="0.8s" repeatCount="indefinite"/>
+    </circle>
+    <text x="30" y="20" text-anchor="middle" font-size="10">${typeIcon}</text>
+    <rect x="2" y="32" width="56" height="14" rx="2" fill="#000" fill-opacity="0.8"/>
+    <text x="30" y="42" text-anchor="middle" font-family="monospace" font-size="6" fill="${color}" font-weight="bold">${label.substring(0, 12)}</text>
+  </svg>`);
+}
+
 function cameraSvg(name: string, official?: boolean) {
   const badge = official ? `<rect x="52" y="2" width="22" height="9" rx="2" fill="#fbbf24" fill-opacity="0.9"/><text x="63" y="9" text-anchor="middle" font-family="monospace" font-size="6" fill="#000" font-weight="bold">DOT</text>` : '';
   return svgEl(`<svg xmlns="http://www.w3.org/2000/svg" width="80" height="44" viewBox="0 0 80 44">
@@ -529,7 +547,7 @@ const Google3DGlobe = memo(() => {
   const followIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const initRef = useRef(false);
 
-  const { layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, fires, geoEvents, news, setDetailPanel, setActiveLivestream, mapCenter, followTarget, setFollowTarget, layerSubFilters } = useWorldViewStore();
+  const { layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, fires, geoEvents, news, missileArcs, setDetailPanel, setActiveLivestream, mapCenter, followTarget, setFollowTarget, layerSubFilters } = useWorldViewStore();
 
   // Start following a target with cinematic camera
   const startFollow = useCallback((target: FollowTarget) => {
@@ -1446,11 +1464,78 @@ const Google3DGlobe = memo(() => {
       })();
     }
 
+    // ── Missile arcs — animated polylines between conflict pairs ──
+    if (layers.conflicts && missileArcs.length > 0) {
+      (async () => {
+        try {
+          const { Polyline3DElement } = await (google.maps as any).importLibrary('maps3d');
+          for (const missile of missileArcs) {
+            if (!missile.fromLat || !missile.toLat) continue;
+
+            // Generate arc points (parabolic trajectory)
+            const arcPoints: { lat: number; lng: number; altitude: number }[] = [];
+            const steps = 40;
+            const dist = Math.sqrt(
+              Math.pow(missile.toLat - missile.fromLat, 2) +
+              Math.pow(missile.toLon - missile.fromLon, 2)
+            );
+            const peakAlt = Math.min(dist * 30000, 300000); // Peak altitude scales with distance
+
+            for (let i = 0; i <= steps; i++) {
+              const t = i / steps;
+              const lat = missile.fromLat + (missile.toLat - missile.fromLat) * t;
+              const lng = missile.fromLon + (missile.toLon - missile.fromLon) * t;
+              // Parabolic arc: peaks at t=0.5
+              const alt = peakAlt * 4 * t * (1 - t);
+              arcPoints.push({ lat, lng, altitude: alt });
+            }
+
+            const arcColor = missile.status === 'intercepted' ? '#00ff88' :
+              missile.status === 'hit' ? '#ff0000' :
+              missile.type === 'ballistic' ? '#ff2200' :
+              missile.type === 'drone' ? '#ff8800' : '#ff4400';
+
+            // Glow trail
+            const glow = new Polyline3DElement({
+              strokeColor: arcColor + '40',
+              strokeWidth: 8,
+              altitudeMode: 'ABSOLUTE',
+            });
+            glow.path = arcPoints;
+            map.append(glow);
+            newMarkers.push(glow);
+
+            // Core line
+            const core = new Polyline3DElement({
+              strokeColor: arcColor,
+              strokeWidth: 3,
+              altitudeMode: 'ABSOLUTE',
+            });
+            core.path = arcPoints;
+            map.append(core);
+            newMarkers.push(core);
+
+            // Endpoint markers
+            addMarker(missile.fromLat, missile.fromLon,
+              missileSvg(missile.type, 'launched', missile.from),
+              0, true
+            );
+            addMarker(missile.toLat, missile.toLon,
+              missileSvg(missile.type, missile.status, missile.to),
+              0, true
+            );
+          }
+        } catch (err) {
+          console.warn('Missile arc fail:', err);
+        }
+      })();
+    }
+
     // Set expected count hint (not exact due to async polylines/cones, but flush timer handles that)
     expectedCount = 999999; // rely on flush timer for final swap
     // Trigger flush timer-based swap
     return () => { clearTimeout(flushTimer); };
-  }, [layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, fires, geoEvents, news, setDetailPanel, setActiveLivestream, flyToCamera, setFollowTarget, stopFollow, layerSubFilters]);
+  }, [layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, fires, geoEvents, news, missileArcs, setDetailPanel, setActiveLivestream, flyToCamera, setFollowTarget, stopFollow, layerSubFilters]);
 
   // ── Auto-orbit idle camera ──
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);

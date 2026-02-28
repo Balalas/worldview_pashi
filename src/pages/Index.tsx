@@ -26,6 +26,8 @@ import { fetchGdeltData } from '@/services/gdeltService';
 import { fetchUserLocation } from '@/services/geolocateService';
 import { fetchAllCountries } from '@/services/countryService';
 import { fetchAllCameras } from '@/services/cameraService';
+import { fetchConflictIntel } from '@/services/conflictIntelService';
+import { CONFLICT_ZONES } from '@/data/conflictZones';
 
 const Google3DGlobe = lazy(() => import('@/components/map/Google3DGlobe'));
 
@@ -149,7 +151,7 @@ const CctvPip = memo(() => {
 CctvPip.displayName = 'CctvPip';
 
 const Index = () => {
-  const { setAircraft, setSatellites, setEarthquakes, setNews, setLastRefresh, setNewsLoading, setWeatherAlerts, setVolcanoes, setVessels, setProtests, setOutages, setFires, setLiveCameras, toggleLayer, closeDetailPanel, mapMode, setFollowTarget, visualStyle, setVisualStyle, filterParams, bottomPanelCollapsed, bottomPanelExpanded, setMapCenter, isScreensaver, setScreensaver, immersiveMode, circularViewport, hudLayout, warMode, setGeoEvents, layerSubFilters } = useWorldViewStore();
+  const { setAircraft, setSatellites, setEarthquakes, setNews, setLastRefresh, setNewsLoading, setWeatherAlerts, setVolcanoes, setVessels, setProtests, setOutages, setFires, setLiveCameras, toggleLayer, closeDetailPanel, mapMode, setFollowTarget, visualStyle, setVisualStyle, filterParams, bottomPanelCollapsed, bottomPanelExpanded, setMapCenter, isScreensaver, setScreensaver, immersiveMode, circularViewport, hudLayout, warMode, setGeoEvents, layerSubFilters, setConflictIntel, setMissileArcs, manualRefresh } = useWorldViewStore();
   const earthquakeTimeWindow = layerSubFilters.earthquakeTimeWindow || '24H';
   const styleConfig = computeStyleConfig(visualStyle, filterParams);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -326,6 +328,64 @@ const Index = () => {
     warRefresh(); // immediate
     return () => clearInterval(warNewsInterval);
   }, [warMode, setNews]);
+
+  // AI Conflict Intel — fetch missile data + escalation predictions
+  useEffect(() => {
+    const fetchIntel = async () => {
+      const state = useWorldViewStore.getState();
+      const headlines = state.news.map(n => n.title);
+      const zones = CONFLICT_ZONES.map(z => z.name);
+      const intel = await fetchConflictIntel(headlines, zones);
+      if (intel) {
+        setConflictIntel(intel);
+        if (intel.missileActivity?.length > 0) {
+          setMissileArcs(intel.missileActivity);
+        }
+      }
+    };
+    // Fetch after news loads (delayed)
+    const timer = setTimeout(fetchIntel, 5000);
+    const interval = setInterval(fetchIntel, 90_000);
+    return () => { clearTimeout(timer); clearInterval(interval); };
+  }, [setConflictIntel, setMissileArcs]);
+
+  // Manual refresh trigger
+  useEffect(() => {
+    if (manualRefresh === 0) return;
+    setNewsLoading(true);
+    const doRefresh = async () => {
+      try {
+        const [gdeltResult, mainNews, cyberNews] = await Promise.all([
+          fetchGdeltData(),
+          fetchLiveNews(),
+          fetchCyberNews(),
+        ]);
+        const rssNews = [...mainNews, ...cyberNews];
+        const seenTitles = new Set(gdeltResult.articles.map(a => a.title.toLowerCase().substring(0, 40)));
+        const uniqueRss = rssNews.filter(n => !seenTitles.has(n.title.toLowerCase().substring(0, 40)));
+        const allNews = [...gdeltResult.articles, ...uniqueRss].sort((a, b) => b.time.getTime() - a.time.getTime());
+        setNews(allNews);
+        setGeoEvents(gdeltResult.events);
+        setProtests(extractProtestsFromNews(allNews));
+        setOutages(extractOutagesFromNews(allNews));
+        setLastRefresh(new Date());
+
+        // Also refresh conflict intel
+        const headlines = allNews.map(n => n.title);
+        const zones = CONFLICT_ZONES.map(z => z.name);
+        const intel = await fetchConflictIntel(headlines, zones);
+        if (intel) {
+          setConflictIntel(intel);
+          if (intel.missileActivity?.length > 0) setMissileArcs(intel.missileActivity);
+        }
+      } catch (e) {
+        console.warn('Manual refresh error:', e);
+      } finally {
+        setNewsLoading(false);
+      }
+    };
+    doRefresh();
+  }, [manualRefresh]);
 
   // Keyboard shortcuts — layers, visual modes (1-7), landmarks (Q,W,E,R,T)
   useEffect(() => {
