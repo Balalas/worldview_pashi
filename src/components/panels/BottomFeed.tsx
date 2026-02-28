@@ -42,6 +42,57 @@ const TABS: { key: BottomPanelTab; label: string; icon: string }[] = [
   { key: 'pizza', label: 'PIZZA INDEX', icon: '🍕' },
 ];
 
+// (NewsFilter type defined below in section config block)
+
+// --- Section configuration for customizable layout ---
+export interface SectionConfig {
+  id: string;
+  title: string;
+  icon: string;
+  defaultOpen: boolean;
+  visible: boolean;
+}
+
+const DEFAULT_SECTIONS: SectionConfig[] = [
+  { id: 'conflicts', title: 'ACTIVE CONFLICTS & WORLD TV', icon: '💥', defaultOpen: true, visible: true },
+  { id: 'intel', title: 'INTELLIGENCE & MARKETS', icon: '📡', defaultOpen: true, visible: true },
+  { id: 'strategic', title: 'STRATEGIC ANALYSIS', icon: '🛡', defaultOpen: true, visible: true },
+  { id: 'trending', title: 'TRENDING & PREDICTIONS', icon: '🔥', defaultOpen: false, visible: true },
+  { id: 'indexes', title: 'INDEXES & ENVIRONMENT', icon: '📊', defaultOpen: false, visible: true },
+  { id: 'sigint', title: 'SIGINT — SENSORS & MONITORING', icon: '📡', defaultOpen: false, visible: true },
+  { id: 'cbrn', title: 'CBRN — HAZARDS & SANCTIONS', icon: '☢', defaultOpen: false, visible: true },
+  { id: 'ai', title: 'AI INSIGHTS', icon: '🧠', defaultOpen: false, visible: true },
+  { id: 'webcams', title: 'LIVE WEBCAMS', icon: '📹', defaultOpen: false, visible: true },
+  { id: 'regional', title: 'REGIONAL NEWS', icon: '🗞', defaultOpen: false, visible: true },
+  { id: 'infra', title: 'INFRASTRUCTURE CASCADE', icon: '🏗', defaultOpen: false, visible: true },
+  { id: 'media', title: 'MEDIA & SOURCES', icon: '📺', defaultOpen: false, visible: true },
+];
+
+const STORAGE_KEY = 'worldview-section-layout';
+
+function loadSections(): SectionConfig[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const saved = JSON.parse(raw) as SectionConfig[];
+      // Merge with defaults in case new sections were added
+      const savedIds = new Set(saved.map(s => s.id));
+      const merged = [...saved];
+      for (const def of DEFAULT_SECTIONS) {
+        if (!savedIds.has(def.id)) merged.push(def);
+      }
+      return merged;
+    }
+  } catch {}
+  return DEFAULT_SECTIONS.map(s => ({ ...s }));
+}
+
+function saveSections(sections: SectionConfig[]) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(sections));
+  } catch {}
+}
+
 type NewsFilter = 'ALL' | 'CRITICAL' | 'MILITARY' | 'CONFLICT' | 'PROTEST' | 'CYBER' | 'NUCLEAR' | 'ECONOMIC';
 
 // Collapsible section wrapper
@@ -62,6 +113,104 @@ const CollapsibleRow = ({ title, icon, defaultOpen = true, children }: { title: 
   );
 };
 
+// Customization panel
+const SectionCustomizer = memo(({ sections, onUpdate, onClose }: {
+  sections: SectionConfig[];
+  onUpdate: (sections: SectionConfig[]) => void;
+  onClose: () => void;
+}) => {
+  const [editing, setEditing] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+
+  const moveSection = (idx: number, dir: -1 | 1) => {
+    const target = idx + dir;
+    if (target < 0 || target >= sections.length) return;
+    const next = [...sections];
+    [next[idx], next[target]] = [next[target], next[idx]];
+    onUpdate(next);
+  };
+
+  const toggleVisibility = (id: string) => {
+    onUpdate(sections.map(s => s.id === id ? { ...s, visible: !s.visible } : s));
+  };
+
+  const startRename = (s: SectionConfig) => {
+    setEditing(s.id);
+    setEditTitle(s.title);
+  };
+
+  const commitRename = () => {
+    if (editing && editTitle.trim()) {
+      onUpdate(sections.map(s => s.id === editing ? { ...s, title: editTitle.trim() } : s));
+    }
+    setEditing(null);
+  };
+
+  const resetAll = () => {
+    onUpdate(DEFAULT_SECTIONS.map(s => ({ ...s })));
+  };
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center" onClick={onClose}>
+      <div className="absolute inset-0 bg-void/70 backdrop-blur-sm" />
+      <div className="relative w-[480px] max-h-[80vh] rounded-lg border border-primary/30 overflow-hidden"
+        style={{ background: 'hsl(var(--background) / 0.95)' }}
+        onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+          <div className="flex items-center gap-2">
+            <span className="text-sm">⚙️</span>
+            <h2 className="text-[11px] font-display tracking-[0.2em] text-foreground">CUSTOMIZE DASHBOARD LAYOUT</h2>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={resetAll} className="text-[8px] font-data text-alert-medium hover:text-alert-high px-2 py-1 rounded border border-border hover:border-alert-medium/30 transition-colors">RESET DEFAULT</button>
+            <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-lg px-1">✕</button>
+          </div>
+        </div>
+        <div className="p-3 overflow-y-auto max-h-[calc(80vh-60px)]">
+          <p className="text-[9px] font-data text-muted-foreground mb-3">Drag sections up/down, toggle visibility, or click the title to rename. Changes save automatically.</p>
+          <div className="space-y-1">
+            {sections.map((s, idx) => (
+              <div key={s.id} className={`flex items-center gap-2 px-3 py-2 rounded border transition-all ${s.visible ? 'border-border bg-card-bg/40' : 'border-border/30 bg-card-bg/10 opacity-50'}`}>
+                {/* Move buttons */}
+                <div className="flex flex-col gap-0.5 flex-shrink-0">
+                  <button onClick={() => moveSection(idx, -1)} disabled={idx === 0}
+                    className="text-[10px] text-muted-foreground hover:text-primary disabled:opacity-20 leading-none">▲</button>
+                  <button onClick={() => moveSection(idx, 1)} disabled={idx === sections.length - 1}
+                    className="text-[10px] text-muted-foreground hover:text-primary disabled:opacity-20 leading-none">▼</button>
+                </div>
+                {/* Icon */}
+                <span className="text-sm flex-shrink-0">{s.icon}</span>
+                {/* Title / editable */}
+                {editing === s.id ? (
+                  <input
+                    value={editTitle}
+                    onChange={e => setEditTitle(e.target.value)}
+                    onBlur={commitRename}
+                    onKeyDown={e => e.key === 'Enter' && commitRename()}
+                    autoFocus
+                    className="flex-1 text-[10px] font-display tracking-wider bg-card-bg border border-primary/30 rounded px-2 py-1 text-foreground outline-none"
+                  />
+                ) : (
+                  <button onClick={() => startRename(s)} className="flex-1 text-left text-[10px] font-display tracking-[0.15em] text-foreground hover:text-primary transition-colors">
+                    {s.title}
+                  </button>
+                )}
+                {/* Position label */}
+                <span className="text-[8px] font-data text-muted-foreground/50 w-5 text-center flex-shrink-0">{idx + 1}</span>
+                {/* Visibility toggle */}
+                <button onClick={() => toggleVisibility(s.id)}
+                  className={`text-[9px] font-data px-2 py-0.5 rounded border transition-colors flex-shrink-0 ${s.visible ? 'text-signal-aircraft border-signal-aircraft/30 bg-signal-aircraft/10' : 'text-muted-foreground border-border'}`}>
+                  {s.visible ? '👁 ON' : '👁‍🗨 OFF'}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+});
+SectionCustomizer.displayName = 'SectionCustomizer';
 // War Status Panel — live overview of all active conflicts
 const WarStatusPanel = memo(() => {
   const { news, warMode } = useWorldViewStore();
@@ -248,6 +397,8 @@ const BottomFeed = memo(() => {
   const [internetOutages, setInternetOutages] = useState<InternetOutage[]>([]);
   const [radiationStations, setRadiationStations] = useState<RadiationStation[]>([]);
   const [diseaseOutbreaks, setDiseaseOutbreaks] = useState<DiseaseOutbreak[]>([]);
+  const [sections, setSections] = useState<SectionConfig[]>(loadSections);
+  const [showCustomizer, setShowCustomizer] = useState(false);
 
   useEffect(() => {
     fetchForexRates().then(setForexRates);
@@ -264,16 +415,94 @@ const BottomFeed = memo(() => {
     return () => { clearInterval(forexInterval); clearInterval(aqInterval); clearInterval(solarInterval); clearInterval(outageInterval); };
   }, []);
 
+  const handleUpdateSections = useCallback((updated: SectionConfig[]) => {
+    setSections(updated);
+    saveSections(updated);
+  }, []);
+
   const allTicker = [
     ...MARKET_DATA,
     ...forexRates.map(r => ({ symbol: r.symbol, value: r.value, change: r.change, up: r.up })),
   ];
 
+  // Section content renderer
+  const renderSection = (s: SectionConfig) => {
+    switch (s.id) {
+      case 'conflicts': return (
+        <div className="grid grid-cols-1 lg:grid-cols-2">
+          <div className="border-r border-border max-h-[420px] overflow-y-auto scrollbar-thin"><WarStatusPanel /></div>
+          <div className="max-h-[420px] overflow-hidden"><WorldTVCard /></div>
+        </div>
+      );
+      case 'intel': return (
+        <div className="grid grid-cols-1 lg:grid-cols-2">
+          <div className="border-r border-border max-h-[420px] overflow-y-auto scrollbar-thin"><NewsFeed /></div>
+          <div className="max-h-[420px] overflow-y-auto scrollbar-thin"><MarketsPanel /></div>
+        </div>
+      );
+      case 'strategic': return (
+        <div className="grid grid-cols-1 lg:grid-cols-3">
+          <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin"><StrategicRiskPanel /></div>
+          <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin"><StrategicPosturePanel /></div>
+          <div className="max-h-[380px] overflow-y-auto scrollbar-thin"><InstabilityIndexPanel /></div>
+        </div>
+      );
+      case 'trending': return (
+        <div className="grid grid-cols-1 lg:grid-cols-3">
+          <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin"><TrendingPanel /></div>
+          <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin"><ConvergencePanel /></div>
+          <div className="max-h-[380px] overflow-y-auto scrollbar-thin"><PredictionsPanel /></div>
+        </div>
+      );
+      case 'indexes': return (
+        <div className="grid grid-cols-1 lg:grid-cols-4">
+          <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin"><CombinedIndexesPanel /></div>
+          <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin"><WorldStatsPanel /></div>
+          <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin"><WeatherPanel /></div>
+          <div className="max-h-[380px] overflow-y-auto scrollbar-thin"><AirQualityPanel stations={airQuality} /></div>
+        </div>
+      );
+      case 'sigint': return (
+        <div className="grid grid-cols-1 lg:grid-cols-4">
+          <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin"><SolarWeatherPanel data={solarData} /></div>
+          <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin"><VolcanoAlertsPanel alerts={volcanoAlerts} /></div>
+          <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin"><InternetOutagePanel outages={internetOutages} /></div>
+          <div className="max-h-[380px] overflow-y-auto scrollbar-thin"><NuclearReactorPanel /></div>
+        </div>
+      );
+      case 'cbrn': return (
+        <div className="grid grid-cols-1 lg:grid-cols-4">
+          <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin"><RadioactivityPanel stations={radiationStations} /></div>
+          <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin"><DiseaseOutbreakPanel outbreaks={diseaseOutbreaks} /></div>
+          <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin"><SanctionsPanel /></div>
+          <div className="max-h-[380px] overflow-y-auto scrollbar-thin"><CableIncidentPanel /></div>
+        </div>
+      );
+      case 'ai': return <div className="max-h-[450px] overflow-y-auto scrollbar-thin"><AIInsightsPanel /></div>;
+      case 'webcams': return <div className="max-h-[500px] overflow-y-auto scrollbar-thin"><WebcamGrid /></div>;
+      case 'regional': return <div className="max-h-[400px] overflow-y-auto scrollbar-thin"><RegionalNewsPanel /></div>;
+      case 'infra': return <div className="max-h-[450px] overflow-y-auto scrollbar-thin"><InfrastructureCascade /></div>;
+      case 'media': return (
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4">
+          <div className="border-r border-border max-h-[350px] overflow-y-auto scrollbar-thin"><LivestreamPanel /></div>
+          <div className="border-r border-border max-h-[350px] overflow-y-auto scrollbar-thin"><RadioPanel /></div>
+          <div className="border-r border-border max-h-[350px] overflow-y-auto scrollbar-thin"><SourcesHealthPanel /></div>
+          <div className="max-h-[350px] overflow-y-auto scrollbar-thin"><PizzaIndexPanel /></div>
+        </div>
+      );
+      default: return null;
+    }
+  };
+
   return (
     <div className="glass-panel border-t border-primary/8 flex flex-col z-30">
-      {/* Market ticker */}
+      {/* Market ticker + customize button */}
       <div className="h-7 border-b border-border flex items-center overflow-hidden bg-card-bg/50 relative flex-shrink-0">
-        <div className="flex items-center animate-ticker-scroll whitespace-nowrap">
+        <button onClick={() => setShowCustomizer(true)}
+          className="absolute left-1 z-10 text-[8px] font-data text-primary/60 hover:text-primary bg-card-bg/80 backdrop-blur-sm px-2 py-0.5 rounded border border-primary/20 hover:border-primary/40 transition-colors flex-shrink-0">
+          ⚙️ CUSTOMIZE
+        </button>
+        <div className="flex items-center animate-ticker-scroll whitespace-nowrap ml-[90px]">
           {[...allTicker, ...allTicker].map((m, i) => (
             <span key={i} className="inline-flex items-center gap-1.5 mx-4 text-[10px] font-data">
               <span className="text-muted-foreground">{m.symbol}</span>
@@ -284,158 +513,18 @@ const BottomFeed = memo(() => {
         </div>
       </div>
 
-      {/* All sections in grid view with collapsible rows */}
+      {/* Dynamic sections based on user config */}
       <div>
-        {/* Row 0: Live War Status + World TV */}
-        <CollapsibleRow title="ACTIVE CONFLICTS & WORLD TV" icon="💥" defaultOpen={true}>
-          <div className="grid grid-cols-1 lg:grid-cols-2">
-            <div className="border-r border-border max-h-[420px] overflow-y-auto scrollbar-thin">
-              <WarStatusPanel />
-            </div>
-            <div className="max-h-[420px] overflow-hidden">
-              <WorldTVCard />
-            </div>
-          </div>
-        </CollapsibleRow>
-
-        {/* Row 1: Intel Feed + Markets */}
-        <CollapsibleRow title="INTELLIGENCE & MARKETS" icon="📡" defaultOpen={true}>
-          <div className="grid grid-cols-1 lg:grid-cols-2">
-            <div className="border-r border-border max-h-[420px] overflow-y-auto scrollbar-thin">
-              <NewsFeed />
-            </div>
-            <div className="max-h-[420px] overflow-y-auto scrollbar-thin">
-              <MarketsPanel />
-            </div>
-          </div>
-        </CollapsibleRow>
-
-        {/* Row 2: Risk Overview + Strategic Posture + Instability */}
-        <CollapsibleRow title="STRATEGIC ANALYSIS" icon="🛡" defaultOpen={true}>
-          <div className="grid grid-cols-1 lg:grid-cols-3">
-            <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
-              <StrategicRiskPanel />
-            </div>
-            <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
-              <StrategicPosturePanel />
-            </div>
-            <div className="max-h-[380px] overflow-y-auto scrollbar-thin">
-              <InstabilityIndexPanel />
-            </div>
-          </div>
-        </CollapsibleRow>
-
-        {/* Row 3: Trending + Convergence + Predictions */}
-        <CollapsibleRow title="TRENDING & PREDICTIONS" icon="🔥" defaultOpen={false}>
-          <div className="grid grid-cols-1 lg:grid-cols-3">
-            <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
-              <TrendingPanel />
-            </div>
-            <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
-              <ConvergencePanel />
-            </div>
-            <div className="max-h-[380px] overflow-y-auto scrollbar-thin">
-              <PredictionsPanel />
-            </div>
-          </div>
-        </CollapsibleRow>
-
-        {/* Row 4: Combined Indexes + World Stats + Weather */}
-        <CollapsibleRow title="INDEXES & ENVIRONMENT" icon="📊" defaultOpen={false}>
-          <div className="grid grid-cols-1 lg:grid-cols-4">
-            <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
-              <CombinedIndexesPanel />
-            </div>
-            <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
-              <WorldStatsPanel />
-            </div>
-            <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
-              <WeatherPanel />
-            </div>
-            <div className="max-h-[380px] overflow-y-auto scrollbar-thin">
-              <AirQualityPanel stations={airQuality} />
-            </div>
-          </div>
-        </CollapsibleRow>
-
-        {/* Row 4.5: SIGINT */}
-        <CollapsibleRow title="SIGINT — SENSORS & MONITORING" icon="📡" defaultOpen={false}>
-          <div className="grid grid-cols-1 lg:grid-cols-4">
-            <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
-              <SolarWeatherPanel data={solarData} />
-            </div>
-            <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
-              <VolcanoAlertsPanel alerts={volcanoAlerts} />
-            </div>
-            <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
-              <InternetOutagePanel outages={internetOutages} />
-            </div>
-            <div className="max-h-[380px] overflow-y-auto scrollbar-thin">
-              <NuclearReactorPanel />
-            </div>
-          </div>
-        </CollapsibleRow>
-
-        {/* Row 4.6: CBRN */}
-        <CollapsibleRow title="CBRN — HAZARDS & SANCTIONS" icon="☢" defaultOpen={false}>
-          <div className="grid grid-cols-1 lg:grid-cols-4">
-            <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
-              <RadioactivityPanel stations={radiationStations} />
-            </div>
-            <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
-              <DiseaseOutbreakPanel outbreaks={diseaseOutbreaks} />
-            </div>
-            <div className="border-r border-border max-h-[380px] overflow-y-auto scrollbar-thin">
-              <SanctionsPanel />
-            </div>
-            <div className="max-h-[380px] overflow-y-auto scrollbar-thin">
-              <CableIncidentPanel />
-            </div>
-          </div>
-        </CollapsibleRow>
-
-        <CollapsibleRow title="AI INSIGHTS" icon="🧠" defaultOpen={false}>
-          <div className="max-h-[450px] overflow-y-auto scrollbar-thin">
-            <AIInsightsPanel />
-          </div>
-        </CollapsibleRow>
-
-        <CollapsibleRow title="LIVE WEBCAMS" icon="📹" defaultOpen={false}>
-          <div className="max-h-[500px] overflow-y-auto scrollbar-thin">
-            <WebcamGrid />
-          </div>
-        </CollapsibleRow>
-
-        <CollapsibleRow title="REGIONAL NEWS" icon="🗞" defaultOpen={false}>
-          <div className="max-h-[400px] overflow-y-auto scrollbar-thin">
-            <RegionalNewsPanel />
-          </div>
-        </CollapsibleRow>
-
-        <CollapsibleRow title="INFRASTRUCTURE CASCADE" icon="🏗" defaultOpen={false}>
-          <div className="max-h-[450px] overflow-y-auto scrollbar-thin">
-            <InfrastructureCascade />
-          </div>
-        </CollapsibleRow>
-
-        {/* Row 9: Livestreams + Radio + Sources + Pizza */}
-        <CollapsibleRow title="MEDIA & SOURCES" icon="📺" defaultOpen={false}>
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4">
-            <div className="border-r border-border max-h-[350px] overflow-y-auto scrollbar-thin">
-              <LivestreamPanel />
-            </div>
-            <div className="border-r border-border max-h-[350px] overflow-y-auto scrollbar-thin">
-              <RadioPanel />
-            </div>
-            <div className="border-r border-border max-h-[350px] overflow-y-auto scrollbar-thin">
-              <SourcesHealthPanel />
-            </div>
-            <div className="max-h-[350px] overflow-y-auto scrollbar-thin">
-              <PizzaIndexPanel />
-            </div>
-          </div>
-        </CollapsibleRow>
+        {sections.filter(s => s.visible).map(s => (
+          <CollapsibleRow key={s.id} title={s.title} icon={s.icon} defaultOpen={s.defaultOpen}>
+            {renderSection(s)}
+          </CollapsibleRow>
+        ))}
       </div>
+
+      {showCustomizer && (
+        <SectionCustomizer sections={sections} onUpdate={handleUpdateSections} onClose={() => setShowCustomizer(false)} />
+      )}
     </div>
   );
 });
