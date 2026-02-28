@@ -149,7 +149,7 @@ const Index = () => {
   const earthquakeTimeWindow = layerSubFilters.earthquakeTimeWindow || '24H';
   const styleConfig = computeStyleConfig(visualStyle, filterParams);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const IDLE_TIMEOUT = 25000;
+  const IDLE_TIMEOUT = 120000;
   const [booting, setBooting] = useState(true);
 
   // Idle / Screensaver detection
@@ -350,9 +350,9 @@ const Index = () => {
   }
 
   return (
-    <div className="min-h-screen w-screen bg-void overflow-y-auto overflow-x-hidden relative">
+    <div className="min-h-screen w-screen bg-void relative">
       {/* Full-screen map — takes full viewport height */}
-      <div className="h-screen w-screen sticky top-0 z-0 relative" style={{ isolation: 'isolate', ...(circularViewport ? { clipPath: 'circle(50% at 50% 50%)' } : {}) }}>
+      <div className="h-screen w-full relative z-0" style={{ isolation: 'isolate', ...(circularViewport ? { clipPath: 'circle(50% at 50% 50%)' } : {}) }}>
         {/* SVG filters for CRT effects */}
         <svg className="absolute w-0 h-0">
           <defs>
