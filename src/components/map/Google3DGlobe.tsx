@@ -1,5 +1,5 @@
 import { useEffect, useRef, memo, useCallback, useState } from 'react';
-import { useWorldViewStore, NUCLEAR_SITES, FollowTarget, LANDMARK_PRESETS } from '@/store/worldview';
+import { useWorldViewStore, NUCLEAR_SITES, FollowTarget, LANDMARK_PRESETS, GeoEvent } from '@/store/worldview';
 import { computeOrbitTrajectory, projectAircraftPath } from '@/services/satelliteService';
 import { CONFLICT_ZONES } from '@/data/conflictZones';
 import { SUBMARINE_CABLES } from '@/data/submarineCables';
@@ -210,6 +210,28 @@ function explosionSvg(intensity: number, color: string, label: string) {
     <!-- label -->
     <rect x="2" y="${h-16}" width="${w-4}" height="14" rx="2" fill="#000" fill-opacity="0.8"/>
     <text x="${w/2}" y="${h-6}" text-anchor="middle" font-family="monospace" font-size="7" fill="${color}" font-weight="bold">⚔ ${label}</text>
+  </svg>`);
+}
+
+function gdeltEventSvg(color: string, size: number, label: string, icon: string, severity: string) {
+  const r = size * 2.5;
+  const w = Math.max(80, label.length * 5 + 16);
+  const h = r * 2 + 24;
+  const cx = w / 2;
+  const cy = r + 2;
+  const isCrit = severity === 'critical';
+  const isHigh = severity === 'high';
+  const pulseAnim = isCrit 
+    ? `<animate attributeName="r" values="${r};${r*2};${r}" dur="1.5s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.5;0;0.5" dur="1.5s" repeatCount="indefinite"/>`
+    : isHigh
+    ? `<animate attributeName="r" values="${r};${r*1.6};${r}" dur="2s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.3;0;0.3" dur="2s" repeatCount="indefinite"/>`
+    : '';
+  return svgEl(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${color}" stroke-width="1" opacity="0.4">${pulseAnim}</circle>
+    <circle cx="${cx}" cy="${cy}" r="${r*0.5}" fill="${color}" opacity="0.7"/>
+    <text x="${cx}" y="${cy+4}" text-anchor="middle" font-size="10">${icon}</text>
+    <rect x="2" y="${h-16}" width="${w-4}" height="14" rx="2" fill="#000" fill-opacity="0.75"/>
+    <text x="${w/2}" y="${h-6}" text-anchor="middle" font-family="monospace" font-size="6" fill="${color}">${label}</text>
   </svg>`);
 }
 
@@ -432,7 +454,7 @@ const Google3DGlobe = memo(() => {
   const followIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const initRef = useRef(false);
 
-  const { layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, fires, setDetailPanel, setActiveLivestream, mapCenter, followTarget, setFollowTarget, layerSubFilters } = useWorldViewStore();
+  const { layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, fires, geoEvents, setDetailPanel, setActiveLivestream, mapCenter, followTarget, setFollowTarget, layerSubFilters } = useWorldViewStore();
 
   // Start following a target with cinematic camera
   const startFollow = useCallback((target: FollowTarget) => {
@@ -1095,6 +1117,24 @@ const Google3DGlobe = memo(() => {
           0, true
         );
       });
+
+      // GDELT geo-events — severity-colored reticles
+      const severityColors: Record<string, string> = {
+        critical: '#cc2244', high: '#ff6600', medium: '#ffaa00', low: '#00ffaa', info: '#0099ff',
+      };
+      const severitySizes: Record<string, number> = {
+        critical: 10, high: 7, medium: 5, low: 5, info: 5,
+      };
+      geoEvents.forEach(evt => {
+        const color = severityColors[evt.severity] || '#0099ff';
+        const size = severitySizes[evt.severity] || 5;
+        const typeIcon = evt.type === 'protest' ? '✊' : evt.type === 'military' ? '⚔' : evt.type === 'nuclear' ? '☢' : evt.type === 'cyber' ? '🔒' : '💥';
+        addMarker(evt.lat, evt.lon,
+          gdeltEventSvg(color, size, evt.title.substring(0, 30), typeIcon, evt.severity),
+          0, true,
+          () => { stopFollow(); setDetailPanel({ type: 'none', data: evt }); }
+        );
+      });
     }
 
     // Volcanoes
@@ -1309,7 +1349,7 @@ const Google3DGlobe = memo(() => {
     expectedCount = 999999; // rely on flush timer for final swap
     // Trigger flush timer-based swap
     return () => { clearTimeout(flushTimer); };
-  }, [layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, fires, setDetailPanel, setActiveLivestream, flyToCamera, setFollowTarget, stopFollow, layerSubFilters]);
+  }, [layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, fires, geoEvents, setDetailPanel, setActiveLivestream, flyToCamera, setFollowTarget, stopFollow, layerSubFilters]);
 
   // ── Auto-orbit idle camera ──
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);

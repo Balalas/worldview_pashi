@@ -21,6 +21,7 @@ import { generateRealisticSatellites, fetchISSPosition } from '@/services/satell
 import { fetchGlobalWeather, ACTIVE_VOLCANOES } from '@/services/weatherService';
 import { generateVessels, extractProtestsFromNews, extractOutagesFromNews, fetchCyberNews } from '@/services/vesselService';
 import { fetchActiveFiresEONET } from '@/services/fireService';
+import { fetchGdeltData } from '@/services/gdeltService';
 
 const Google3DGlobe = lazy(() => import('@/components/map/Google3DGlobe'));
 
@@ -144,7 +145,7 @@ const CctvPip = memo(() => {
 CctvPip.displayName = 'CctvPip';
 
 const Index = () => {
-  const { setAircraft, setSatellites, setEarthquakes, setNews, setLastRefresh, setNewsLoading, setWeatherAlerts, setVolcanoes, setVessels, setProtests, setOutages, setFires, toggleLayer, closeDetailPanel, mapMode, setFollowTarget, visualStyle, setVisualStyle, filterParams, bottomPanelCollapsed, bottomPanelExpanded, setMapCenter, isScreensaver, setScreensaver, immersiveMode, circularViewport, hudLayout, warMode } = useWorldViewStore();
+  const { setAircraft, setSatellites, setEarthquakes, setNews, setLastRefresh, setNewsLoading, setWeatherAlerts, setVolcanoes, setVessels, setProtests, setOutages, setFires, toggleLayer, closeDetailPanel, mapMode, setFollowTarget, visualStyle, setVisualStyle, filterParams, bottomPanelCollapsed, bottomPanelExpanded, setMapCenter, isScreensaver, setScreensaver, immersiveMode, circularViewport, hudLayout, warMode, setGeoEvents } = useWorldViewStore();
   const styleConfig = computeStyleConfig(visualStyle, filterParams);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const IDLE_TIMEOUT = 25000;
@@ -180,15 +181,37 @@ const Index = () => {
     // Fetch live aircraft
     fetchLiveAircraft().then(a => { if (a.length > 0) setAircraft(a); });
 
-    // Fetch news + derive protests/outages
+    // Fetch news from GDELT + RSS
     setNewsLoading(true);
-    Promise.all([fetchLiveNews(), fetchCyberNews()]).then(([mainNews, cyberNews]) => {
-      const allNews = [...mainNews, ...cyberNews].sort((a, b) => b.time.getTime() - a.time.getTime());
-      setNews(allNews);
-      setProtests(extractProtestsFromNews(allNews));
-      setOutages(extractOutagesFromNews(allNews));
-      setNewsLoading(false);
-    });
+    const fetchAllNews = async () => {
+      try {
+        const [gdeltResult, mainNews, cyberNews] = await Promise.all([
+          fetchGdeltData(),
+          fetchLiveNews(),
+          fetchCyberNews(),
+        ]);
+        // Merge GDELT articles with RSS, deduplicate by title similarity
+        const rssNews = [...mainNews, ...cyberNews];
+        const seenTitles = new Set(gdeltResult.articles.map(a => a.title.toLowerCase().substring(0, 40)));
+        const uniqueRss = rssNews.filter(n => !seenTitles.has(n.title.toLowerCase().substring(0, 40)));
+        const allNews = [...gdeltResult.articles, ...uniqueRss].sort((a, b) => b.time.getTime() - a.time.getTime());
+        setNews(allNews);
+        setGeoEvents(gdeltResult.events);
+        setProtests(extractProtestsFromNews(allNews));
+        setOutages(extractOutagesFromNews(allNews));
+        setNewsLoading(false);
+      } catch (e) {
+        console.warn('News fetch error:', e);
+        // Fallback to RSS only
+        const [mainNews, cyberNews] = await Promise.all([fetchLiveNews(), fetchCyberNews()]);
+        const allNews = [...mainNews, ...cyberNews].sort((a, b) => b.time.getTime() - a.time.getTime());
+        setNews(allNews);
+        setProtests(extractProtestsFromNews(allNews));
+        setOutages(extractOutagesFromNews(allNews));
+        setNewsLoading(false);
+      }
+    };
+    fetchAllNews();
 
     // Fetch earthquakes
     fetchEarthquakes().then(setEarthquakes);
@@ -218,13 +241,24 @@ const Index = () => {
 
     const eqInterval = setInterval(() => fetchEarthquakes().then(setEarthquakes), 300000);
 
-    const newsInterval = setInterval(() => {
-      Promise.all([fetchLiveNews(), fetchCyberNews()]).then(([mainNews, cyberNews]) => {
-        const allNews = [...mainNews, ...cyberNews].sort((a, b) => b.time.getTime() - a.time.getTime());
+    const newsInterval = setInterval(async () => {
+      try {
+        const [gdeltResult, mainNews, cyberNews] = await Promise.all([
+          fetchGdeltData(),
+          fetchLiveNews(),
+          fetchCyberNews(),
+        ]);
+        const rssNews = [...mainNews, ...cyberNews];
+        const seenTitles = new Set(gdeltResult.articles.map(a => a.title.toLowerCase().substring(0, 40)));
+        const uniqueRss = rssNews.filter(n => !seenTitles.has(n.title.toLowerCase().substring(0, 40)));
+        const allNews = [...gdeltResult.articles, ...uniqueRss].sort((a, b) => b.time.getTime() - a.time.getTime());
         setNews(allNews);
+        setGeoEvents(gdeltResult.events);
         setProtests(extractProtestsFromNews(allNews));
         setOutages(extractOutagesFromNews(allNews));
-      });
+      } catch (e) {
+        console.warn('News refresh error:', e);
+      }
     }, 180000); // 3 min default
 
     const weatherInterval = setInterval(() => fetchGlobalWeather().then(setWeatherAlerts), 600000);
@@ -245,17 +279,25 @@ const Index = () => {
   // WAR MODE — 60s rapid news refresh when active
   useEffect(() => {
     if (!warMode) return;
-    const warNewsInterval = setInterval(() => {
-      Promise.all([fetchLiveNews(), fetchCyberNews()]).then(([mainNews, cyberNews]) => {
-        const allNews = [...mainNews, ...cyberNews].sort((a, b) => b.time.getTime() - a.time.getTime());
+    const warRefresh = async () => {
+      try {
+        const [gdeltResult, mainNews, cyberNews] = await Promise.all([
+          fetchGdeltData({ warMode: true }),
+          fetchLiveNews(),
+          fetchCyberNews(),
+        ]);
+        const rssNews = [...mainNews, ...cyberNews];
+        const seenTitles = new Set(gdeltResult.articles.map(a => a.title.toLowerCase().substring(0, 40)));
+        const uniqueRss = rssNews.filter(n => !seenTitles.has(n.title.toLowerCase().substring(0, 40)));
+        const allNews = [...gdeltResult.articles, ...uniqueRss].sort((a, b) => b.time.getTime() - a.time.getTime());
         setNews(allNews);
-      });
-    }, 60000);
-    // Also fetch immediately on toggle
-    Promise.all([fetchLiveNews(), fetchCyberNews()]).then(([mainNews, cyberNews]) => {
-      const allNews = [...mainNews, ...cyberNews].sort((a, b) => b.time.getTime() - a.time.getTime());
-      setNews(allNews);
-    });
+        setGeoEvents(gdeltResult.events);
+      } catch (e) {
+        console.warn('War mode refresh error:', e);
+      }
+    };
+    const warNewsInterval = setInterval(warRefresh, 60000);
+    warRefresh(); // immediate
     return () => clearInterval(warNewsInterval);
   }, [warMode, setNews]);
 

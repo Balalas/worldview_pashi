@@ -27,7 +27,7 @@ const TABS: { key: BottomPanelTab; label: string; icon: string }[] = [
   { key: 'pizza', label: 'PIZZA INDEX', icon: '🍕' },
 ];
 
-type NewsFilter = 'ALL' | 'CRITICAL' | 'MILITARY' | 'PROTEST' | 'CYBER';
+type NewsFilter = 'ALL' | 'CRITICAL' | 'MILITARY' | 'CONFLICT' | 'PROTEST' | 'CYBER' | 'NUCLEAR' | 'ECONOMIC';
 
 const BottomFeed = memo(() => {
   const { bottomTab, setBottomTab, bottomPanelCollapsed, toggleBottomPanel, bottomPanelExpanded, setBottomPanelExpanded } = useWorldViewStore();
@@ -97,14 +97,16 @@ const NewsFeed = memo(() => {
   const [filter, setFilter] = useState<NewsFilter>('ALL');
 
   const filtered = news.filter((item) => {
-    // War mode overrides — only show war/conflict/military news
     if (warMode) {
       return item.category === 'military' || item.category === 'conflict' || WAR_NEWS_KEYWORDS.test(item.title);
     }
     if (filter === 'CRITICAL') return item.severity === 'critical' || item.severity === 'high';
-    if (filter === 'MILITARY') return item.category === 'military' || item.category === 'conflict';
+    if (filter === 'MILITARY') return item.category === 'military';
+    if (filter === 'CONFLICT') return item.category === 'conflict';
     if (filter === 'PROTEST') return item.category === 'protest';
     if (filter === 'CYBER') return item.category === 'cyber';
+    if (filter === 'NUCLEAR') return item.title.toLowerCase().includes('nuclear') || item.title.toLowerCase().includes('missile');
+    if (filter === 'ECONOMIC') return item.title.toLowerCase().includes('econom') || item.title.toLowerCase().includes('inflation') || item.title.toLowerCase().includes('recession');
     return true;
   });
 
@@ -114,8 +116,8 @@ const NewsFeed = memo(() => {
         <h2 className="text-[10px] font-display tracking-[0.2em] text-muted-foreground">INTELLIGENCE FEED</h2>
         {newsLoading && <span className="text-[9px] font-data text-primary animate-pulse-dot">FETCHING...</span>}
         <span className="text-[9px] font-data text-text-secondary">● {filtered.length} ITEMS</span>
-        <div className="flex gap-1 ml-auto">
-          {(['ALL', 'CRITICAL', 'MILITARY', 'PROTEST', 'CYBER'] as NewsFilter[]).map((f) => (
+        <div className="flex gap-1 ml-auto flex-wrap">
+          {(['ALL', 'CRITICAL', 'MILITARY', 'CONFLICT', 'PROTEST', 'CYBER', 'NUCLEAR', 'ECONOMIC'] as NewsFilter[]).map((f) => (
             <button key={f} onClick={() => setFilter(f)}
               className={`text-[8px] font-display tracking-wider px-1.5 py-0.5 rounded ${filter === f ? 'bg-primary/10 text-primary border border-primary/20' : 'text-text-muted-custom hover:text-muted-foreground'}`}>{f}</button>
           ))}
@@ -132,6 +134,8 @@ const NewsCard = ({ item }: { item: NewsItem }) => {
   const severityColor = { critical: 'border-l-alert-critical', high: 'border-l-alert-high', medium: 'border-l-alert-medium', low: 'border-l-alert-low', info: 'border-l-alert-info' }[item.severity];
   const severityDot = { critical: 'bg-alert-critical', high: 'bg-alert-high', medium: 'bg-alert-medium', low: 'bg-alert-low', info: 'bg-alert-info' }[item.severity];
   const catBadge = item.category && item.category !== 'general' ? { protest: '✊', cyber: '🔒', military: '⚔', conflict: '💥' }[item.category] : null;
+  const tierLabel = { 1: 'WIRE', 2: 'QUAL', 3: 'BCAST', 4: 'REG' }[item.tier] || 'REG';
+  const tierColor = item.tier === 1 ? 'text-primary' : item.tier === 2 ? 'text-signal-aircraft' : 'text-text-muted-custom';
 
   return (
     <div className={`bg-card-bg/60 border-l-2 ${severityColor} rounded-r px-2 py-1.5 hover:bg-card-hover transition-colors cursor-pointer`}
@@ -140,12 +144,13 @@ const NewsCard = ({ item }: { item: NewsItem }) => {
         <div className={`w-1.5 h-1.5 rounded-full ${severityDot} mt-1 flex-shrink-0 ${item.severity === 'critical' ? 'animate-pulse-dot' : ''}`} />
         <div className="min-w-0 flex-1">
           <p className="text-[10px] text-foreground leading-tight line-clamp-2">{item.title}</p>
-          <div className="flex items-center gap-1.5 mt-1">
+          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
             {catBadge && <span className="text-[9px]">{catBadge}</span>}
-            <span className="text-[8px] font-data text-text-secondary">{item.source}</span>
-            <span className="text-[8px] text-text-muted-custom">·</span>
+            <span className="text-[8px] font-data text-text-secondary truncate max-w-[100px]">{item.source}</span>
+            <span className={`text-[7px] font-data ${tierColor} bg-card-bg/80 px-1 rounded`}>{tierLabel}</span>
+            {item.isStateMedia && <span className="text-[7px] font-data text-alert-critical bg-alert-critical/10 px-1 rounded">STATE</span>}
+            {item.country && <span className="text-[7px] font-data text-muted-foreground bg-card-bg/80 px-1 rounded uppercase">{item.country}</span>}
             <span className="text-[8px] font-data text-text-muted-custom">{getTimeAgo(item.time)}</span>
-            <span className="text-[8px] font-data text-text-muted-custom">T{item.tier}</span>
             {item.link && <span className="text-[7px] text-primary">↗</span>}
           </div>
         </div>

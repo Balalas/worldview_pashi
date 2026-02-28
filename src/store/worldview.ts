@@ -112,6 +112,21 @@ export interface NewsItem {
   isStateMedia?: boolean;
   link?: string;
   category?: 'general' | 'protest' | 'cyber' | 'military' | 'conflict';
+  country?: string;
+  image?: string;
+}
+
+export interface GeoEvent {
+  id: string;
+  title: string;
+  lat: number;
+  lon: number;
+  country: string;
+  severity: 'critical' | 'high' | 'medium' | 'low' | 'info';
+  category: string;
+  source: string;
+  time: string;
+  type: string;
 }
 
 export interface DetailPanel {
@@ -327,6 +342,9 @@ export interface WorldViewState {
   news: NewsItem[];
   setNews: (n: NewsItem[]) => void;
 
+  geoEvents: GeoEvent[];
+  setGeoEvents: (e: GeoEvent[]) => void;
+
   weatherAlerts: WeatherAlert[];
   setWeatherAlerts: (w: WeatherAlert[]) => void;
 
@@ -470,6 +488,9 @@ export const useWorldViewStore = create<WorldViewState>((set) => ({
 
   news: [],
   setNews: (news) => set({ news }),
+
+  geoEvents: [],
+  setGeoEvents: (geoEvents) => set({ geoEvents }),
 
   weatherAlerts: [],
   setWeatherAlerts: (weatherAlerts) => set({ weatherAlerts }),
