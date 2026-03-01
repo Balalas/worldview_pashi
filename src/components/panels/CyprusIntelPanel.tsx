@@ -1,0 +1,175 @@
+import { memo, useState, useEffect, useCallback } from 'react';
+import { fetchCyprusNews, CyprusNewsData, CyprusArticle } from '@/services/cyprusNewsService';
+
+const CATEGORY_CONFIG: Record<string, { icon: string; color: string }> = {
+  security: { icon: '🔴', color: 'border-l-destructive bg-destructive/5' },
+  politics: { icon: '🏛', color: 'border-l-primary bg-primary/5' },
+  economy: { icon: '💰', color: 'border-l-alert-medium bg-alert-medium/5' },
+  energy: { icon: '⚡', color: 'border-l-alert-high bg-alert-high/5' },
+  society: { icon: '👥', color: 'border-l-signal-aircraft bg-signal-aircraft/5' },
+  general: { icon: '📰', color: 'border-l-muted-foreground/30 bg-card-bg/30' },
+};
+
+type CategoryFilter = 'all' | 'security' | 'politics' | 'economy' | 'energy' | 'society' | 'general';
+
+const CyprusIntelPanel = memo(() => {
+  const [data, setData] = useState<CyprusNewsData | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [filter, setFilter] = useState<CategoryFilter>('all');
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      const result = await fetchCyprusNews('full');
+      setData(result);
+    } catch {
+      // handled in service
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  // Auto-refresh every 2 minutes
+  useEffect(() => {
+    const iv = setInterval(() => fetchCyprusNews('quick').then(setData), 120_000);
+    return () => clearInterval(iv);
+  }, []);
+
+  const filtered = data?.articles?.filter(
+    (a) => filter === 'all' || a.category === filter
+  ) || [];
+
+  const categoryCounts = data?.articles?.reduce((acc, a) => {
+    acc[a.category] = (acc[a.category] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>) || {};
+
+  return (
+    <div className="p-3 space-y-3">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-base">🇨🇾</span>
+          <span className="text-[10px] font-display tracking-[0.2em] text-foreground">
+            CYPRUS INTELLIGENCE MONITOR
+          </span>
+          {data && (
+            <span className="text-[8px] font-data text-muted-foreground">
+              {data.uniqueCount} articles from {data.totalFound} sources
+            </span>
+          )}
+        </div>
+        <button
+          onClick={refresh}
+          disabled={loading}
+          className="px-2 py-0.5 text-[8px] font-display tracking-[0.15em] rounded border border-primary/20 text-primary/70 hover:text-primary hover:border-primary/40 transition-colors disabled:opacity-40"
+        >
+          {loading ? '⏳ SCANNING...' : '🔄 SCAN CYPRUS'}
+        </button>
+      </div>
+
+      {/* Category filters */}
+      <div className="flex gap-1 flex-wrap">
+        <button
+          onClick={() => setFilter('all')}
+          className={`text-[8px] font-display tracking-wider px-2 py-0.5 rounded transition-colors ${
+            filter === 'all'
+              ? 'bg-primary/10 text-primary border border-primary/20'
+              : 'text-muted-foreground hover:text-foreground border border-transparent'
+          }`}
+        >
+          ALL ({data?.articles?.length || 0})
+        </button>
+        {Object.entries(CATEGORY_CONFIG).map(([key, cfg]) => (
+          <button
+            key={key}
+            onClick={() => setFilter(key as CategoryFilter)}
+            className={`text-[8px] font-display tracking-wider px-2 py-0.5 rounded transition-colors ${
+              filter === key
+                ? 'bg-primary/10 text-primary border border-primary/20'
+                : 'text-muted-foreground hover:text-foreground border border-transparent'
+            }`}
+          >
+            {cfg.icon} {key.toUpperCase()} ({categoryCounts[key] || 0})
+          </button>
+        ))}
+      </div>
+
+      {/* Status bar */}
+      {data && (
+        <div className="flex items-center gap-3 text-[8px] font-data text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-signal-aircraft animate-pulse" />
+            LIVE MONITORING
+          </span>
+          <span>⏱ {new Date(data.scrapedAt).toLocaleTimeString('en-US', { hour12: false })}</span>
+          {data.errors && data.errors.length > 0 && (
+            <span className="text-alert-medium">⚠ {data.errors.length} source errors</span>
+          )}
+        </div>
+      )}
+
+      {/* Articles */}
+      {loading && !data ? (
+        <div className="space-y-2">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="h-14 rounded bg-card-bg/50 animate-pulse" />
+          ))}
+        </div>
+      ) : filtered.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-1.5 max-h-[400px] overflow-y-auto scrollbar-thin">
+          {filtered.map((article, i) => {
+            const cfg = CATEGORY_CONFIG[article.category] || CATEGORY_CONFIG.general;
+            return (
+              <div
+                key={i}
+                onClick={() => article.url && window.open(article.url, '_blank')}
+                className={`border-l-2 ${cfg.color} rounded-r px-2.5 py-2 hover:brightness-110 transition-all cursor-pointer`}
+              >
+                <div className="flex items-center gap-1 mb-1">
+                  <span className="text-[8px]">{cfg.icon}</span>
+                  <span className="text-[7px] font-data tracking-wider text-muted-foreground uppercase">
+                    {article.category}
+                  </span>
+                  {article.type === 'x-post' && (
+                    <span className="text-[7px] font-data text-primary/60">𝕏</span>
+                  )}
+                </div>
+                <p className="text-[10px] text-foreground leading-tight line-clamp-2 font-display tracking-wide">
+                  {article.title}
+                </p>
+                {article.description && (
+                  <p className="text-[8px] text-muted-foreground leading-tight line-clamp-1 mt-0.5">
+                    {article.description}
+                  </p>
+                )}
+                <div className="flex items-center gap-1.5 mt-1">
+                  <span className="text-[7px] font-data text-muted-foreground/70">{article.source}</span>
+                  <span className="text-[7px] text-primary ml-auto">↗</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="p-4 text-center text-[9px] font-data text-muted-foreground">
+          No Cyprus articles found. Click SCAN CYPRUS to fetch latest intelligence.
+        </div>
+      )}
+
+      {/* AI feed indicator */}
+      {data?.headlines && data.headlines.length > 0 && (
+        <div className="border-t border-border pt-2">
+          <span className="text-[8px] font-display tracking-[0.2em] text-muted-foreground">
+            🧠 {data.headlines.length} CYPRUS HEADLINES FED TO AI ANALYSIS ENGINE
+          </span>
+        </div>
+      )}
+    </div>
+  );
+});
+
+CyprusIntelPanel.displayName = 'CyprusIntelPanel';
+export default CyprusIntelPanel;

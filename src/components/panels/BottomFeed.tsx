@@ -24,6 +24,7 @@ import { fetchAINewsEnrichment, AINewsEnrichment } from '@/services/aiEnrichServ
 import RegionalNewsPanel from './RegionalNewsPanel';
 import InfrastructureCascade from './InfrastructureCascade';
 import OsintPanel from './OsintPanel';
+import CyprusIntelPanel from './CyprusIntelPanel';
 
 const TABS: { key: BottomPanelTab; label: string; icon: string }[] = [
   { key: 'news', label: 'INTEL FEED', icon: '📡' },
@@ -55,6 +56,7 @@ export interface SectionConfig {
 }
 
 const DEFAULT_SECTIONS: SectionConfig[] = [
+  { id: 'cyprus', title: 'CYPRUS INTELLIGENCE', icon: '🇨🇾', defaultOpen: true, visible: true },
   { id: 'osint', title: 'X/TWITTER OSINT', icon: '🕵', defaultOpen: true, visible: true },
   { id: 'conflicts', title: 'ACTIVE CONFLICTS & WORLD TV', icon: '💥', defaultOpen: true, visible: true },
   { id: 'intel', title: 'INTELLIGENCE & MARKETS', icon: '📡', defaultOpen: true, visible: true },
@@ -481,6 +483,7 @@ const BottomFeed = memo(() => {
         </div>
       );
       case 'osint': return <div className="max-h-[450px] overflow-y-auto scrollbar-thin"><OsintPanel /></div>;
+      case 'cyprus': return <div className="max-h-[500px] overflow-y-auto scrollbar-thin"><CyprusIntelPanel /></div>;
       case 'ai': return <div className="max-h-[450px] overflow-y-auto scrollbar-thin"><AIInsightsPanel /></div>;
       case 'webcams': return <div className="max-h-[500px] overflow-y-auto scrollbar-thin"><WebcamGrid /></div>;
       case 'regional': return <div className="max-h-[400px] overflow-y-auto scrollbar-thin"><RegionalNewsPanel /></div>;
