@@ -9,12 +9,18 @@ const corsHeaders = {
 const CYPRUS_QUERIES = [
   "Cyprus news today",
   "Cyprus politics government",
-  "Cyprus Turkey tensions",
-  "Northern Cyprus TRNC",
   "Cyprus EEZ gas drilling",
   "Cyprus military UN buffer zone",
   "Limassol Nicosia Larnaca news",
   "Cyprus economy banking",
+  "Republic of Cyprus latest",
+];
+
+// Block Turkish state/propaganda sources
+const BLOCKED_DOMAINS = [
+  "aa.com.tr", "trtworld.com", "dailysabah.com", "yenisafak.com",
+  "hurriyetdailynews.com", "trthaber.com", "kibrispostasi.com",
+  "gundemkibris.com", "havadiskibris.com",
 ];
 
 // Cyprus X/Twitter accounts & journalists
@@ -180,9 +186,19 @@ serve(async (req) => {
       }
     }
 
+    // Filter out Turkish state media and propaganda sources
+    const filtered = allArticles.filter((a) => {
+      const domain = extractDomain(a.url);
+      if (BLOCKED_DOMAINS.some((b) => domain.includes(b))) return false;
+      // Also block titles that are purely TRNC propaganda
+      const t = (a.title + " " + a.description).toLowerCase();
+      if (/\b(trnc president|northern cyprus government|turkish republic of northern)\b/.test(t)) return false;
+      return true;
+    });
+
     // Deduplicate by title similarity
     const seen = new Set<string>();
-    const unique = allArticles.filter((a) => {
+    const unique = filtered.filter((a) => {
       const key = a.title.toLowerCase().replace(/[^a-z0-9]/g, "").substring(0, 50);
       if (seen.has(key) || key.length < 10) return false;
       seen.add(key);
