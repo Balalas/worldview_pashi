@@ -69,10 +69,10 @@ const RSS_FEEDS = [
   { url: 'https://feeds.feedburner.com/ndaborsa/world', source: 'NDTV', tier: 2 as const },
   { url: 'https://www.france24.com/en/rss', source: 'France24', tier: 2 as const },
   // OSINT & Intelligence — X/Twitter accounts via RSS bridges
-  { url: 'https://rss.app/feeds/v1.1/tPYJNbNqo1sQpMlV.xml', source: 'OSINT-X', tier: 1 as const }, // @IntelCrab
-  { url: 'https://rss.app/feeds/v1.1/t4K2HJdqH9kF8wLm.xml', source: 'OSINT-X', tier: 1 as const }, // @sentdefender
-  { url: 'https://rss.app/feeds/v1.1/tR7nGvYqZ3sVmXk8.xml', source: 'OSINT-X', tier: 1 as const }, // @Liveuamap
-  { url: 'https://rss.app/feeds/v1.1/tB5xMwPqN2sTfYj6.xml', source: 'OSINT-X', tier: 1 as const }, // @TheIntelPoint
+  { url: 'https://rss.app/feeds/v1.1/tPYJNbNqo1sQpMlV.xml', source: 'OSINT-X', tier: 1 as const },
+  { url: 'https://rss.app/feeds/v1.1/t4K2HJdqH9kF8wLm.xml', source: 'OSINT-X', tier: 1 as const },
+  { url: 'https://rss.app/feeds/v1.1/tR7nGvYqZ3sVmXk8.xml', source: 'OSINT-X', tier: 1 as const },
+  { url: 'https://rss.app/feeds/v1.1/tB5xMwPqN2sTfYj6.xml', source: 'OSINT-X', tier: 1 as const },
   // OSINT blogs & feeds
   { url: 'https://www.bellingcat.com/feed/', source: 'Bellingcat', tier: 1 as const },
   { url: 'https://krebsonsecurity.com/feed/', source: 'KrebsSec', tier: 1 as const },
@@ -84,6 +84,9 @@ const RSS_FEEDS = [
   { url: 'https://www.criticalthreats.org/feed', source: 'CritThreats', tier: 1 as const },
   // Liveuamap direct
   { url: 'https://liveuamap.com/rss', source: 'LiveUAMap', tier: 1 as const },
+  // Epstein tracking — Google News search
+  { url: 'https://news.google.com/rss/search?q=Jeffrey+Epstein&hl=en-US&gl=US&ceid=US:en', source: 'Epstein Watch', tier: 1 as const },
+  { url: 'https://news.google.com/rss/search?q=Epstein+files+OR+Epstein+list+OR+Ghislaine+Maxwell&hl=en-US&gl=US&ceid=US:en', source: 'Epstein Files', tier: 1 as const },
 ];
 
 // ── Country extraction from headlines ──
@@ -132,6 +135,10 @@ const COUNTRY_KEYWORDS: Record<string, string> = {
   'thailand': 'thailand', 'bangkok': 'thailand',
   'vietnam': 'vietnam', 'hanoi': 'vietnam',
   'morocco': 'morocco', 'algeria': 'algeria', 'tunisia': 'tunisia',
+  // Epstein-linked locations
+  'epstein': 'virgin islands', 'little st james': 'virgin islands', 'epstein island': 'virgin islands',
+  'ghislaine maxwell': 'united states', 'lolita express': 'virgin islands',
+  'palm beach': 'united states', 'virgin islands': 'virgin islands',
 };
 const COUNTRY_KEYS_SORTED = Object.keys(COUNTRY_KEYWORDS).sort((a, b) => b.length - a.length);
 
@@ -145,6 +152,7 @@ function extractCountryFromTitle(title: string): string | undefined {
 
 const SEVERITY_KEYWORDS: Record<string, NewsItem['severity']> = {
   explosion: 'critical', attack: 'critical', killed: 'critical', missile: 'critical', war: 'critical', dead: 'critical', bomb: 'critical',
+  epstein: 'high', 'ghislaine': 'high', 'maxwell': 'high',
   military: 'high', troops: 'high', sanctions: 'high', threat: 'high', nuclear: 'high', crisis: 'high', invasion: 'high',
   protest: 'medium', election: 'medium', earthquake: 'medium', storm: 'medium', flood: 'medium', fire: 'medium',
   trade: 'low', economy: 'low', climate: 'low', summit: 'low',
