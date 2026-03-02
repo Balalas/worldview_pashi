@@ -6,7 +6,7 @@ export interface CyprusArticle {
   url: string;
   source: string;
   category: 'security' | 'politics' | 'economy' | 'energy' | 'society' | 'general';
-  type: 'search' | 'x-post' | 'scrape';
+  type: 'search' | 'x-post' | 'scrape' | 'ai-search';
   query: string;
 }
 
@@ -16,6 +16,7 @@ export interface CyprusNewsData {
   totalFound: number;
   uniqueCount: number;
   scrapedAt: string;
+  sources?: { perplexity: number; firecrawl: number; xPosts: number; scraped: number };
   errors?: string[];
 }
 
@@ -42,6 +43,7 @@ export const fetchCyprusNews = async (mode: 'full' | 'quick' = 'full'): Promise<
         totalFound: data.totalFound || 0,
         uniqueCount: data.uniqueCount || 0,
         scrapedAt: data.scrapedAt || new Date().toISOString(),
+        sources: data.sources,
         errors: data.errors,
       };
       cache.data = result;

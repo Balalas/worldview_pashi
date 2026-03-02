@@ -99,12 +99,20 @@ const CyprusIntelPanel = memo(() => {
 
       {/* Status bar */}
       {data && (
-        <div className="flex items-center gap-3 text-[8px] font-data text-muted-foreground">
+        <div className="flex items-center gap-3 text-[8px] font-data text-muted-foreground flex-wrap">
           <span className="flex items-center gap-1">
             <span className="w-1.5 h-1.5 rounded-full bg-signal-aircraft animate-pulse" />
             LIVE MONITORING
           </span>
           <span>⏱ {new Date(data.scrapedAt).toLocaleTimeString('en-US', { hour12: false })}</span>
+          {data.sources && (
+            <>
+              <span className="text-primary">🧠 AI: {data.sources.perplexity}</span>
+              <span>🔍 Web: {data.sources.firecrawl}</span>
+              <span>𝕏 Posts: {data.sources.xPosts}</span>
+              <span>📄 Scraped: {data.sources.scraped}</span>
+            </>
+          )}
           {data.errors && data.errors.length > 0 && (
             <span className="text-alert-medium">⚠ {data.errors.length} source errors</span>
           )}
