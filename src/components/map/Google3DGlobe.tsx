@@ -6,6 +6,7 @@ import { SUBMARINE_CABLES } from '@/data/submarineCables';
 import { MILITARY_BASES, SPACEPORTS, CHOKEPOINTS, DATACENTERS, CRITICAL_MINERALS } from '@/data/staticLayers';
 import { PUBLIC_CAMERAS, PublicCamera } from '@/data/publicCameras';
 import { PIPELINES } from '@/data/pipelines';
+import { getActiveHighlights } from '@/services/conflictAnimationEngine';
 
 declare const google: any;
 
@@ -1493,6 +1494,46 @@ const Google3DGlobe = memo(() => {
       })();
     }
 
+    // ── Country Highlights — pulsing rings for plane movement / escalation ──
+    if (layers.conflicts) {
+      const highlights = getActiveHighlights();
+      for (const hl of highlights) {
+        const color = hl.type === 'plane_movement' ? '#00aaff' : '#ff4400';
+        const label = `✈ ${hl.country.toUpperCase()}`;
+        const s = 80;
+        const cx = s / 2;
+        const cy = s / 2 - 8;
+        addMarker(hl.lat, hl.lon,
+          svgEl(`<svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${s + 20}" viewBox="0 0 ${s} ${s + 20}">
+            <!-- Large pulsing area ring -->
+            <circle cx="${cx}" cy="${cy}" r="20" fill="none" stroke="${color}" stroke-width="2" opacity="0">
+              <animate attributeName="r" values="20;35;20" dur="2s" repeatCount="indefinite"/>
+              <animate attributeName="opacity" values="0.7;0;0.7" dur="2s" repeatCount="indefinite"/>
+            </circle>
+            <circle cx="${cx}" cy="${cy}" r="12" fill="none" stroke="${color}" stroke-width="1.5" opacity="0">
+              <animate attributeName="r" values="12;28;12" dur="2s" repeatCount="indefinite" begin="0.5s"/>
+              <animate attributeName="opacity" values="0.5;0;0.5" dur="2s" repeatCount="indefinite" begin="0.5s"/>
+            </circle>
+            <!-- Rotating crosshair -->
+            <g transform="translate(${cx},${cy})">
+              <animateTransform attributeName="transform" type="rotate" values="0 ${cx} ${cy};360 ${cx} ${cy}" dur="8s" repeatCount="indefinite"/>
+              <line x1="-18" y1="0" x2="-8" y2="0" stroke="${color}" stroke-width="1.5" opacity="0.6"/>
+              <line x1="8" y1="0" x2="18" y2="0" stroke="${color}" stroke-width="1.5" opacity="0.6"/>
+              <line x1="0" y1="-18" x2="0" y2="-8" stroke="${color}" stroke-width="1.5" opacity="0.6"/>
+              <line x1="0" y1="8" x2="0" y2="18" stroke="${color}" stroke-width="1.5" opacity="0.6"/>
+            </g>
+            <!-- Core -->
+            <circle cx="${cx}" cy="${cy}" r="5" fill="${color}" opacity="0.7">
+              <animate attributeName="opacity" values="0.7;0.3;0.7" dur="1s" repeatCount="indefinite"/>
+            </circle>
+            <!-- Label -->
+            <text x="${cx}" y="${s + 8}" text-anchor="middle" font-family="monospace" font-size="8" fill="${color}" font-weight="bold" stroke="#000" stroke-width="2.5" paint-order="stroke">${label}</text>
+          </svg>`),
+          500, true
+        );
+      }
+    }
+
     // ── Missile arcs — animated polylines between conflict pairs ──
     if (layers.conflicts && missileArcs.length > 0) {
       (async () => {
@@ -1508,13 +1549,12 @@ const Google3DGlobe = memo(() => {
               Math.pow(missile.toLat - missile.fromLat, 2) +
               Math.pow(missile.toLon - missile.fromLon, 2)
             );
-            const peakAlt = Math.min(dist * 30000, 300000); // Peak altitude scales with distance
+            const peakAlt = Math.min(dist * 30000, 300000);
 
             for (let i = 0; i <= steps; i++) {
               const t = i / steps;
               const lat = missile.fromLat + (missile.toLat - missile.fromLat) * t;
               const lng = missile.fromLon + (missile.toLon - missile.fromLon) * t;
-              // Parabolic arc: peaks at t=0.5
               const alt = peakAlt * 4 * t * (1 - t);
               arcPoints.push({ lat, lng, altitude: alt });
             }
@@ -1523,6 +1563,24 @@ const Google3DGlobe = memo(() => {
               missile.status === 'hit' ? '#ff0000' :
               missile.type === 'ballistic' ? '#ff2200' :
               missile.type === 'drone' ? '#ff8800' : '#ff4400';
+
+            // Animated warhead marker at arc midpoint
+            const warheadT = (Date.now() % 4000) / 4000; // cycles 0→1 every 4s
+            const whIdx = Math.floor(warheadT * steps);
+            const whPoint = arcPoints[Math.min(whIdx, arcPoints.length - 1)];
+            if (whPoint) {
+              const whSize = 24;
+              addMarker(whPoint.lat, whPoint.lng,
+                svgEl(`<svg xmlns="http://www.w3.org/2000/svg" width="${whSize}" height="${whSize}" viewBox="0 0 ${whSize} ${whSize}">
+                  <circle cx="${whSize/2}" cy="${whSize/2}" r="4" fill="${arcColor}" opacity="0.95">
+                    <animate attributeName="r" values="4;8;4" dur="0.5s" repeatCount="indefinite"/>
+                    <animate attributeName="opacity" values="0.95;0.3;0.95" dur="0.5s" repeatCount="indefinite"/>
+                  </circle>
+                  <circle cx="${whSize/2}" cy="${whSize/2}" r="2" fill="#fff" opacity="0.9"/>
+                </svg>`),
+                whPoint.altitude, true
+              );
+            }
 
             // Glow trail
             const glow = new Polyline3DElement({
