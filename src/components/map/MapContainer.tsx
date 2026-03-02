@@ -37,9 +37,11 @@ const MapContainer = memo(() => {
 
     L.control.zoom({ position: 'bottomright' }).addTo(map);
     
-    // Custom pane for cables to render below country borders
+    // Custom panes for proper z-ordering: cables below countries
     map.createPane('cablesPane');
     map.getPane('cablesPane')!.style.zIndex = '250';
+    map.createPane('countriesPane');
+    map.getPane('countriesPane')!.style.zIndex = '300';
     
     mapInstanceRef.current = map;
 
@@ -53,6 +55,7 @@ const MapContainer = memo(() => {
       .then(topo => {
         const geojson = topojson.feature(topo, topo.objects.countries) as any;
         const geoLayer = L.geoJSON(geojson, {
+          pane: 'countriesPane',
           style: () => ({
             fillColor: 'transparent',
             fillOpacity: 0,
