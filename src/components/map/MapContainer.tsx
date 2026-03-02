@@ -17,7 +17,7 @@ const MapContainer = memo(() => {
   const layersRef = useRef<Record<string, L.LayerGroup>>({});
   const geoLayerRef = useRef<L.GeoJSON | null>(null);
 
-  const { layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, fires, liveCameras, setDetailPanel, setActiveLivestream, mapCenter } = useWorldViewStore();
+  const { layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, fires, liveCameras, setDetailPanel, setActiveLivestream, mapCenter, twitterGeoMarkers, news, setMapCenter } = useWorldViewStore();
 
   // Initialize map
   useEffect(() => {
@@ -37,7 +37,7 @@ const MapContainer = memo(() => {
     L.control.zoom({ position: 'bottomright' }).addTo(map);
     mapInstanceRef.current = map;
 
-    ['aircraft', 'satellites', 'earthquakes', 'conflicts', 'cables', 'weather', 'volcanoes', 'nuclear', 'vessels', 'protests', 'outages', 'cameras', 'fires'].forEach((key) => {
+    ['aircraft', 'satellites', 'earthquakes', 'conflicts', 'cables', 'weather', 'volcanoes', 'nuclear', 'vessels', 'protests', 'outages', 'cameras', 'fires', 'twitterOsint', 'newsMarkers'].forEach((key) => {
       layersRef.current[key] = L.layerGroup().addTo(map);
     });
 
@@ -410,7 +410,7 @@ const MapContainer = memo(() => {
 
       // Inner marker
       const inner = L.circleMarker([cz.lat, cz.lon], { radius, color, fillColor: color, fillOpacity: 0.25, weight: 1.5 });
-      inner.bindTooltip(`⚔ ${cz.name} [${cz.intensity}/10]`, { direction: 'top', offset: [0, -10] });
+      inner.bindTooltip(`🎯 ${cz.name} [${cz.intensity}/10]`, { direction: 'top', offset: [0, -10] });
       inner.on('click', () => setDetailPanel({ type: 'conflict', data: cz }));
       group.addLayer(inner);
 
@@ -510,6 +510,197 @@ const MapContainer = memo(() => {
       group.addLayer(marker);
     });
   }, [layers.nuclearSites]);
+
+  // Render Twitter/X OSINT geo markers
+  useEffect(() => {
+    const group = layersRef.current['twitterOsint'];
+    if (!group) return;
+    group.clearLayers();
+    if (twitterGeoMarkers.length === 0) return;
+
+    twitterGeoMarkers.forEach((m) => {
+      const isConflict = /\b(strike|missile|attack|killed|bomb|explosion|war|troops|drone)\b/i.test(m.text);
+      const color = isConflict ? '#ff0044' : '#00aaff';
+      const size = isConflict ? 22 : 16;
+
+      let html = `<div style="position:relative;width:${size}px;height:${size}px;">
+        <div style="position:absolute;inset:0;border:1.5px solid ${color};border-radius:50%;animation:ping-ring 2.5s ease-out infinite;opacity:0.5;"></div>
+        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:${size * 0.4}px;height:${size * 0.4}px;background:${color};border-radius:50%;box-shadow:0 0 8px ${color};"></div>
+      </div>`;
+
+      // Add explosion animation for conflict posts
+      if (isConflict) {
+        html = `<div style="position:relative;width:${size}px;height:${size}px;">
+          <svg viewBox="0 0 100 100" width="${size}" height="${size}" style="position:absolute;inset:0;">
+            <circle cx="50" cy="50" r="10" fill="none" stroke="${color}" stroke-width="2" opacity="0.6">
+              <animate attributeName="r" values="10;45" dur="2s" repeatCount="indefinite"/>
+              <animate attributeName="opacity" values="0.6;0" dur="2s" repeatCount="indefinite"/>
+            </circle>
+            <circle cx="50" cy="50" r="8" fill="${color}" opacity="0.8">
+              <animate attributeName="r" values="5;10;5" dur="1.5s" repeatCount="indefinite"/>
+              <animate attributeName="opacity" values="0.8;1;0.8" dur="1.5s" repeatCount="indefinite"/>
+            </circle>
+          </svg>
+        </div>`;
+      }
+
+      const icon = L.divIcon({
+        className: '',
+        html,
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size / 2],
+      });
+
+      const marker = L.marker([m.lat, m.lon], { icon });
+      marker.bindTooltip(`𝕏 @${m.account} — ${m.text.substring(0, 80)}…`, { direction: 'top', offset: [0, -12] });
+      marker.on('click', () => {
+        setMapCenter({ lat: m.lat, lon: m.lon, zoom: 8 });
+        window.open(m.url, '_blank');
+      });
+      group.addLayer(marker);
+    });
+  }, [twitterGeoMarkers, setMapCenter]);
+
+  // Render news markers on countries — plot geolocated news with animated icons
+  useEffect(() => {
+    const group = layersRef.current['newsMarkers'];
+    if (!group) return;
+    group.clearLayers();
+    if (news.length === 0) return;
+
+    // Build country coords from CONFLICT_ZONES + known centroids
+    const COUNTRY_CENTROIDS: Record<string, { lat: number; lon: number }> = {
+      'united states': { lat: 39.8, lon: -98.5 }, 'usa': { lat: 39.8, lon: -98.5 }, 'us': { lat: 39.8, lon: -98.5 },
+      'china': { lat: 35.8, lon: 104.1 }, 'cn': { lat: 35.8, lon: 104.1 },
+      'russia': { lat: 61.5, lon: 105.3 }, 'ru': { lat: 61.5, lon: 105.3 },
+      'ukraine': { lat: 48.3, lon: 31.1 }, 'ua': { lat: 48.3, lon: 31.1 },
+      'iran': { lat: 32.4, lon: 53.6 }, 'ir': { lat: 32.4, lon: 53.6 },
+      'israel': { lat: 31.0, lon: 34.8 }, 'il': { lat: 31.0, lon: 34.8 },
+      'gaza': { lat: 31.35, lon: 34.31 }, 'palestine': { lat: 31.9, lon: 35.2 },
+      'india': { lat: 20.6, lon: 78.9 }, 'in': { lat: 20.6, lon: 78.9 },
+      'pakistan': { lat: 30.4, lon: 69.3 }, 'pk': { lat: 30.4, lon: 69.3 },
+      'turkey': { lat: 38.9, lon: 35.2 }, 'tr': { lat: 38.9, lon: 35.2 },
+      'iraq': { lat: 33.2, lon: 43.7 }, 'iq': { lat: 33.2, lon: 43.7 },
+      'syria': { lat: 34.8, lon: 38.9 }, 'sy': { lat: 34.8, lon: 38.9 },
+      'yemen': { lat: 15.5, lon: 48.5 }, 'ye': { lat: 15.5, lon: 48.5 },
+      'sudan': { lat: 12.8, lon: 30.2 }, 'sd': { lat: 12.8, lon: 30.2 },
+      'somalia': { lat: 5.1, lon: 46.2 }, 'so': { lat: 5.1, lon: 46.2 },
+      'myanmar': { lat: 19.8, lon: 96.7 }, 'mm': { lat: 19.8, lon: 96.7 },
+      'haiti': { lat: 19.0, lon: -72.3 }, 'ht': { lat: 19.0, lon: -72.3 },
+      'congo': { lat: -4.0, lon: 21.7 }, 'cd': { lat: -4.0, lon: 21.7 },
+      'ethiopia': { lat: 9.1, lon: 40.5 }, 'et': { lat: 9.1, lon: 40.5 },
+      'nigeria': { lat: 9.1, lon: 8.7 }, 'ng': { lat: 9.1, lon: 8.7 },
+      'lebanon': { lat: 33.8, lon: 35.8 }, 'lb': { lat: 33.8, lon: 35.8 },
+      'libya': { lat: 26.3, lon: 17.2 }, 'ly': { lat: 26.3, lon: 17.2 },
+      'mali': { lat: 17.6, lon: -4.0 }, 'ml': { lat: 17.6, lon: -4.0 },
+      'taiwan': { lat: 23.7, lon: 120.9 }, 'tw': { lat: 23.7, lon: 120.9 },
+      'north korea': { lat: 40.3, lon: 127.5 }, 'kp': { lat: 40.3, lon: 127.5 },
+      'south korea': { lat: 35.9, lon: 127.8 }, 'kr': { lat: 35.9, lon: 127.8 },
+      'japan': { lat: 36.2, lon: 138.2 }, 'jp': { lat: 36.2, lon: 138.2 },
+      'germany': { lat: 51.2, lon: 10.4 }, 'de': { lat: 51.2, lon: 10.4 },
+      'france': { lat: 46.2, lon: 2.2 }, 'fr': { lat: 46.2, lon: 2.2 },
+      'united kingdom': { lat: 55.4, lon: -3.4 }, 'uk': { lat: 55.4, lon: -3.4 }, 'gb': { lat: 55.4, lon: -3.4 },
+      'mexico': { lat: 23.6, lon: -102.5 }, 'mx': { lat: 23.6, lon: -102.5 },
+      'brazil': { lat: -14.2, lon: -51.9 }, 'br': { lat: -14.2, lon: -51.9 },
+      'egypt': { lat: 26.8, lon: 30.8 }, 'eg': { lat: 26.8, lon: 30.8 },
+      'south africa': { lat: -30.6, lon: 22.9 }, 'za': { lat: -30.6, lon: 22.9 },
+      'australia': { lat: -25.3, lon: 133.8 }, 'au': { lat: -25.3, lon: 133.8 },
+      'canada': { lat: 56.1, lon: -106.3 }, 'ca': { lat: 56.1, lon: -106.3 },
+      'saudi arabia': { lat: 23.9, lon: 45.1 }, 'sa': { lat: 23.9, lon: 45.1 },
+      'mozambique': { lat: -18.7, lon: 35.5 }, 'mz': { lat: -18.7, lon: 35.5 },
+      'burkina faso': { lat: 12.3, lon: -1.5 }, 'bf': { lat: 12.3, lon: -1.5 },
+    };
+
+    // Also add COUNTRY_META entries matched to centroids
+    const countryCoords: Record<string, { lat: number; lon: number; name: string; flag: string }> = {};
+    Object.values(COUNTRY_META).forEach(c => {
+      const key = c.name.toLowerCase();
+      const centroid = COUNTRY_CENTROIDS[key] || COUNTRY_CENTROIDS[c.code.toLowerCase()];
+      if (centroid) {
+        countryCoords[key] = { ...centroid, name: c.name, flag: c.flag };
+        countryCoords[c.code.toLowerCase()] = { ...centroid, name: c.name, flag: c.flag };
+      }
+    });
+
+    // Aggregate news per country — max 1 marker per country
+    const countryNews: Record<string, { items: typeof news; coords: { lat: number; lon: number; name: string; flag: string } }> = {};
+
+    news.slice(0, 200).forEach(n => {
+      if (n.country) {
+        const key = n.country.toLowerCase();
+        const coords = countryCoords[key];
+        if (coords && !countryNews[key]) {
+          countryNews[key] = { items: [], coords };
+        }
+        if (countryNews[key]) {
+          countryNews[key].items.push(n);
+        }
+      } else {
+        // Try to match country name in title
+        const titleLower = n.title.toLowerCase();
+        for (const [key, coords] of Object.entries(countryCoords)) {
+          if (key.length > 3 && titleLower.includes(key) && !countryNews[key]) {
+            countryNews[key] = { items: [], coords };
+          }
+          if (countryNews[key] && key.length > 3 && titleLower.includes(key)) {
+            countryNews[key].items.push(n);
+            break;
+          }
+        }
+      }
+    });
+
+    Object.entries(countryNews).forEach(([, { items, coords }]) => {
+      if (items.length === 0) return;
+      const hasCritical = items.some(i => i.severity === 'critical');
+      const hasHigh = items.some(i => i.severity === 'high');
+      const isConflict = items.some(i => i.category === 'conflict' || i.category === 'military');
+      const color = hasCritical ? '#ff0044' : hasHigh ? '#ff6b35' : isConflict ? '#ff6b35' : '#00d4ff';
+      const count = items.length;
+      const size = hasCritical ? 28 : hasHigh ? 22 : 18;
+
+      let markerHtml: string;
+      if (isConflict || hasCritical) {
+        // Animated explosion/pulse for conflict news
+        markerHtml = `<div style="position:relative;width:${size}px;height:${size}px;">
+          <svg viewBox="0 0 100 100" width="${size}" height="${size}" style="position:absolute;inset:0;">
+            <circle cx="50" cy="50" r="10" fill="none" stroke="${color}" stroke-width="1.5" opacity="0.5">
+              <animate attributeName="r" values="10;42" dur="2.5s" repeatCount="indefinite"/>
+              <animate attributeName="opacity" values="0.5;0" dur="2.5s" repeatCount="indefinite"/>
+            </circle>
+            <circle cx="50" cy="50" r="7" fill="${color}" opacity="0.7">
+              <animate attributeName="r" values="5;9;5" dur="1.4s" repeatCount="indefinite"/>
+              <animate attributeName="opacity" values="0.7;1;0.7" dur="1.4s" repeatCount="indefinite"/>
+            </circle>
+          </svg>
+          <div style="position:absolute;top:-8px;right:-10px;background:${color};color:#000;font-size:8px;font-weight:bold;font-family:'JetBrains Mono',monospace;padding:0 3px;border-radius:3px;min-width:14px;text-align:center;">${count}</div>
+        </div>`;
+      } else {
+        // Simple pulsing dot for regular news
+        markerHtml = `<div style="position:relative;width:${size}px;height:${size}px;">
+          <div style="position:absolute;inset:0;border:1.5px solid ${color};border-radius:50%;animation:ping-ring 3s ease-out infinite;opacity:0.4;"></div>
+          <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:${size * 0.35}px;height:${size * 0.35}px;background:${color};border-radius:50%;box-shadow:0 0 6px ${color};"></div>
+          <div style="position:absolute;top:-8px;right:-10px;background:${color}cc;color:#000;font-size:7px;font-weight:bold;font-family:'JetBrains Mono',monospace;padding:0 3px;border-radius:3px;min-width:12px;text-align:center;">${count}</div>
+        </div>`;
+      }
+
+      const icon = L.divIcon({ className: '', html: markerHtml, iconSize: [size, size], iconAnchor: [size / 2, size / 2] });
+      const topHeadline = items[0];
+      const marker = L.marker([coords.lat + (Math.random() - 0.5) * 0.5, coords.lon + (Math.random() - 0.5) * 0.5], { icon });
+      const tooltipText = `${coords.flag} ${coords.name} — ${count} report${count > 1 ? 's' : ''}\n${topHeadline.title.substring(0, 70)}`;
+      marker.bindTooltip(tooltipText, { direction: 'top', offset: [0, -14] });
+      marker.on('click', () => {
+        // Open country dossier
+        import('@/services/countryService').then(({ searchCountries }) => {
+          const matches = searchCountries(coords.name);
+          if (matches.length > 0) {
+            useWorldViewStore.getState().openCountryDossier(matches[0]);
+          }
+        });
+      });
+      group.addLayer(marker);
+    });
+  }, [news]);
 
   return <div ref={mapRef} className="w-full h-full" />;
 });
