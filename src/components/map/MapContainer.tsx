@@ -39,7 +39,7 @@ const MapContainer = memo(() => {
     
     // Custom pane for cables to render below country borders
     map.createPane('cablesPane');
-    map.getPane('cablesPane')!.style.zIndex = '350';
+    map.getPane('cablesPane')!.style.zIndex = '250';
     
     mapInstanceRef.current = map;
 
