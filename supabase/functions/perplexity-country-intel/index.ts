@@ -45,57 +45,53 @@ serve(async (req) => {
       });
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+    const PERPLEXITY_API_KEY = Deno.env.get("PERPLEXITY_API_KEY");
+    if (!PERPLEXITY_API_KEY) {
+      return new Response(JSON.stringify({ error: "PERPLEXITY_API_KEY is not configured" }), {
+        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const searchQuery = query || `Latest breaking news, security incidents, geopolitical developments, military activity, and OSINT intelligence about ${countryName} today`;
 
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const res = await fetch("https://api.perplexity.ai/chat/completions", {
       method: "POST",
-      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+      headers: { Authorization: `Bearer ${PERPLEXITY_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "sonar",
         messages: [
           { role: "system", content: INTEL_PROMPT(countryName) },
           { role: "user", content: searchQuery },
         ],
+        search_recency_filter: "day",
       }),
-      signal: AbortSignal.timeout(25000),
+      signal: AbortSignal.timeout(20000),
     });
 
     if (!res.ok) {
-      if (res.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limited" }), {
-          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (res.status === 402) {
-        return new Response(JSON.stringify({ error: "Payment required" }), {
-          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
       const t = await res.text();
-      console.error("AI gateway error:", res.status, t);
-      return new Response(JSON.stringify({ error: "AI gateway error" }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      console.error("Perplexity error:", res.status, t);
+      return new Response(JSON.stringify({ error: `Perplexity API error: ${res.status}` }), {
+        status: res.status, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     const json = await res.json();
     const content = json.choices?.[0]?.message?.content || "";
     const parsed = parseIntelJSON(content);
+    const citations = json.citations || [];
 
     return new Response(JSON.stringify({
       success: true,
       data: {
         ...parsed,
         dualSource: false,
-        perplexityAvailable: false,
-        aiAnalysisAvailable: true,
+        perplexityAvailable: true,
+        aiAnalysisAvailable: false,
       },
-      citations: [],
+      citations,
       fetchedAt: new Date().toISOString(),
-      sources: { perplexity: false, aiAnalysis: true },
+      sources: { perplexity: true, aiAnalysis: false },
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
