@@ -2,7 +2,7 @@ import { memo, useEffect, useState } from 'react';
 import { useWorldViewStore, MapMode, DashboardMode, DetectionMode } from '@/store/worldview';
 
 const TopBar = memo(() => {
-  const { aircraft, satellites, earthquakes, vessels, toggleLeftPanel, mapMode, setMapMode, detectionMode, toggleDetectionMode, visualStyle, circularViewport, toggleCircularViewport, panopticEnabled, togglePanoptic, hudLayout, immersiveMode, warMode, toggleWarMode, triggerManualRefresh, newsLoading } = useWorldViewStore();
+  const { aircraft, satellites, earthquakes, vessels, toggleLeftPanel, mapMode, setMapMode, detectionMode, toggleDetectionMode, visualStyle, circularViewport, toggleCircularViewport, panopticEnabled, togglePanoptic, hudLayout, immersiveMode, warMode, toggleWarMode, triggerManualRefresh, newsLoading, droneMode, toggleDroneMode } = useWorldViewStore();
   const militaryCount = aircraft.filter(a => a.isMilitary).length;
   const [utc, setUtc] = useState('');
   const [refreshFlash, setRefreshFlash] = useState(false);
@@ -62,6 +62,21 @@ const TopBar = memo(() => {
           <MapToggleBtn active={mapMode === '2d'} label="2D" onClick={() => setMapMode('2d')} />
           <MapToggleBtn active={mapMode === 'google3d'} label="G3D" onClick={() => setMapMode('google3d')} />
         </div>
+
+        {/* Drone mode toggle — only in 3D */}
+        {mapMode === 'google3d' && (
+          <>
+            <button onClick={toggleDroneMode}
+              className={`px-2 py-0.5 text-[8px] font-display tracking-[0.15em] rounded border transition-all ${
+                droneMode
+                  ? 'bg-accent/20 text-accent border-accent/40 shadow-[0_0_8px_hsl(150_100%_50%/0.15)]'
+                  : 'text-muted-foreground border-transparent hover:border-accent/20 hover:text-accent/70'
+              }`}
+            >
+              {droneMode ? '🛩 DRONE' : '🛩 FLY'}
+            </button>
+          </>
+        )}
 
         {!warMode && (
           <>
