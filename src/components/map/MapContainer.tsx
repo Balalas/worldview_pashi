@@ -17,7 +17,7 @@ const MapContainer = memo(() => {
   const layersRef = useRef<Record<string, L.LayerGroup>>({});
   const geoLayerRef = useRef<L.GeoJSON | null>(null);
 
-  const { layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, fires, liveCameras, setDetailPanel, setActiveLivestream, mapCenter, twitterGeoMarkers, news, setMapCenter } = useWorldViewStore();
+  const { layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, fires, liveCameras, setDetailPanel, setActiveLivestream, mapCenter, twitterGeoMarkers, news, setMapCenter, newsHotspots } = useWorldViewStore();
 
   // Initialize map
   useEffect(() => {
@@ -37,7 +37,7 @@ const MapContainer = memo(() => {
     L.control.zoom({ position: 'bottomright' }).addTo(map);
     mapInstanceRef.current = map;
 
-    ['aircraft', 'satellites', 'earthquakes', 'conflicts', 'cables', 'weather', 'volcanoes', 'nuclear', 'vessels', 'protests', 'outages', 'cameras', 'fires', 'twitterOsint', 'newsMarkers'].forEach((key) => {
+    ['aircraft', 'satellites', 'earthquakes', 'conflicts', 'cables', 'weather', 'volcanoes', 'nuclear', 'vessels', 'protests', 'outages', 'cameras', 'fires', 'twitterOsint', 'newsMarkers', 'newsHotspots'].forEach((key) => {
       layersRef.current[key] = L.layerGroup().addTo(map);
     });
 
@@ -801,6 +801,71 @@ const MapContainer = memo(() => {
       group.addLayer(marker);
     });
   }, [news]);
+
+  // ── News Hotspot Highlights — pulsing circles showing news-dense regions ──
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    const group = layersRef.current['newsHotspots'];
+    if (!map || !group) return;
+    group.clearLayers();
+
+    if (newsHotspots.length === 0) return;
+
+    const INTENSITY_CONFIG = {
+      critical: { color: '#ff0044', fillOpacity: 0.08, weight: 2, pulseSize: 1.4 },
+      high: { color: '#ff6b35', fillOpacity: 0.06, weight: 1.5, pulseSize: 1.2 },
+      medium: { color: '#ffb000', fillOpacity: 0.04, weight: 1, pulseSize: 1.1 },
+    };
+
+    for (const hotspot of newsHotspots) {
+      const cfg = INTENSITY_CONFIG[hotspot.intensity];
+
+      // Outer pulsing ring
+      const outerRadius = hotspot.radius * 1000; // km to meters
+      const circle = L.circle([hotspot.lat, hotspot.lon], {
+        radius: outerRadius,
+        color: cfg.color,
+        weight: cfg.weight,
+        fillColor: cfg.color,
+        fillOpacity: cfg.fillOpacity,
+        dashArray: hotspot.intensity === 'critical' ? undefined : '6 4',
+        className: `hotspot-ring hotspot-${hotspot.intensity}`,
+      });
+
+      // Tooltip with news count
+      circle.bindTooltip(
+        `<div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.08em;">` +
+        `<span style="color:${cfg.color};font-weight:bold;">${hotspot.intensity.toUpperCase()}</span> ` +
+        `<span style="color:hsla(200,50%,88%,0.8);">${hotspot.label}</span>` +
+        `<br/><span style="color:hsla(200,50%,88%,0.5);">${hotspot.newsCount} NEWS ITEMS</span>` +
+        `<br/><span style="color:hsla(200,50%,88%,0.4);">${hotspot.categories.join(' · ').toUpperCase()}</span>` +
+        `</div>`,
+        {
+          permanent: false,
+          direction: 'top',
+          className: 'hotspot-tooltip',
+          offset: [0, -10],
+        }
+      );
+
+      circle.on('click', () => {
+        setMapCenter({ lat: hotspot.lat, lon: hotspot.lon, zoom: 6 });
+      });
+
+      group.addLayer(circle);
+
+      // Inner marker dot
+      const dotHtml = `<div style="position:relative;width:16px;height:16px;">
+        <div style="position:absolute;inset:0;border:1.5px solid ${cfg.color};border-radius:50%;animation:ping-ring 3s ease-out infinite;opacity:0.4;"></div>
+        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:6px;height:6px;background:${cfg.color};border-radius:50%;box-shadow:0 0 12px ${cfg.color};"></div>
+        <div style="position:absolute;top:-8px;left:50%;transform:translateX(-50%);font-family:'JetBrains Mono',monospace;font-size:7px;color:${cfg.color};white-space:nowrap;text-shadow:0 0 4px rgba(0,0,0,0.8);">${hotspot.newsCount}</div>
+      </div>`;
+
+      const icon = L.divIcon({ className: '', html: dotHtml, iconSize: [16, 16], iconAnchor: [8, 8] });
+      const marker = L.marker([hotspot.lat, hotspot.lon], { icon });
+      group.addLayer(marker);
+    }
+  }, [newsHotspots]);
 
   return <div ref={mapRef} className="w-full h-full" />;
 });
