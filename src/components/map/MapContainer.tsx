@@ -6,6 +6,7 @@ import { CONFLICT_ZONES } from '@/data/conflictZones';
 import { SUBMARINE_CABLES } from '@/data/submarineCables';
 import { PUBLIC_CAMERAS } from '@/data/publicCameras';
 import { COUNTRY_META } from '@/data/countryMeta';
+import { MILITARY_BASES, SPACEPORTS, CHOKEPOINTS } from '@/data/staticLayers';
 import { getCameraSourceColor, getCameraSourceLabel } from '@/services/cameraService';
 import * as topojson from 'topojson-client';
 
@@ -37,7 +38,7 @@ const MapContainer = memo(() => {
     L.control.zoom({ position: 'bottomright' }).addTo(map);
     mapInstanceRef.current = map;
 
-    ['aircraft', 'satellites', 'earthquakes', 'conflicts', 'cables', 'weather', 'volcanoes', 'nuclear', 'vessels', 'protests', 'outages', 'cameras', 'fires', 'twitterOsint', 'newsMarkers', 'newsHotspots', 'epstein', 'iodaOutages'].forEach((key) => {
+    ['aircraft', 'satellites', 'earthquakes', 'conflicts', 'cables', 'weather', 'volcanoes', 'nuclear', 'vessels', 'protests', 'outages', 'cameras', 'fires', 'twitterOsint', 'newsMarkers', 'newsHotspots', 'epstein', 'iodaOutages', 'militaryBases', 'spaceports', 'chokepoints'].forEach((key) => {
       layersRef.current[key] = L.layerGroup().addTo(map);
     });
 
@@ -623,6 +624,48 @@ const MapContainer = memo(() => {
       group.addLayer(marker);
     });
   }, [layers.nuclearSites]);
+
+  // Render Military Bases
+  useEffect(() => {
+    const group = layersRef.current['militaryBases'];
+    if (!group) return;
+    group.clearLayers();
+    if (!layers.militaryBases) return;
+    MILITARY_BASES.forEach((b) => {
+      const icon = L.divIcon({ className: '', html: `<div style="font-size:12px;filter:drop-shadow(0 0 4px #ff6b35);">🎖️</div>`, iconSize: [16, 16], iconAnchor: [8, 8] });
+      const marker = L.marker([b.lat, b.lon], { icon });
+      marker.bindTooltip(`🎖️ ${b.name} | ${b.country}`, { direction: 'top' });
+      group.addLayer(marker);
+    });
+  }, [layers.militaryBases]);
+
+  // Render Spaceports
+  useEffect(() => {
+    const group = layersRef.current['spaceports'];
+    if (!group) return;
+    group.clearLayers();
+    if (!layers.spaceports) return;
+    SPACEPORTS.forEach((s) => {
+      const icon = L.divIcon({ className: '', html: `<div style="font-size:12px;filter:drop-shadow(0 0 4px #00d4ff);">🚀</div>`, iconSize: [16, 16], iconAnchor: [8, 8] });
+      const marker = L.marker([s.lat, s.lon], { icon });
+      marker.bindTooltip(`🚀 ${s.name} | ${s.country}`, { direction: 'top' });
+      group.addLayer(marker);
+    });
+  }, [layers.spaceports]);
+
+  // Render Chokepoints
+  useEffect(() => {
+    const group = layersRef.current['chokepoints'];
+    if (!group) return;
+    group.clearLayers();
+    if (!layers.chokepoints) return;
+    CHOKEPOINTS.forEach((c) => {
+      const icon = L.divIcon({ className: '', html: `<div style="font-size:12px;filter:drop-shadow(0 0 4px #ff0088);">⚓</div>`, iconSize: [16, 16], iconAnchor: [8, 8] });
+      const marker = L.marker([c.lat, c.lon], { icon });
+      marker.bindTooltip(`⚓ ${c.name}${c.flow ? ' | ' + c.flow : ''}`, { direction: 'top' });
+      group.addLayer(marker);
+    });
+  }, [layers.chokepoints]);
 
   // Render Twitter/X OSINT geo markers
   useEffect(() => {
