@@ -22,6 +22,7 @@ import { fetchEarthquakes, fetchLiveNews, fetchLiveAircraft } from '@/services/d
 import { generateRealisticSatellites, fetchISSPosition } from '@/services/satelliteService';
 import { fetchGlobalWeather, ACTIVE_VOLCANOES } from '@/services/weatherService';
 import { generateVessels, extractProtestsFromNews, extractOutagesFromNews, fetchCyberNews } from '@/services/vesselService';
+import { fetchInternetOutages } from '@/services/internetOutageService';
 import { fetchFires } from '@/services/fireService';
 import { fetchGdeltData } from '@/services/gdeltService';
 import { fetchUserLocation } from '@/services/geolocateService';
@@ -155,7 +156,7 @@ const CctvPip = memo(() => {
 CctvPip.displayName = 'CctvPip';
 
 const Index = () => {
-  const { setAircraft, setSatellites, setEarthquakes, setNews, setLastRefresh, setNewsLoading, setWeatherAlerts, setVolcanoes, setVessels, setProtests, setOutages, setFires, setLiveCameras, toggleLayer, closeDetailPanel, mapMode, setFollowTarget, visualStyle, setVisualStyle, filterParams, bottomPanelCollapsed, bottomPanelExpanded, setMapCenter, isScreensaver, setScreensaver, immersiveMode, circularViewport, hudLayout, warMode, setGeoEvents, layerSubFilters, setConflictIntel, setMissileArcs, manualRefresh, setTwitterGeoMarkers, setTwitterPosts, setTwitterLastFetch } = useWorldViewStore();
+  const { setAircraft, setSatellites, setEarthquakes, setNews, setLastRefresh, setNewsLoading, setWeatherAlerts, setVolcanoes, setVessels, setProtests, setOutages, setFires, setLiveCameras, toggleLayer, closeDetailPanel, mapMode, setFollowTarget, visualStyle, setVisualStyle, filterParams, bottomPanelCollapsed, bottomPanelExpanded, setMapCenter, isScreensaver, setScreensaver, immersiveMode, circularViewport, hudLayout, warMode, setGeoEvents, layerSubFilters, setConflictIntel, setMissileArcs, manualRefresh, setTwitterGeoMarkers, setTwitterPosts, setTwitterLastFetch, setInternetOutages } = useWorldViewStore();
   const earthquakeTimeWindow = layerSubFilters.earthquakeTimeWindow || '24H';
   const styleConfig = computeStyleConfig(visualStyle, filterParams);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -225,6 +226,9 @@ const Index = () => {
     // Fetch active fires from NASA FIRMS + EONET
     fetchFires('24H').then(setFires);
 
+    // Fetch IODA internet outages (geocoded per country)
+    fetchInternetOutages().then(setInternetOutages);
+
     // Pre-load country enrichment data
     fetchAllCountries();
 
@@ -284,6 +288,7 @@ const Index = () => {
     const weatherInterval = setInterval(() => fetchGlobalWeather().then(setWeatherAlerts), INTEL_REFRESH_MS * 3); // 3 min
     const fireInterval = setInterval(() => fetchFires('24H').then(setFires), INTEL_REFRESH_MS);
     const cameraInterval = setInterval(() => fetchAllCameras().then(setLiveCameras), INTEL_REFRESH_MS * 2);
+    const iodaInterval = setInterval(() => fetchInternetOutages().then(setInternetOutages), INTEL_REFRESH_MS * 5); // 5 min
 
     return () => {
       clearInterval(aircraftInterval);
@@ -294,6 +299,7 @@ const Index = () => {
       clearInterval(weatherInterval);
       clearInterval(fireInterval);
       clearInterval(cameraInterval);
+      clearInterval(iodaInterval);
     };
   }, []);
 
