@@ -444,8 +444,10 @@ const MapContainer = memo(() => {
     const group = layersRef.current['aircraft'];
     if (!group) return;
     group.clearLayers();
-    if (!layers.aircraft || aircraft.length === 0) return;
+    if ((!layers.aircraft && !layers.militaryFlights) || aircraft.length === 0) return;
     aircraft.forEach((ac) => {
+      // If only militaryFlights is on (not aircraft), show military only
+      if (!layers.aircraft && layers.militaryFlights && !ac.isMilitary) return;
       if (!layers.militaryFlights && ac.isMilitary) return;
       const color = ac.isMilitary ? '#ff6b35' : '#00ff88';
       const size = ac.isMilitary ? 10 : 7;
