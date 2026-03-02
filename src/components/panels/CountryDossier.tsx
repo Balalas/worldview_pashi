@@ -1,5 +1,5 @@
 import { memo, useMemo, useState, useRef, useEffect, useCallback } from 'react';
-import { useWorldViewStore, NewsItem } from '@/store/worldview';
+import { useWorldViewStore, NewsItem, TwitterOsintPost } from '@/store/worldview';
 import { CountryData } from '@/services/countryService';
 import { PUBLIC_CAMERAS } from '@/data/publicCameras';
 import { CONFLICT_ZONES } from '@/data/conflictZones';
@@ -7,7 +7,7 @@ import { LIVESTREAM_FEEDS, LivestreamFeed } from '@/services/dataServices';
 import { fetchAINewsEnrichment, AINewsEnrichment } from '@/services/aiEnrichService';
 
 
-type DossierTab = 'war' | 'intelligence' | 'cyber' | 'crime' | 'cameras' | 'tv' | 'all';
+type DossierTab = 'war' | 'intelligence' | 'cyber' | 'crime' | 'xosint' | 'cameras' | 'tv' | 'all';
 
 const TAB_CONFIG: { key: DossierTab; label: string; icon: string; keywords: RegExp }[] = [
   { key: 'all', label: 'ALL INTEL', icon: '📡', keywords: /./i },
@@ -15,6 +15,7 @@ const TAB_CONFIG: { key: DossierTab; label: string; icon: string; keywords: RegE
   { key: 'intelligence', label: 'INTELLIGENCE', icon: '🕵️', keywords: /\b(intelligen|espionage|spy|surveillance|covert|classified|cia|mossad|fbi|mi6|fsb|sigint|operation|agent|defect|leak|whistleblow|intercept)\b/i },
   { key: 'cyber', label: 'CYBER', icon: '🔒', keywords: /\b(cyber|hack|breach|ransomware|ddos|malware|phishing|data leak|exploit|vulnerability|zero.day|apt|botnet|encryption)\b/i },
   { key: 'crime', label: 'CRIME', icon: '🚨', keywords: /\b(crime|murder|arrest|drug|cartel|gang|trafficking|smuggling|corruption|fraud|launder|theft|robbery|terrorist|extremist|organized crime)\b/i },
+  { key: 'xosint', label: '𝕏 OSINT', icon: '𝕏', keywords: /./i },
   { key: 'tv', label: 'LIVE TV', icon: '📺', keywords: /./i },
   { key: 'cameras', label: 'CCTV', icon: '📹', keywords: /./i },
 ];
@@ -28,7 +29,7 @@ const SEVERITY_COLORS: Record<string, string> = {
 };
 
 const CountryDossier = memo(() => {
-  const { countryDossier, closeCountryDossier, news, earthquakes, fires, protests, outages, setActiveLivestream, setDetailPanel, setMapCenter } = useWorldViewStore();
+  const { countryDossier, closeCountryDossier, news, earthquakes, fires, protests, outages, setActiveLivestream, setDetailPanel, setMapCenter, twitterPosts } = useWorldViewStore();
   const [activeTab, setActiveTab] = useState<DossierTab>('all');
 
   const country = countryDossier;
@@ -51,11 +52,21 @@ const CountryDossier = memo(() => {
 
   // Filter by active tab
   const filteredNews = useMemo(() => {
-    if (activeTab === 'cameras') return [];
+    if (activeTab === 'cameras' || activeTab === 'xosint') return [];
     const tabCfg = TAB_CONFIG.find(t => t.key === activeTab);
     if (!tabCfg || activeTab === 'all') return countryNews;
     return countryNews.filter(n => tabCfg.keywords.test(n.title));
   }, [countryNews, activeTab]);
+
+  // X/Twitter OSINT posts matching this country
+  const countryXPosts = useMemo(() => {
+    if (!country) return [];
+    const searchTerms = [countryName, country.capital?.toLowerCase(), countryCode.toLowerCase()].filter(Boolean);
+    return twitterPosts.filter(p => {
+      const textLower = p.text.toLowerCase();
+      return searchTerms.some(term => term && textLower.includes(term));
+    });
+  }, [twitterPosts, countryName, country, countryCode]);
 
   // Live cameras in this country
   const countryCameras = useMemo(() => {
@@ -227,6 +238,7 @@ const CountryDossier = memo(() => {
           {TAB_CONFIG.map(tab => {
             const count = tab.key === 'cameras' ? countryCameras.length :
               tab.key === 'tv' ? countryTVChannels.length :
+              tab.key === 'xosint' ? countryXPosts.length :
               tab.key === 'all' ? countryNews.length :
                 countryNews.filter(n => tab.keywords.test(n.title)).length;
             return (
@@ -290,6 +302,7 @@ const CountryDossier = memo(() => {
                 <StatRow label="ACTIVE FIRES" value={String(countryFires)} />
                 <StatRow label="LIVE CAMERAS" value={String(countryCameras.length)} />
                 <StatRow label="NEWS ITEMS" value={String(countryNews.length)} />
+                <StatRow label="𝕏 OSINT" value={String(countryXPosts.length)} />
               </div>
             </div>
 
@@ -299,6 +312,8 @@ const CountryDossier = memo(() => {
                 <CameraGrid cameras={countryCameras} onCameraClick={handleCameraClick} />
               ) : activeTab === 'tv' ? (
                 <CountryTVPanel channels={countryTVChannels} />
+              ) : activeTab === 'xosint' ? (
+                <XOsintFeed posts={countryXPosts} />
               ) : (
                 <>
                   <CountryAIBanner news={filteredNews} countryName={country.name} />
@@ -391,6 +406,71 @@ const StatRow = ({ label, value }: { label: string; value: string }) => (
     <span className="font-data text-foreground/80 text-right max-w-[120px] truncate">{value}</span>
   </div>
 );
+
+const XOsintFeed = memo(({ posts }: { posts: TwitterOsintPost[] }) => {
+  if (posts.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center">
+          <div className="text-2xl mb-2 opacity-30">𝕏</div>
+          <div className="text-[10px] font-data text-muted-foreground tracking-wider">NO X/OSINT POSTS FOR THIS COUNTRY</div>
+          <div className="text-[8px] font-data text-muted-foreground/50 mt-1">Auto-refreshes every 60 seconds</div>
+        </div>
+      </div>
+    );
+  }
+
+  const timeAgo = (dateStr: string) => {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'NOW';
+    if (mins < 60) return `${mins}m`;
+    return `${Math.floor(mins / 60)}h`;
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2 mb-3">
+        <span className="text-sm">𝕏</span>
+        <span className="text-[9px] font-display tracking-[0.15em] text-primary">LIVE OSINT FEED</span>
+        <span className="flex items-center gap-0.5">
+          <span className="w-1 h-1 rounded-full bg-alert-critical animate-pulse" />
+          <span className="text-[7px] font-data text-alert-critical">LIVE</span>
+        </span>
+        <span className="text-[8px] font-data text-muted-foreground ml-auto">{posts.length} posts</span>
+      </div>
+      {posts.map(post => (
+        <div
+          key={post.id}
+          className="rounded border border-border/30 bg-card-bg/30 p-3 hover:border-primary/30 transition-colors cursor-pointer"
+          onClick={() => window.open(post.url, '_blank', 'noopener')}
+        >
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[9px] font-data text-primary/80">@{post.account}</span>
+            <div className="flex items-center gap-1.5">
+              {post.geo && (
+                <span className="text-[7px] font-data text-primary/60 bg-primary/10 px-1 rounded">📍 {post.geo.place}</span>
+              )}
+              <span className="text-[7px] font-data text-muted-foreground/50">{timeAgo(post.createdAt)}</span>
+            </div>
+          </div>
+          <p className="text-[10px] font-data text-foreground/80 leading-relaxed">{post.text}</p>
+          {post.metrics && (
+            <div className="flex items-center gap-3 mt-1.5">
+              {post.metrics.retweet_count !== undefined && post.metrics.retweet_count > 0 && (
+                <span className="text-[7px] font-data text-muted-foreground/40">🔁 {post.metrics.retweet_count}</span>
+              )}
+              {post.metrics.like_count !== undefined && post.metrics.like_count > 0 && (
+                <span className="text-[7px] font-data text-muted-foreground/40">♥ {post.metrics.like_count}</span>
+              )}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+});
+XOsintFeed.displayName = 'XOsintFeed';
 
 const NewsFeed = memo(({ news, onNewsClick }: { news: NewsItem[]; onNewsClick: (n: NewsItem) => void }) => {
   if (news.length === 0) {

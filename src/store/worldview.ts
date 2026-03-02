@@ -469,6 +469,12 @@ export interface WorldViewState {
   // Twitter OSINT geo markers
   twitterGeoMarkers: TwitterGeoMarker[];
   setTwitterGeoMarkers: (markers: TwitterGeoMarker[]) => void;
+
+  // Full Twitter OSINT posts (for X card + country dossier)
+  twitterPosts: TwitterOsintPost[];
+  setTwitterPosts: (posts: TwitterOsintPost[]) => void;
+  twitterLastFetch: string | null;
+  setTwitterLastFetch: (ts: string) => void;
 }
 
 export interface TwitterGeoMarker {
@@ -480,6 +486,16 @@ export interface TwitterGeoMarker {
   account: string;
   url: string;
   createdAt: string;
+}
+
+export interface TwitterOsintPost {
+  id: string;
+  account: string;
+  text: string;
+  createdAt: string;
+  url: string;
+  geo: { lat: number; lon: number; place: string } | null;
+  metrics: { like_count?: number; retweet_count?: number; reply_count?: number };
 }
 
 export const useWorldViewStore = create<WorldViewState>((set) => ({
@@ -700,6 +716,11 @@ export const useWorldViewStore = create<WorldViewState>((set) => ({
 
   twitterGeoMarkers: [],
   setTwitterGeoMarkers: (twitterGeoMarkers) => set({ twitterGeoMarkers }),
+
+  twitterPosts: [],
+  setTwitterPosts: (twitterPosts) => set({ twitterPosts }),
+  twitterLastFetch: null,
+  setTwitterLastFetch: (twitterLastFetch) => set({ twitterLastFetch }),
 }));
 
 // Keyboard shortcuts
