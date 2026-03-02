@@ -81,8 +81,7 @@ function aircraftReticleSvg(heading: number, isMilitary: boolean, callsign: stri
           fill="${color}" stroke="#000" stroke-width="0.5" opacity="0.95"/>
       </g>
     </g>
-    <rect x="4" y="38" width="${w-8}" height="14" rx="2" fill="#000" fill-opacity="0.7"/>
-    <text x="${w/2}" y="49" text-anchor="middle" font-family="monospace" font-size="9" fill="${color}" font-weight="bold">${callsign}${isMilitary ? ' ★' : ''}</text>
+    <text x="${w/2}" y="49" text-anchor="middle" font-family="monospace" font-size="9" fill="${color}" font-weight="bold" stroke="#000" stroke-width="2.5" paint-order="stroke">${callsign}${isMilitary ? ' ★' : ''}</text>
   </svg>`);
 }
 
@@ -155,8 +154,7 @@ function vesselSvg(heading: number, color: string, name: string, type: string) {
     <g transform="translate(35,16) rotate(${heading})">
       <path d="M0,-10 L-6,8 L0,6 L6,8 Z" fill="${color}" stroke="#000" stroke-width="0.6" opacity="0.9"/>
     </g>
-    <rect x="2" y="34" width="66" height="14" rx="2" fill="#000" fill-opacity="0.7"/>
-    <text x="35" y="45" text-anchor="middle" font-family="monospace" font-size="8" fill="${color}">${emoji} ${name.substring(0,10)}</text>
+    <text x="35" y="45" text-anchor="middle" font-family="monospace" font-size="8" fill="${color}" stroke="#000" stroke-width="2" paint-order="stroke">${emoji} ${name.substring(0,10)}</text>
   </svg>`);
 }
 
@@ -165,8 +163,7 @@ function iconSvg(icon: string, color: string, label: string, sublabel?: string) 
   const h = sublabel ? 52 : 40;
   return svgEl(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
     <text x="${w/2}" y="16" text-anchor="middle" font-size="16">${icon}</text>
-    <rect x="2" y="22" width="${w-4}" height="13" rx="2" fill="#000" fill-opacity="0.7"/>
-    <text x="${w/2}" y="32" text-anchor="middle" font-family="monospace" font-size="7" fill="${color}">${label}</text>
+    <text x="${w/2}" y="32" text-anchor="middle" font-family="monospace" font-size="7" fill="${color}" stroke="#000" stroke-width="2.5" paint-order="stroke">${label}</text>
     ${sublabel ? `<text x="${w/2}" y="${h-4}" text-anchor="middle" font-family="monospace" font-size="6" fill="${color}" opacity="0.6">${sublabel}</text>` : ''}
   </svg>`);
 }
@@ -230,8 +227,7 @@ function explosionSvg(intensity: number, color: string, label: string) {
       <animate attributeName="opacity" values="0.3;0;0.3" dur="${(parseFloat(d3)+1).toFixed(1)}s" repeatCount="indefinite" begin="0.4s"/>
     </circle>
     <!-- label -->
-    <rect x="2" y="${h-16}" width="${w-4}" height="14" rx="2" fill="#000" fill-opacity="0.8"/>
-    <text x="${w/2}" y="${h-6}" text-anchor="middle" font-family="monospace" font-size="7" fill="${color}" font-weight="bold">⚔ ${label}</text>
+    <text x="${w/2}" y="${h-6}" text-anchor="middle" font-family="monospace" font-size="7" fill="${color}" font-weight="bold" stroke="#000" stroke-width="2.5" paint-order="stroke">⚔ ${label}</text>
   </svg>`);
 }
 
@@ -252,31 +248,50 @@ function gdeltEventSvg(color: string, size: number, label: string, icon: string,
     <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${color}" stroke-width="1" opacity="0.4">${pulseAnim}</circle>
     <circle cx="${cx}" cy="${cy}" r="${r*0.5}" fill="${color}" opacity="0.7"/>
     <text x="${cx}" y="${cy+4}" text-anchor="middle" font-size="10">${icon}</text>
-    <rect x="2" y="${h-16}" width="${w-4}" height="14" rx="2" fill="#000" fill-opacity="0.75"/>
-    <text x="${w/2}" y="${h-6}" text-anchor="middle" font-family="monospace" font-size="6" fill="${color}">${label}</text>
+    <text x="${w/2}" y="${h-6}" text-anchor="middle" font-family="monospace" font-size="6" fill="${color}" stroke="#000" stroke-width="2" paint-order="stroke">${label}</text>
   </svg>`);
 }
 
-function twitterPostSvg(account: string, text: string) {
-  const w = Math.max(100, text.length * 5 + 20);
-  const h = 52;
+function twitterPostSvg(account: string, text: string, isConflict: boolean) {
+  const color = isConflict ? '#ff0044' : '#00aaff';
+  const w = 48;
+  const h = 48;
   return svgEl(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
-    <circle cx="${w/2}" cy="10" r="8" fill="#1d9bf0" opacity="0.7">
-      <animate attributeName="r" values="8;14;8" dur="2s" repeatCount="indefinite"/>
-      <animate attributeName="opacity" values="0.7;0.2;0.7" dur="2s" repeatCount="indefinite"/>
+    <defs>
+      <filter id="xglow" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur stdDeviation="2" result="blur"/>
+        <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>
+    <!-- Outer pulse -->
+    <circle cx="${w/2}" cy="${h/2}" r="14" fill="none" stroke="${color}" stroke-width="1" opacity="0">
+      <animate attributeName="r" values="14;22;14" dur="2.5s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.5;0;0.5" dur="2.5s" repeatCount="indefinite"/>
     </circle>
-    <circle cx="${w/2}" cy="10" r="5" fill="#1d9bf0" opacity="0.9"/>
-    <text x="${w/2}" y="14" text-anchor="middle" font-size="8" fill="#fff" font-weight="bold">𝕏</text>
-    <rect x="2" y="22" width="${w-4}" height="26" rx="3" fill="#000" fill-opacity="0.85"/>
-    <text x="6" y="34" font-family="monospace" font-size="7" fill="#1d9bf0" font-weight="bold">@${account}</text>
-    <text x="6" y="44" font-family="monospace" font-size="6" fill="#aaa">${text}</text>
+    <!-- Corner brackets -->
+    <line x1="4" y1="4" x2="12" y2="4" stroke="${color}" stroke-width="1.2" opacity="0.5"/>
+    <line x1="4" y1="4" x2="4" y2="12" stroke="${color}" stroke-width="1.2" opacity="0.5"/>
+    <line x1="${w-4}" y1="4" x2="${w-12}" y2="4" stroke="${color}" stroke-width="1.2" opacity="0.5"/>
+    <line x1="${w-4}" y1="4" x2="${w-4}" y2="12" stroke="${color}" stroke-width="1.2" opacity="0.5"/>
+    <line x1="4" y1="${h-4}" x2="12" y2="${h-4}" stroke="${color}" stroke-width="1.2" opacity="0.5"/>
+    <line x1="4" y1="${h-4}" x2="4" y2="${h-12}" stroke="${color}" stroke-width="1.2" opacity="0.5"/>
+    <line x1="${w-4}" y1="${h-4}" x2="${w-12}" y2="${h-4}" stroke="${color}" stroke-width="1.2" opacity="0.5"/>
+    <line x1="${w-4}" y1="${h-4}" x2="${w-4}" y2="${h-12}" stroke="${color}" stroke-width="1.2" opacity="0.5"/>
+    <!-- Core dot -->
+    <circle cx="${w/2}" cy="${h/2}" r="6" fill="${color}" opacity="0.8" filter="url(#xglow)">
+      <animate attributeName="opacity" values="0.8;0.4;0.8" dur="1.5s" repeatCount="indefinite"/>
+    </circle>
+    <!-- X symbol -->
+    <text x="${w/2}" y="${h/2+4}" text-anchor="middle" font-family="monospace" font-size="9" fill="#fff" font-weight="bold" filter="url(#xglow)">𝕏</text>
+    <!-- Account label with glow instead of black box -->
+    <text x="${w/2}" y="${h-2}" text-anchor="middle" font-family="monospace" font-size="6" fill="${color}" font-weight="bold" filter="url(#xglow)">@${account.substring(0,10)}</text>
   </svg>`);
 }
 
 // ── Animated Missile SVG ──
 function missileSvg(type: string, status: string, label: string) {
   const color = status === 'hit' ? '#ff0000' : status === 'intercepted' ? '#00ff88' : '#ff4400';
-  const typeIcon = type === 'ballistic' ? '🚀' : type === 'drone' ? '🛩' : type === 'cruise' ? '💨' : '🎯';
+  const typeIcon = type === 'ballistic' ? '▲' : type === 'drone' ? '◇' : type === 'cruise' ? '►' : '◈';
   return svgEl(`<svg xmlns="http://www.w3.org/2000/svg" width="60" height="50" viewBox="0 0 60 50">
     <circle cx="30" cy="16" r="8" fill="none" stroke="${color}" stroke-width="1.5" opacity="0">
       <animate attributeName="r" values="8;20;8" dur="1.5s" repeatCount="indefinite"/>
@@ -286,8 +301,7 @@ function missileSvg(type: string, status: string, label: string) {
       <animate attributeName="opacity" values="0.8;0.4;0.8" dur="0.8s" repeatCount="indefinite"/>
     </circle>
     <text x="30" y="20" text-anchor="middle" font-size="10">${typeIcon}</text>
-    <rect x="2" y="32" width="56" height="14" rx="2" fill="#000" fill-opacity="0.8"/>
-    <text x="30" y="42" text-anchor="middle" font-family="monospace" font-size="6" fill="${color}" font-weight="bold">${label.substring(0, 12)}</text>
+    <text x="30" y="42" text-anchor="middle" font-family="monospace" font-size="6" fill="${color}" font-weight="bold" stroke="#000" stroke-width="2" paint-order="stroke">${label.substring(0, 12)}</text>
   </svg>`);
 }
 
@@ -301,8 +315,7 @@ function cameraSvg(name: string, official?: boolean) {
       <animate attributeName="opacity" values="0.4;0;0.4" dur="2s" repeatCount="indefinite"/>
     </circle>
     ${badge}
-    <rect x="2" y="28" width="76" height="13" rx="2" fill="#000" fill-opacity="0.7"/>
-    <text x="40" y="38" text-anchor="middle" font-family="monospace" font-size="7" fill="#fbbf24">${name.substring(0,14)}</text>
+    <text x="40" y="38" text-anchor="middle" font-family="monospace" font-size="7" fill="#fbbf24" stroke="#000" stroke-width="2.5" paint-order="stroke">${name.substring(0,14)}</text>
   </svg>`);
 }
 
@@ -354,8 +367,7 @@ function fireFrpSvg(frp: number, brightness: number, confidence: string) {
       <animate attributeName="opacity" values="0.6;0;0.6" dur="2s" repeatCount="indefinite" begin="0.5s"/>
     </circle>
     <!-- Label -->
-    <rect x="2" y="${h-14}" width="${w-4}" height="12" rx="2" fill="#000" fill-opacity="0.8"/>
-    <text x="${cx}" y="${h-5}" text-anchor="middle" font-family="monospace" font-size="7" fill="${outerColor}" font-weight="bold">🔥${frp > 0 ? frp.toFixed(0)+'MW' : ''} ${confLabel}</text>
+    <text x="${cx}" y="${h-5}" text-anchor="middle" font-family="monospace" font-size="7" fill="${outerColor}" font-weight="bold" stroke="#000" stroke-width="2.5" paint-order="stroke">🔥${frp > 0 ? frp.toFixed(0)+'MW' : ''} ${confLabel}</text>
   </svg>`);
 }
 
@@ -564,6 +576,7 @@ const Google3DGlobe = memo(() => {
   const initRef = useRef(false);
 
   const { layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, fires, geoEvents, news, missileArcs, setDetailPanel, setActiveLivestream, mapCenter, followTarget, setFollowTarget, layerSubFilters, droneMode, twitterGeoMarkers } = useWorldViewStore();
+  const [activeTwitterPost, setActiveTwitterPost] = useState<TwitterGeoMarker | null>(null);
 
   // Start following a target with cinematic camera
   const startFollow = useCallback((target: FollowTarget) => {
@@ -1680,8 +1693,8 @@ const Google3DGlobe = memo(() => {
       try {
         const { Marker3DElement } = await (google.maps as any).importLibrary('maps3d');
         for (const post of twitterGeoMarkers) {
-          const truncText = post.text.length > 40 ? post.text.substring(0, 40) + '…' : post.text;
-          const svg = twitterPostSvg(post.account, truncText);
+          const isConflict = /\b(strike|missile|attack|killed|bomb|explosion|war|troops|drone)\b/i.test(post.text);
+          const svg = twitterPostSvg(post.account, post.text, isConflict);
           const marker = new Marker3DElement({
             position: { lat: post.lat, lng: post.lon, altitude: 100 },
             altitudeMode: 'RELATIVE_TO_GROUND',
@@ -1689,7 +1702,8 @@ const Google3DGlobe = memo(() => {
           });
           marker.append(svg);
           marker.addEventListener('gmp-click', () => {
-            window.open(post.url, '_blank');
+            // Show holographic overlay
+            setActiveTwitterPost(post);
           });
           map.append(marker);
           twitterMarkersRef.current.push(marker);
@@ -1703,6 +1717,65 @@ const Google3DGlobe = memo(() => {
   return (
     <div ref={containerRef} className="w-full h-full bg-background relative">
       <div className="map-host w-full h-full" />
+      {/* Holographic Twitter Post Overlay */}
+      {activeTwitterPost && (() => {
+        const post = activeTwitterPost;
+        const isConflict = /\b(strike|missile|attack|killed|bomb|explosion|war|troops|drone)\b/i.test(post.text);
+        const timeAgo = (() => {
+          const diff = Date.now() - new Date(post.createdAt).getTime();
+          const mins = Math.floor(diff / 60000);
+          if (mins < 1) return 'NOW';
+          if (mins < 60) return `${mins}m ago`;
+          return `${Math.floor(mins / 60)}h ago`;
+        })();
+        return (
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 pointer-events-auto animate-slide-up" style={{ maxWidth: 360 }}>
+            <div
+              className="relative overflow-hidden rounded-md border px-4 py-3"
+              style={{
+                background: 'linear-gradient(135deg, hsla(210,60%,4%,0.95), hsla(210,50%,8%,0.92))',
+                borderColor: isConflict ? 'hsla(345,100%,50%,0.4)' : 'hsla(150,100%,50%,0.25)',
+                boxShadow: `0 0 32px ${isConflict ? 'hsla(345,100%,50%,0.2)' : 'hsla(150,100%,50%,0.12)'}, 0 8px 40px rgba(0,0,0,0.7)`,
+                backdropFilter: 'blur(20px)',
+                minWidth: 280,
+              }}
+            >
+              {/* Scanlines */}
+              <div className="absolute inset-0 pointer-events-none rounded-md" style={{ background: 'repeating-linear-gradient(0deg,transparent,transparent 2px,hsla(150,100%,50%,0.015) 2px,hsla(150,100%,50%,0.015) 4px)' }} />
+              {/* Corner brackets */}
+              <div className="absolute top-0 left-0 w-2.5 h-2.5 rounded-tl" style={{ borderTop: `2px solid ${isConflict ? 'hsla(345,100%,50%,0.5)' : 'hsla(150,100%,50%,0.4)'}`, borderLeft: `2px solid ${isConflict ? 'hsla(345,100%,50%,0.5)' : 'hsla(150,100%,50%,0.4)'}` }} />
+              <div className="absolute top-0 right-0 w-2.5 h-2.5 rounded-tr" style={{ borderTop: `2px solid ${isConflict ? 'hsla(345,100%,50%,0.5)' : 'hsla(150,100%,50%,0.4)'}`, borderRight: `2px solid ${isConflict ? 'hsla(345,100%,50%,0.5)' : 'hsla(150,100%,50%,0.4)'}` }} />
+              <div className="absolute bottom-0 left-0 w-2.5 h-2.5 rounded-bl" style={{ borderBottom: `2px solid ${isConflict ? 'hsla(345,100%,50%,0.5)' : 'hsla(150,100%,50%,0.4)'}`, borderLeft: `2px solid ${isConflict ? 'hsla(345,100%,50%,0.5)' : 'hsla(150,100%,50%,0.4)'}` }} />
+              <div className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-br" style={{ borderBottom: `2px solid ${isConflict ? 'hsla(345,100%,50%,0.5)' : 'hsla(150,100%,50%,0.4)'}`, borderRight: `2px solid ${isConflict ? 'hsla(345,100%,50%,0.5)' : 'hsla(150,100%,50%,0.4)'}` }} />
+              {/* Header */}
+              <div className="flex items-center justify-between mb-2 relative z-10">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm">𝕏</span>
+                  <span className="font-data text-[11px] tracking-wider" style={{ color: isConflict ? '#ff0044' : '#00ff88' }}>@{post.account}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-1.5 h-1.5 rounded-full animate-pulse-dot" style={{ background: isConflict ? '#ff0044' : '#00ff88' }} />
+                  <span className="font-data text-[8px] tracking-widest" style={{ color: isConflict ? '#ff0044' : '#00ff88' }}>{isConflict ? 'CONFLICT' : 'OSINT'}</span>
+                </div>
+              </div>
+              {/* Divider */}
+              <div className="h-px mb-2" style={{ background: `linear-gradient(90deg,transparent,${isConflict ? 'hsla(345,100%,50%,0.3)' : 'hsla(150,100%,50%,0.2)'},transparent)` }} />
+              {/* Body */}
+              <p className="text-xs text-foreground/90 leading-relaxed mb-2 relative z-10" style={{ wordBreak: 'break-word' }}>{post.text}</p>
+              {/* Footer */}
+              <div className="flex items-center justify-between pt-1.5 relative z-10" style={{ borderTop: '1px solid hsla(150,100%,50%,0.08)' }}>
+                <span className="font-data text-[8px] text-muted-foreground">📍 {post.place || 'GEO'}</span>
+                <span className="font-data text-[8px] text-muted-foreground/60">{timeAgo}</span>
+              </div>
+              {/* Actions */}
+              <div className="flex items-center justify-between mt-2 relative z-10">
+                <a href={post.url} target="_blank" rel="noopener" className="font-data text-[8px] tracking-widest text-primary/50 hover:text-primary transition-colors">🔗 OPEN ON 𝕏</a>
+                <button onClick={() => setActiveTwitterPost(null)} className="font-data text-[8px] tracking-widest text-muted-foreground hover:text-foreground transition-colors">✕ CLOSE</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
       {/* Drone mode HUD overlay */}
       {droneMode && (
         <div className="absolute inset-0 z-20 pointer-events-none">
