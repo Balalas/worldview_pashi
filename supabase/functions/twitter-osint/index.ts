@@ -7,18 +7,16 @@ const corsHeaders = {
 
 const TWITTER_API = "https://api.x.com/2";
 
-const DEFAULT_ACCOUNTS = [
-  // Tier 1 — Core OSINT
-  "sentdefender", "IntelCrab", "OSINTdefender", "Osinttechnical",
-  "RALee85", "Faytuks", "WarMonitor3", "AuroraIntel", "Liveuamap",
-  // Tier 2 — Conflict & Military
-  "ELINTNews", "TheIntelLab", "UAControlMap", "WarInUkraine04",
-  "NotWoofers", "claborDeDefworwornet", "TpyxaNews",
-  // Tier 3 — Geopolitics & Regions
-  "JulianRoepcke", "Nrg8000", "IntelDoge", "MarQs__",
-  "GeoConfirmed", "john_marquee", "MiddleEastEye",
-  // Tier 4 — Cyber & Emerging
-  "DarkReading", "TheHackersNews", "vabordeaux", "BNONews",
+// Split into batches to stay under Twitter's 512 char query limit
+const ACCOUNT_BATCHES = [
+  // Batch 1 — Core OSINT + Conflict
+  ["sentdefender", "IntelCrab", "OSINTdefender", "Osinttechnical",
+   "RALee85", "Faytuks", "WarMonitor3", "AuroraIntel", "Liveuamap",
+   "ELINTNews", "TheIntelLab", "UAControlMap"],
+  // Batch 2 — Geopolitics + Cyber
+  ["WarInUkraine04", "NotWoofers", "TpyxaNews", "JulianRoepcke",
+   "Nrg8000", "IntelDoge", "MarQs__", "GeoConfirmed", "john_marquee",
+   "MiddleEastEye", "DarkReading", "TheHackersNews", "BNONews"],
 ];
 
 // Extract location from tweet text
@@ -78,59 +76,61 @@ serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const accounts = body.accounts || DEFAULT_ACCOUNTS;
+    const batches = body.accounts ? [body.accounts] : ACCOUNT_BATCHES;
 
-    // Build search query
-    const fromQuery = accounts.map((a: string) => `from:${a}`).join(" OR ");
+    let allTweets: any[] = [];
+    let allUsers: any[] = [];
+    let allPlaces: any[] = [];
+    const allAccounts: string[] = batches.flat();
 
-    const queryParams = new URLSearchParams({
-      query: fromQuery,
-      max_results: "50",
-      "tweet.fields": "created_at,geo,entities,author_id,public_metrics",
-      "user.fields": "username,name",
-      expansions: "author_id,geo.place_id",
-      "place.fields": "full_name,geo,country",
-    });
+    // Fetch each batch (stays under 512 char limit)
+    for (const batch of batches) {
+      const fromQuery = batch.map((a: string) => `from:${a}`).join(" OR ");
+      if (fromQuery.length > 512) {
+        console.warn(`Query too long (${fromQuery.length}), skipping batch`);
+        continue;
+      }
 
-    const fullUrl = `${TWITTER_API}/tweets/search/recent?${queryParams.toString()}`;
+      const queryParams = new URLSearchParams({
+        query: fromQuery,
+        max_results: "30",
+        "tweet.fields": "created_at,geo,entities,author_id,public_metrics",
+        "user.fields": "username,name",
+        expansions: "author_id,geo.place_id",
+        "place.fields": "full_name,geo,country",
+      });
 
-    const twitterRes = await fetch(fullUrl, {
-      headers: {
-        "Authorization": `Bearer ${bearerToken}`,
-      },
-    });
+      const fullUrl = `${TWITTER_API}/tweets/search/recent?${queryParams.toString()}`;
 
-    if (!twitterRes.ok) {
-      const errText = await twitterRes.text();
-      console.error("Twitter API error:", twitterRes.status, errText);
-      // On 402 (credits depleted) or 429 (rate limit), return empty results gracefully
-      if (twitterRes.status === 402 || twitterRes.status === 429) {
-        return new Response(JSON.stringify({
-          success: true,
-          posts: [],
-          geolocated: [],
-          nonGeoCount: 0,
-          total: 0,
-          accounts,
-          fetchedAt: new Date().toISOString(),
-          warning: `Twitter API ${twitterRes.status}: ${errText}`,
-        }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+      const twitterRes = await fetch(fullUrl, {
+        headers: { "Authorization": `Bearer ${bearerToken}` },
+      });
+
+      if (!twitterRes.ok) {
+        const errText = await twitterRes.text();
+        console.error("Twitter API error:", twitterRes.status, errText);
+        if (twitterRes.status === 402 || twitterRes.status === 429) {
+          // Rate limited — return what we have so far
+          break;
+        }
+        if (twitterRes.status === 400) {
+          console.error("Bad request for batch, skipping:", batch.join(","));
+          continue;
+        }
+        return new Response(JSON.stringify({ error: `Twitter API ${twitterRes.status}`, details: errText }), {
+          status: twitterRes.status, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      return new Response(JSON.stringify({
-        error: `Twitter API ${twitterRes.status}`,
-        details: errText,
-      }), {
-        status: twitterRes.status,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+
+      const data = await twitterRes.json();
+      if (data.data) allTweets.push(...data.data);
+      if (data.includes?.users) allUsers.push(...data.includes.users);
+      if (data.includes?.places) allPlaces.push(...data.includes.places);
     }
 
-    const twitterData = await twitterRes.json();
-    const tweets = twitterData.data || [];
-    const users = twitterData.includes?.users || [];
-    const places = twitterData.includes?.places || [];
+    const tweets = allTweets;
+    const users = allUsers;
+    const places = allPlaces;
 
     const userMap = new Map<string, string>();
     users.forEach((u: any) => userMap.set(u.id, u.username));
@@ -177,7 +177,7 @@ serve(async (req) => {
       geolocated,
       nonGeoCount: posts.length - geolocated.length,
       total: posts.length,
-      accounts,
+      accounts: allAccounts,
       fetchedAt: new Date().toISOString(),
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
