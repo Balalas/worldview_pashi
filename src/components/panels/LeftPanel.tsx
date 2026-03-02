@@ -306,6 +306,7 @@ const StatBox = ({ label, value, color }: { label: string; value: number; color:
 
 const XPostCard = memo(({ post }: { post: TwitterOsintPost }) => {
   const isConflict = /\b(strike|missile|attack|killed|bomb|explosion|war|troops|drone)\b/i.test(post.text);
+  const setMapCenter = useWorldViewStore(s => s.setMapCenter);
   const timeAgo = () => {
     const diff = Date.now() - new Date(post.createdAt).getTime();
     const mins = Math.floor(diff / 60000);
@@ -314,12 +315,21 @@ const XPostCard = memo(({ post }: { post: TwitterOsintPost }) => {
     return `${Math.floor(mins / 60)}h`;
   };
 
+  const handleClick = () => {
+    if (post.geo) {
+      setMapCenter({ lat: post.geo.lat, lon: post.geo.lon, zoom: 8 });
+    } else {
+      window.open(post.url, '_blank', 'noopener');
+    }
+  };
+
   return (
     <div
       className={`rounded border px-2 py-1.5 cursor-pointer transition-colors hover:border-primary/30 ${
         isConflict ? 'border-alert-critical/20 bg-alert-critical/5' : 'border-border/20 bg-card-bg/20'
       }`}
-      onClick={() => window.open(post.url, '_blank', 'noopener')}
+      onClick={handleClick}
+      title={post.geo ? 'Click to fly to location' : 'Click to open on 𝕏'}
     >
       <div className="flex items-center justify-between mb-0.5">
         <span className="text-[8px] font-data text-primary/80">@{post.account}</span>
