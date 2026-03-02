@@ -95,6 +95,21 @@ serve(async (req) => {
     if (!twitterRes.ok) {
       const errText = await twitterRes.text();
       console.error("Twitter API error:", twitterRes.status, errText);
+      // On 402 (credits depleted) or 429 (rate limit), return empty results gracefully
+      if (twitterRes.status === 402 || twitterRes.status === 429) {
+        return new Response(JSON.stringify({
+          success: true,
+          posts: [],
+          geolocated: [],
+          nonGeoCount: 0,
+          total: 0,
+          accounts,
+          fetchedAt: new Date().toISOString(),
+          warning: `Twitter API ${twitterRes.status}: ${errText}`,
+        }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
       return new Response(JSON.stringify({
         error: `Twitter API ${twitterRes.status}`,
         details: errText,
