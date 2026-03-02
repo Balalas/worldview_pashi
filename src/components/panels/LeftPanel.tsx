@@ -1,7 +1,8 @@
-import { memo, useState } from 'react';
+import { memo, useState, useRef } from 'react';
 import { useWorldViewStore, LayerType, INSTABILITY_DATA, REGION_PRESETS, LANDMARK_PRESETS, LayerSubFilters, TwitterOsintPost } from '@/store/worldview';
 import { SUBMARINE_CABLES } from '@/data/submarineCables';
 import { Slider } from '@/components/ui/slider';
+import { supabase } from '@/integrations/supabase/client';
 
 const LAYER_CONFIG: { key: LayerType; label: string; shortcut: string; colorClass: string }[] = [
   { key: 'aircraft', label: 'AIRCRAFT', shortcut: 'A', colorClass: 'bg-signal-aircraft' },
@@ -106,6 +107,117 @@ const LandmarksDropdown = memo(() => {
   );
 });
 LandmarksDropdown.displayName = 'LandmarksDropdown';
+
+// ── OSINT AI Chat Box ──
+const OsintChatBox = memo(({ twitterPosts }: { twitterPosts: TwitterOsintPost[] }) => {
+  const [query, setQuery] = useState('');
+  const [answer, setAnswer] = useState('');
+  const [citations, setCitations] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [showAnswer, setShowAnswer] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const askPerplexity = async () => {
+    if (!query.trim() || loading) return;
+    setLoading(true);
+    setAnswer('');
+    setCitations([]);
+    setShowAnswer(true);
+
+    try {
+      // Build context from recent OSINT posts
+      const context = twitterPosts.slice(0, 15).map(p =>
+        `@${p.account} (${new Date(p.createdAt).toLocaleTimeString()}): ${p.text.substring(0, 200)}`
+      ).join('\n');
+
+      const { data, error } = await supabase.functions.invoke('osint-chat', {
+        body: { question: query, context },
+      });
+
+      if (error) throw error;
+      setAnswer(data.answer || 'No response.');
+      setCitations(data.citations || []);
+    } catch (e: any) {
+      setAnswer(`⚠ Error: ${e.message || 'Failed to reach AI'}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="mb-2">
+      <div className="flex gap-1 mb-1">
+        <input
+          ref={inputRef}
+          type="text"
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && askPerplexity()}
+          placeholder="Ask AI about live intel..."
+          className="flex-1 text-[10px] font-data rounded px-2 py-1 outline-none transition-colors"
+          style={{
+            background: 'hsla(210, 50%, 8%, 0.8)',
+            border: '1px solid hsla(150, 100%, 50%, 0.15)',
+            color: 'hsla(200, 50%, 88%, 0.9)',
+          }}
+        />
+        <button
+          onClick={askPerplexity}
+          disabled={loading || !query.trim()}
+          className="px-2 py-1 text-[9px] font-display tracking-wider rounded transition-all"
+          style={{
+            background: loading ? 'hsla(150, 100%, 50%, 0.1)' : 'hsla(150, 100%, 50%, 0.15)',
+            border: '1px solid hsla(150, 100%, 50%, 0.25)',
+            color: loading ? 'hsla(150, 100%, 50%, 0.4)' : 'hsla(150, 100%, 50%, 0.8)',
+          }}
+        >
+          {loading ? '...' : 'ASK'}
+        </button>
+      </div>
+
+      {showAnswer && (
+        <div
+          className="rounded p-2 mb-2 animate-fade-in"
+          style={{
+            background: 'hsla(210, 60%, 4%, 0.95)',
+            border: '1px solid hsla(150, 100%, 50%, 0.12)',
+            maxHeight: '200px',
+            overflowY: 'auto',
+          }}
+        >
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[8px] font-display tracking-[0.15em] text-primary/70">🤖 PERPLEXITY AI</span>
+            <button onClick={() => setShowAnswer(false)} className="text-[8px] text-muted-foreground/40 hover:text-foreground">✕</button>
+          </div>
+          {loading ? (
+            <div className="flex items-center gap-1.5 py-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+              <span className="text-[9px] font-data text-muted-foreground/50">Analyzing OSINT data...</span>
+            </div>
+          ) : (
+            <>
+              <div className="text-[10px] font-data text-foreground/80 leading-relaxed whitespace-pre-wrap">{answer}</div>
+              {citations.length > 0 && (
+                <div className="mt-1.5 pt-1 border-t border-border/20">
+                  <span className="text-[7px] font-display tracking-wider text-muted-foreground/40">SOURCES</span>
+                  <div className="flex flex-wrap gap-1 mt-0.5">
+                    {citations.slice(0, 5).map((url, i) => (
+                      <a key={i} href={url} target="_blank" rel="noopener noreferrer"
+                        className="text-[8px] font-data text-primary/60 hover:text-primary underline truncate max-w-[120px]">
+                        [{i + 1}] {new URL(url).hostname.replace('www.', '')}
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+});
+OsintChatBox.displayName = 'OsintChatBox';
 
 const LeftPanel = memo(() => {
   const { layers, toggleLayer, leftPanelOpen, activeRegion, setActiveRegion, setMapCenter, satellites, aircraft, earthquakes, vessels, protests, outages, layerSubFilters, setSubFilter, toggleSubFilter, twitterPosts } = useWorldViewStore();
@@ -265,7 +377,7 @@ const LeftPanel = memo(() => {
             </>
           ) : (
             <>
-              {/* X OSINT Live Feed */}
+              {/* X OSINT Live Feed + AI Chat */}
               <div className="p-2">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-xs">𝕏</span>
@@ -275,6 +387,10 @@ const LeftPanel = memo(() => {
                     <span className="text-[9px] font-data text-alert-critical">LIVE</span>
                   </span>
                 </div>
+
+                {/* AI Chat Input */}
+                <OsintChatBox twitterPosts={twitterPosts} />
+
                 <div className="text-[9px] font-data text-muted-foreground/50 mb-2">{twitterPosts.length} posts from OSINT accounts</div>
                 {twitterPosts.length === 0 ? (
                   <div className="text-center py-6">
@@ -282,7 +398,7 @@ const LeftPanel = memo(() => {
                     <div className="text-[11px] font-data text-muted-foreground/40">Loading OSINT feed...</div>
                   </div>
                 ) : (
-                  <div className="space-y-1.5 max-h-[calc(100vh-200px)] overflow-y-auto">
+                  <div className="space-y-1.5 max-h-[calc(100vh-280px)] overflow-y-auto">
                     {twitterPosts.slice(0, 30).map(post => (
                       <XPostCard key={post.id} post={post} />
                     ))}
