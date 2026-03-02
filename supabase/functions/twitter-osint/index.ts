@@ -12,6 +12,8 @@ const ACCOUNT_BATCHES = [
   ["conflict_radar", "sentdefender", "Osinttechnical", "osintwarfare", "MonitorWarfare"],
   ["CyberScoopNews", "TheHackersNews", "vaborondon", "AuroraIntel", "IntelCrab"],
   ["BNONews", "Faytuks", "GeoConfirmed", "PolymarketIntel", "DarkReading"],
+  ["RecordedFuture", "MalwareTechBlog", "vaborondon", "Cyberknow20", "BleepinComputer"],
+  ["SecurityWeek", "threataborter", "campaboronhacks", "UK_Daniel_Card", "GossiTheDog"],
 ];
 
 // Extract location from tweet text
