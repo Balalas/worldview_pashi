@@ -1,7 +1,7 @@
 import { useEffect, useRef, memo } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { useWorldViewStore, NUCLEAR_SITES } from '@/store/worldview';
+import { useWorldViewStore, NUCLEAR_SITES, EPSTEIN_LOCATIONS } from '@/store/worldview';
 import { CONFLICT_ZONES } from '@/data/conflictZones';
 import { SUBMARINE_CABLES } from '@/data/submarineCables';
 import { PUBLIC_CAMERAS } from '@/data/publicCameras';
@@ -17,7 +17,7 @@ const MapContainer = memo(() => {
   const layersRef = useRef<Record<string, L.LayerGroup>>({});
   const geoLayerRef = useRef<L.GeoJSON | null>(null);
 
-  const { layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, fires, liveCameras, setDetailPanel, setActiveLivestream, mapCenter, twitterGeoMarkers, news, setMapCenter, newsHotspots } = useWorldViewStore();
+  const { layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, fires, liveCameras, setDetailPanel, setActiveLivestream, mapCenter, twitterGeoMarkers, news, setMapCenter, newsHotspots, epsteinMode } = useWorldViewStore();
 
   // Initialize map
   useEffect(() => {
@@ -37,7 +37,7 @@ const MapContainer = memo(() => {
     L.control.zoom({ position: 'bottomright' }).addTo(map);
     mapInstanceRef.current = map;
 
-    ['aircraft', 'satellites', 'earthquakes', 'conflicts', 'cables', 'weather', 'volcanoes', 'nuclear', 'vessels', 'protests', 'outages', 'cameras', 'fires', 'twitterOsint', 'newsMarkers', 'newsHotspots'].forEach((key) => {
+    ['aircraft', 'satellites', 'earthquakes', 'conflicts', 'cables', 'weather', 'volcanoes', 'nuclear', 'vessels', 'protests', 'outages', 'cameras', 'fires', 'twitterOsint', 'newsMarkers', 'newsHotspots', 'epstein'].forEach((key) => {
       layersRef.current[key] = L.layerGroup().addTo(map);
     });
 
@@ -866,6 +866,111 @@ const MapContainer = memo(() => {
       group.addLayer(marker);
     }
   }, [newsHotspots]);
+
+  // ── Epstein Mode — render known locations, properties, flight routes ──
+  useEffect(() => {
+    const group = layersRef.current['epstein'];
+    if (!group) return;
+    group.clearLayers();
+    if (!epsteinMode) return;
+
+    const typeColors: Record<string, string> = {
+      island: '#ff0088',
+      property: '#ff6b35',
+      flight_dest: '#00d4ff',
+      associate: '#ffb000',
+    };
+
+    // Draw flight routes from Teterboro to key destinations
+    const teterboro = EPSTEIN_LOCATIONS.find(l => l.name.includes('Teterboro'));
+    if (teterboro) {
+      EPSTEIN_LOCATIONS.filter(l => l.type === 'flight_dest' && !l.name.includes('Teterboro')).forEach(dest => {
+        const line = L.polyline(
+          [[teterboro.lat, teterboro.lon], [dest.lat, dest.lon]],
+          { color: '#ff008880', weight: 1, dashArray: '8 6', opacity: 0.5 }
+        );
+        group.addLayer(line);
+      });
+    }
+
+    // Also draw routes from STT to the islands
+    const stt = EPSTEIN_LOCATIONS.find(l => l.name.includes('Cyril'));
+    const islands = EPSTEIN_LOCATIONS.filter(l => l.type === 'island');
+    if (stt) {
+      islands.forEach(isl => {
+        const line = L.polyline(
+          [[stt.lat, stt.lon], [isl.lat, isl.lon]],
+          { color: '#ff008880', weight: 2, dashArray: '4 3', opacity: 0.7 }
+        );
+        group.addLayer(line);
+      });
+    }
+
+    EPSTEIN_LOCATIONS.forEach(loc => {
+      const color = typeColors[loc.type] || '#ff0088';
+      const size = loc.type === 'island' ? 28 : loc.type === 'property' ? 22 : 18;
+
+      const html = loc.type === 'island'
+        ? `<div style="position:relative;width:${size}px;height:${size}px;">
+            <div style="position:absolute;inset:0;border:2px solid ${color};border-radius:50%;animation:ping-ring 2s ease-out infinite;opacity:0.6;"></div>
+            <div style="position:absolute;inset:3px;border:1.5px solid ${color};border-radius:50%;animation:ping-ring 2s ease-out 0.5s infinite;opacity:0.4;"></div>
+            <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:${size * 0.55}px;filter:drop-shadow(0 0 6px ${color});">${loc.icon}</div>
+          </div>`
+        : `<div style="position:relative;width:${size}px;height:${size}px;">
+            <div style="position:absolute;inset:0;border:1.5px solid ${color};border-radius:50%;opacity:0.5;"></div>
+            <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:${size * 0.55}px;">${loc.icon}</div>
+          </div>`;
+
+      const icon = L.divIcon({
+        className: '',
+        html,
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size / 2],
+      });
+
+      const marker = L.marker([loc.lat, loc.lon], { icon });
+
+      const popupHtml = `<div style="
+        background: linear-gradient(135deg, hsla(330,60%,4%,0.95), hsla(330,50%,8%,0.9));
+        border: 1px solid hsla(330,100%,50%,0.4);
+        border-radius: 6px;
+        padding: 12px 14px;
+        min-width: 240px;
+        max-width: 300px;
+        box-shadow: 0 0 24px hsla(330,100%,50%,0.15), 0 8px 32px rgba(0,0,0,0.6);
+        backdrop-filter: blur(16px);
+        font-family: 'Barlow Condensed', sans-serif;
+        position: relative;
+      ">
+        <div style="position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,transparent,transparent 2px,hsla(330,100%,50%,0.015) 2px,hsla(330,100%,50%,0.015) 4px);border-radius:6px;"></div>
+        <div style="position:absolute;top:0;left:0;width:8px;height:8px;border-top:2px solid ${color}80;border-left:2px solid ${color}80;border-radius:3px 0 0 0;"></div>
+        <div style="position:absolute;top:0;right:0;width:8px;height:8px;border-top:2px solid ${color}80;border-right:2px solid ${color}80;border-radius:0 3px 0 0;"></div>
+        <div style="position:absolute;bottom:0;left:0;width:8px;height:8px;border-bottom:2px solid ${color}80;border-left:2px solid ${color}80;border-radius:0 0 0 3px;"></div>
+        <div style="position:absolute;bottom:0;right:0;width:8px;height:8px;border-bottom:2px solid ${color}80;border-right:2px solid ${color}80;border-radius:0 0 3px 0;"></div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+          <span style="font-size:18px;">${loc.icon}</span>
+          <span style="font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:600;color:hsla(330,80%,80%,0.95);letter-spacing:0.1em;text-transform:uppercase;">${loc.name}</span>
+        </div>
+        <div style="height:1px;background:linear-gradient(90deg,transparent,hsla(330,100%,50%,0.3),transparent);margin-bottom:8px;"></div>
+        <p style="font-size:12px;color:hsla(200,50%,88%,0.8);line-height:1.5;margin:0;">${loc.description}</p>
+        <div style="margin-top:8px;display:flex;align-items:center;gap:4px;">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:9px;background:${color}20;color:${color};padding:1px 6px;border-radius:3px;border:1px solid ${color}40;letter-spacing:0.1em;">${loc.type.toUpperCase().replace('_', ' ')}</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:8px;color:hsla(200,50%,88%,0.4);">${loc.lat.toFixed(3)}, ${loc.lon.toFixed(3)}</span>
+        </div>
+      </div>`;
+
+      marker.bindPopup(popupHtml, {
+        className: 'osint-popup',
+        maxWidth: 320,
+        minWidth: 240,
+        closeButton: false,
+        autoPan: true,
+      });
+
+      marker.bindTooltip(`${loc.icon} ${loc.name}`, { direction: 'top', offset: [0, -10] });
+      group.addLayer(marker);
+    });
+  }, [epsteinMode]);
 
   return <div ref={mapRef} className="w-full h-full" />;
 });
