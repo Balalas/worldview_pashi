@@ -1,0 +1,275 @@
+import { memo, useEffect, useRef, useState, useCallback } from 'react';
+import { useWorldViewStore } from '@/store/worldview';
+import { CONFLICT_ZONES } from '@/data/conflictZones';
+import { useNotifSubStore, NotifCategory } from '@/store/notificationSubscriptions';
+import { COUNTRY_META } from '@/data/countryMeta';
+
+interface TacticalAlert {
+  id: string;
+  type: 'earthquake' | 'military' | 'protest' | 'cyber' | 'fire' | 'weather' | 'conflict' | 'war';
+  title: string;
+  severity: 'critical' | 'high' | 'medium';
+  timestamp: Date;
+  lat?: number;
+  lon?: number;
+  persistent?: boolean;
+  countryCode?: string;
+}
+
+const SEVERITY_CONFIG = {
+  critical: { border: 'border-alert-critical', dot: 'bg-alert-critical', text: 'text-alert-critical', bg: 'bg-alert-critical/5' },
+  high: { border: 'border-alert-high', dot: 'bg-alert-high', text: 'text-alert-high', bg: 'bg-alert-high/5' },
+  medium: { border: 'border-alert-medium', dot: 'bg-alert-medium', text: 'text-alert-medium', bg: 'bg-alert-medium/5' },
+};
+
+const TYPE_ICONS: Record<string, string> = {
+  earthquake: '◈', military: '▲', protest: '◉', cyber: '⬡', fire: '△', weather: '◇', conflict: '✦', war: '☢',
+};
+
+const WAR_KEYWORDS = /\b(war|airstrike|airstrikes|strike|strikes|shelling|shelled|bombed|bombing|bombardment|missile|missiles|rocket|rockets|killed|casualties|troops|offensive|invasion|siege|ceasefire|frontline|battle|combat|ambush|drone strike|artillery|mortar|gunfire|sniper|incursion|occupation|annex)\b/i;
+const CONFLICT_REGIONS = CONFLICT_ZONES.map(z => z.name.toLowerCase());
+
+const MAX_VISIBLE = 3;
+
+// Map alert types to subscription categories
+function alertTypeToCategory(type: TacticalAlert['type']): NotifCategory | null {
+  switch (type) {
+    case 'war': case 'conflict': return 'war';
+    case 'cyber': return 'cyber';
+    case 'earthquake': return 'earthquakes';
+    case 'military': case 'protest': case 'fire': case 'weather': return 'news';
+    default: return null;
+  }
+}
+
+// Try to match a country code from text using COUNTRY_META
+function guessCountryFromText(text: string): string | null {
+  const lower = text.toLowerCase();
+  for (const [id, meta] of Object.entries(COUNTRY_META)) {
+    if (meta.name && lower.includes(meta.name.toLowerCase())) {
+      return meta.code || null;
+    }
+  }
+  return null;
+}
+
+const TacticalAlerts = memo(() => {
+  const { earthquakes, aircraft, protests, outages, fires, news, setMapCenter } = useWorldViewStore();
+  const subscriptions = useNotifSubStore(s => s.subscriptions);
+  const [alerts, setAlerts] = useState<TacticalAlert[]>([]);
+  const [expanded, setExpanded] = useState(false);
+  const prevCountsRef = useRef({ eq: 0, mil: 0, protest: 0, cyber: 0, fire: 0 });
+  const prevNewsIdsRef = useRef<Set<string>>(new Set());
+  const mountedRef = useRef(false);
+
+  const subCodes = Object.keys(subscriptions);
+  const hasAnySub = subCodes.length > 0;
+
+  // Check if an alert should be shown based on subscriptions
+  const shouldShowAlert = useCallback((type: TacticalAlert['type'], countryCode?: string | null): boolean => {
+    if (!hasAnySub) return false;
+    const cat = alertTypeToCategory(type);
+    if (!cat) return false;
+    if (countryCode && subscriptions[countryCode]) {
+      return subscriptions[countryCode].categories.includes(cat);
+    }
+    // If no country match, check if ANY subscription has this category
+    return Object.values(subscriptions).some(s => s.categories.includes(cat));
+  }, [subscriptions, hasAnySub]);
+
+  const addAlert = useCallback((alert: Omit<TacticalAlert, 'id' | 'timestamp'>) => {
+    if (!shouldShowAlert(alert.type, alert.countryCode)) return;
+    const newAlert: TacticalAlert = { ...alert, id: crypto.randomUUID(), timestamp: new Date() };
+    setAlerts(prev => [newAlert, ...prev].slice(0, 15));
+    const duration = alert.persistent ? 20000 : 12000;
+    setTimeout(() => {
+      setAlerts(prev => prev.filter(a => a.id !== newAlert.id));
+    }, duration);
+  }, [shouldShowAlert]);
+
+  // Monitor data changes
+  useEffect(() => {
+    if (!mountedRef.current) {
+      mountedRef.current = true;
+      prevCountsRef.current = {
+        eq: earthquakes.length,
+        mil: aircraft.filter(a => a.isMilitary).length,
+        protest: protests.length,
+        cyber: outages.length,
+        fire: fires.length,
+      };
+      return;
+    }
+
+    const prev = prevCountsRef.current;
+    const milCount = aircraft.filter(a => a.isMilitary).length;
+
+    if (earthquakes.length > prev.eq) {
+      const newQuakes = earthquakes.slice(0, earthquakes.length - prev.eq);
+      const bigQuake = newQuakes.find(q => q.magnitude >= 4.5);
+      if (bigQuake) {
+        const cc = guessCountryFromText(bigQuake.place);
+        addAlert({ type: 'earthquake', title: `M${bigQuake.magnitude.toFixed(1)} — ${bigQuake.place}`, severity: bigQuake.magnitude >= 6 ? 'critical' : 'high', lat: bigQuake.lat, lon: bigQuake.lon, countryCode: cc ?? undefined });
+      }
+    }
+
+    if (milCount > prev.mil + 2) {
+      addAlert({ type: 'military', title: `${milCount - prev.mil} NEW MIL AIRCRAFT DETECTED`, severity: 'high' });
+    }
+
+    if (protests.length > prev.protest) {
+      addAlert({ type: 'protest', title: `NEW PROTEST ACTIVITY DETECTED`, severity: 'medium' });
+    }
+
+    if (outages.length > prev.cyber) {
+      const newOutage = outages[0];
+      const cc = guessCountryFromText(newOutage?.title || '');
+      addAlert({ type: 'cyber', title: `CYBER: ${newOutage?.title?.substring(0, 50) || 'NEW EVENT'}`, severity: newOutage?.severity === 'critical' ? 'critical' : 'high', countryCode: cc ?? undefined });
+    }
+
+    if (fires.length > prev.fire + 1) {
+      addAlert({ type: 'fire', title: `${fires.length - prev.fire} NEW FIRE EVENTS`, severity: 'high' });
+    }
+
+    prevCountsRef.current = { eq: earthquakes.length, mil: milCount, protest: protests.length, cyber: outages.length, fire: fires.length };
+  }, [earthquakes.length, aircraft.length, protests.length, outages.length, fires.length, addAlert]);
+
+  // Monitor news for war/conflict updates
+  useEffect(() => {
+    if (news.length === 0) return;
+
+    const currentIds = new Set(news.map(n => n.id));
+    if (prevNewsIdsRef.current.size === 0) {
+      prevNewsIdsRef.current = currentIds;
+      return;
+    }
+
+    const newItems = news.filter(n => !prevNewsIdsRef.current.has(n.id));
+    prevNewsIdsRef.current = currentIds;
+    if (newItems.length === 0) return;
+
+    const conflictNews = newItems.filter(item => {
+      if (item.category === 'conflict' || item.category === 'military') return true;
+      if (WAR_KEYWORDS.test(item.title)) return true;
+      const lower = item.title.toLowerCase();
+      return CONFLICT_REGIONS.some(region => {
+        const parts = region.split('–').map(p => p.trim());
+        return parts.some(p => lower.includes(p));
+      });
+    });
+
+    const seen = new Set<string>();
+    let addedCount = 0;
+    for (const item of conflictNews) {
+      if (addedCount >= 2) break;
+      const key = item.title.substring(0, 30).toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      const severity: TacticalAlert['severity'] = 
+        item.severity === 'critical' ? 'critical' :
+        item.severity === 'high' ? 'high' : 'medium';
+
+      const isWar = /\b(war|killed|dead|casualties|airstrike|bombing|missile)\b/i.test(item.title);
+
+      const matchedZone = CONFLICT_ZONES.find(z => {
+        const parts = z.name.toLowerCase().split('–').map(p => p.trim());
+        return parts.some(p => item.title.toLowerCase().includes(p));
+      });
+
+      const cc = item.country ? guessCountryFromText(item.country) : guessCountryFromText(item.title);
+
+      addAlert({
+        type: isWar ? 'war' : 'conflict',
+        title: `${item.source}: ${item.title.substring(0, 70)}`,
+        severity,
+        persistent: severity === 'critical',
+        lat: matchedZone?.lat,
+        lon: matchedZone?.lon,
+        countryCode: cc ?? undefined,
+      });
+      addedCount++;
+    }
+
+    if (conflictNews.length > 2) {
+      addAlert({
+        type: 'conflict',
+        title: `+${conflictNews.length - 2} MORE CONFLICT UPDATES`,
+        severity: 'medium',
+      });
+    }
+  }, [news, addAlert]);
+
+  const handleClick = (alert: TacticalAlert) => {
+    if (alert.lat && alert.lon) {
+      setMapCenter({ lat: alert.lat, lon: alert.lon, zoom: 8 });
+    }
+    setAlerts(prev => prev.filter(a => a.id !== alert.id));
+  };
+
+  const dismissAll = () => setAlerts([]);
+
+  // Show empty state hint when no subscriptions
+  if (!hasAnySub) {
+    return null;
+  }
+
+  if (alerts.length === 0) return null;
+
+  const visibleAlerts = expanded ? alerts : alerts.slice(0, MAX_VISIBLE);
+  const hiddenCount = alerts.length - MAX_VISIBLE;
+  const critCount = alerts.filter(a => a.severity === 'critical').length;
+  const highCount = alerts.filter(a => a.severity === 'high').length;
+
+  return (
+    <div className="absolute top-12 right-4 z-50 flex flex-col gap-1 pointer-events-auto" style={{ maxWidth: 320 }}>
+      {visibleAlerts.map((alert) => {
+        const cfg = SEVERITY_CONFIG[alert.severity];
+        const isClickable = !!(alert.lat && alert.lon);
+        return (
+          <div
+            key={alert.id}
+            className={`animate-slide-in-right glass-panel border-l-2 ${cfg.border} ${cfg.bg} px-2.5 py-1.5 rounded-r cursor-pointer hover:brightness-110 transition-all`}
+            onClick={() => handleClick(alert)}
+            title={isClickable ? 'Click to fly to location' : 'Click to dismiss'}
+          >
+            <div className="flex items-center gap-1.5">
+              <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot} ${alert.persistent ? 'animate-ping' : 'animate-pulse-dot'} flex-shrink-0`} />
+              <span className={`text-[10px] font-data tracking-[0.12em] ${cfg.text} font-bold truncate`}>
+                {TYPE_ICONS[alert.type]} {alert.type === 'war' ? 'WAR' : alert.type === 'conflict' ? 'CONFLICT' : alert.severity.toUpperCase()}
+              </span>
+              <span className="text-[9px] font-data text-muted-foreground ml-auto flex-shrink-0">
+                {alert.timestamp.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' })}
+              </span>
+            </div>
+            <p className="text-[11px] font-display tracking-wider text-foreground mt-0.5 leading-tight truncate">{alert.title}</p>
+          </div>
+        );
+      })}
+
+      {!expanded && hiddenCount > 0 && (
+        <button
+          onClick={() => setExpanded(true)}
+          className="glass-panel border border-border px-2.5 py-1.5 rounded text-left hover:bg-card-hover transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-data text-primary">+{hiddenCount} MORE ALERTS</span>
+            {critCount > 0 && <span className="text-[9px] font-data text-alert-critical">●{critCount} CRIT</span>}
+            {highCount > 0 && <span className="text-[9px] font-data text-alert-high">●{highCount} HIGH</span>}
+            <span className="text-[9px] font-data text-muted-foreground ml-auto">TAP TO EXPAND</span>
+          </div>
+        </button>
+      )}
+
+      {expanded && alerts.length > MAX_VISIBLE && (
+        <div className="flex items-center gap-2 px-1">
+          <button onClick={() => setExpanded(false)} className="text-[9px] font-data text-primary/60 hover:text-primary">▲ COLLAPSE</button>
+          <button onClick={dismissAll} className="text-[9px] font-data text-alert-medium/60 hover:text-alert-medium ml-auto">✕ DISMISS ALL</button>
+        </div>
+      )}
+    </div>
+  );
+});
+
+TacticalAlerts.displayName = 'TacticalAlerts';
+export default TacticalAlerts;

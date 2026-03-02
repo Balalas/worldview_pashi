@@ -1,0 +1,1332 @@
+import { useEffect, useRef, memo } from 'react';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import { useWorldViewStore, NUCLEAR_SITES, EPSTEIN_LOCATIONS } from '@/store/worldview';
+
+// Expose openInAppBrowser globally for inline popup HTML onclick handlers
+(window as any).__openHoloBrowser = (url: string) => {
+  useWorldViewStore.getState().openInAppBrowser(url);
+};
+import { CONFLICT_ZONES } from '@/data/conflictZones';
+import { SUBMARINE_CABLES } from '@/data/submarineCables';
+import { PUBLIC_CAMERAS } from '@/data/publicCameras';
+import { COUNTRY_META } from '@/data/countryMeta';
+import { MILITARY_BASES, SPACEPORTS, CHOKEPOINTS } from '@/data/staticLayers';
+import { getCameraSourceColor, getCameraSourceLabel } from '@/services/cameraService';
+import * as topojson from 'topojson-client';
+
+const WORLD_TOPO_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/countries-110m.json';
+
+const MapContainer = memo(() => {
+  const mapRef = useRef<HTMLDivElement>(null);
+  const mapInstanceRef = useRef<L.Map | null>(null);
+  const layersRef = useRef<Record<string, L.LayerGroup>>({});
+  const geoLayerRef = useRef<L.GeoJSON | null>(null);
+
+  const { layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, fires, liveCameras, setDetailPanel, setActiveLivestream, mapCenter, twitterGeoMarkers, news, setMapCenter, newsHotspots, epsteinMode, internetOutages, missileArcs } = useWorldViewStore();
+
+  // Initialize map
+  useEffect(() => {
+    if (!mapRef.current || mapInstanceRef.current) return;
+
+    const map = L.map(mapRef.current, {
+      center: [20, 0], zoom: 3, zoomControl: false, attributionControl: true, preferCanvas: true,
+      doubleClickZoom: false,
+      maxBoundsViscosity: 1.0,
+    });
+
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OSM</a> © <a href="https://carto.com/">CARTO</a>',
+      subdomains: 'abcd', maxZoom: 19,
+    }).addTo(map);
+
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+    
+    // Custom panes for proper z-ordering: cables below countries
+    map.createPane('cablesPane');
+    map.getPane('cablesPane')!.style.zIndex = '250';
+    map.createPane('countriesPane');
+    map.getPane('countriesPane')!.style.zIndex = '300';
+    
+    mapInstanceRef.current = map;
+
+    ['aircraft', 'satellites', 'earthquakes', 'conflicts', 'cables', 'weather', 'volcanoes', 'nuclear', 'vessels', 'protests', 'outages', 'cameras', 'fires', 'twitterOsint', 'newsMarkers', 'newsHotspots', 'epstein', 'iodaOutages', 'militaryBases', 'spaceports', 'chokepoints', 'missileArcs'].forEach((key) => {
+      layersRef.current[key] = L.layerGroup().addTo(map);
+    });
+
+    // Load country boundaries
+    fetch(WORLD_TOPO_URL)
+      .then(r => r.json())
+      .then(topo => {
+        const geojson = topojson.feature(topo, topo.objects.countries) as any;
+        const geoLayer = L.geoJSON(geojson, {
+          pane: 'countriesPane',
+          style: () => ({
+            fillColor: 'transparent',
+            fillOpacity: 0,
+            color: 'hsl(var(--primary))',
+            weight: 0.4,
+            opacity: 0.3,
+          }),
+          onEachFeature: (feature, layer) => {
+            const numericId = String(feature.id || feature.properties?.id);
+            const meta = COUNTRY_META[numericId];
+            const countryName = meta?.name || feature.properties?.name || 'Unknown';
+            const flag = meta?.flag || '🏳';
+            const code = meta?.code || 'XX';
+
+            layer.on({
+              mouseover: (e) => {
+                const l = e.target;
+                l.setStyle({
+                  weight: 1.2,
+                  opacity: 0.6,
+                });
+                l.bringToFront();
+              },
+              mouseout: (e) => {
+                geoLayer.resetStyle(e.target);
+              },
+              click: () => {
+                // Open the full Country Dossier overlay
+                const state = useWorldViewStore.getState();
+                // Try to find enriched country data
+                import('@/services/countryService').then(({ searchCountries }) => {
+                  const matches = searchCountries(countryName);
+                  if (matches.length > 0) {
+                    state.openCountryDossier(matches[0]);
+                  } else {
+                    // Fallback with minimal data
+                    state.openCountryDossier({
+                      name: countryName,
+                      officialName: countryName,
+                      code,
+                      flag,
+                      population: 0,
+                      area: 0,
+                      region: '',
+                      subregion: '',
+                      capital: '',
+                      languages: [],
+                      currencies: [],
+                      timezones: [],
+                      borders: [],
+                      lat: 0,
+                      lon: 0,
+                      unMember: false,
+                      landlocked: false,
+                    });
+                  }
+                });
+              },
+            });
+
+            layer.bindTooltip(`${flag} ${countryName}`, {
+              sticky: true,
+              className: 'country-tooltip',
+              direction: 'top',
+              offset: [0, -10],
+            });
+          },
+        }).addTo(map);
+        geoLayerRef.current = geoLayer;
+      })
+      .catch(err => console.warn('Failed to load country boundaries:', err));
+
+    return () => { map.remove(); mapInstanceRef.current = null; };
+  }, [setDetailPanel]);
+
+  useEffect(() => {
+    if (mapInstanceRef.current && mapCenter) {
+      mapInstanceRef.current.flyTo([mapCenter.lat, mapCenter.lon], mapCenter.zoom, { duration: 1.5 });
+    }
+  }, [mapCenter]);
+
+  // Render cameras — curated + live API cameras (viewport-culled, no FOV cones for API cams)
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    const group = layersRef.current['cameras'];
+    if (!group || !map) return;
+    group.clearLayers();
+    if (!layers.cameras) return;
+
+    // FOV cone helper — only used for curated cameras
+    const addFovCone = (lat: number, lon: number, heading: number, color: string) => {
+      const FOV_DEG = 70;
+      const FOV_RANGE_KM = 0.35;
+      const halfFov = FOV_DEG / 2;
+      const steps = 12;
+      const points: [number, number][] = [[lat, lon]];
+      for (let i = 0; i <= steps; i++) {
+        const angle = heading - halfFov + (FOV_DEG * i) / steps;
+        const rad = (angle * Math.PI) / 180;
+        const dlat = (FOV_RANGE_KM / 111) * Math.cos(rad);
+        const dlon = (FOV_RANGE_KM / (111 * Math.cos((lat * Math.PI) / 180))) * Math.sin(rad);
+        points.push([lat + dlat, lon + dlon]);
+      }
+      points.push([lat, lon]);
+      const polygon = L.polygon(points, { color, fillColor: color, fillOpacity: 0.12, weight: 1, opacity: 0.6, interactive: false });
+      group.addLayer(polygon);
+    };
+
+    // Curated cameras (YouTube embeds) — always visible
+    PUBLIC_CAMERAS.forEach(cam => {
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="position:relative;width:16px;height:16px;">
+          <div style="position:absolute;inset:0;border:1.5px solid #fbbf24;border-radius:50%;background:#fbbf2420;"></div>
+          <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:9px;">📹</div>
+          ${cam.official ? '<div style="position:absolute;top:-6px;right:-8px;font-size:5px;background:#fbbf24;color:#000;padding:0 2px;border-radius:2px;font-weight:bold;">DOT</div>' : ''}
+        </div>`,
+        iconSize: [16, 16],
+        iconAnchor: [8, 8],
+      });
+      const marker = L.marker([cam.lat, cam.lon], { icon })
+        .on('click', () => {
+          setDetailPanel({ type: 'camera', data: cam });
+          setActiveLivestream(cam.feedType === 'snapshot' ? (cam.snapshotUrl || 'snapshot') : cam.embedUrl);
+        });
+      marker.bindTooltip(`📹 ${cam.name} | ${cam.city}`, { direction: 'top', offset: [0, -10] });
+      group.addLayer(marker);
+      if (cam.heading != null) addFovCone(cam.lat, cam.lon, cam.heading, '#fbbf24');
+    });
+
+    // Viewport-culled rendering for API cameras
+    const renderVisibleCameras = () => {
+      // Remove only API camera markers (keep curated + their FOV cones)
+      const curatedCount = PUBLIC_CAMERAS.length * 2; // marker + fov cone each
+      const allLayers = group.getLayers();
+      const apiLayers = allLayers.slice(curatedCount);
+      apiLayers.forEach(l => group.removeLayer(l));
+
+      const bounds = map.getBounds();
+      const zoom = map.getZoom();
+      
+      // At low zoom, show cluster dots instead of individual markers
+      const maxVisible = zoom < 5 ? 200 : zoom < 8 ? 500 : 2000;
+      
+      const visible = liveCameras.filter(cam => bounds.contains([cam.lat, cam.lon]));
+      const toRender = visible.slice(0, maxVisible);
+
+      toRender.forEach(cam => {
+        const color = getCameraSourceColor(cam.source);
+        const label = getCameraSourceLabel(cam.source);
+        const icon = L.divIcon({
+          className: '',
+          html: `<div style="position:relative;width:14px;height:14px;">
+            <div style="position:absolute;inset:0;border:1.5px solid ${color};border-radius:50%;background:${color}20;"></div>
+            <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:4px;height:4px;background:${color};border-radius:50%;"></div>
+            <div style="position:absolute;top:-7px;right:-10px;font-size:5px;background:${color};color:#000;padding:0 2px;border-radius:2px;font-weight:bold;font-family:monospace;">${label}</div>
+          </div>`,
+          iconSize: [14, 14],
+          iconAnchor: [7, 7],
+        });
+        const marker = L.marker([cam.lat, cam.lon], { icon })
+          .on('click', () => {
+            setDetailPanel({ type: 'camera', data: { ...cam, feedType: 'snapshot', snapshotUrl: cam.imageUrl, name: cam.name, city: cam.region || cam.country } });
+            setActiveLivestream(cam.imageUrl);
+          });
+        marker.bindTooltip(`📷 ${cam.name} | ${label}`, { direction: 'top', offset: [0, -10] });
+        group.addLayer(marker);
+      });
+    };
+
+    renderVisibleCameras();
+    map.on('moveend', renderVisibleCameras);
+    map.on('zoomend', renderVisibleCameras);
+
+    return () => {
+      map.off('moveend', renderVisibleCameras);
+      map.off('zoomend', renderVisibleCameras);
+    };
+  }, [layers.cameras, liveCameras, setDetailPanel, setActiveLivestream]);
+
+  // Render fires
+  useEffect(() => {
+    const group = layersRef.current['fires'];
+    if (!group) return;
+    group.clearLayers();
+    if (!layers.fires || fires.length === 0) return;
+
+    fires.forEach(f => {
+      const icons: Record<string, string> = { wildfire: '🔥', volcano: '🌋', storm: '🌀', flood: '🌊', earthquake: '💥', drought: '☀️', landslide: '⛰️', other: '⚠️' };
+      const colors: Record<string, string> = { wildfire: '#ff4400', volcano: '#ff0044', storm: '#00d4ff', flood: '#4488ff', earthquake: '#ff6600', drought: '#ffb000', landslide: '#aa6633', other: '#ff6b35' };
+      const color = colors[f.category] || '#ff4400';
+      const emoji = icons[f.category] || '🔥';
+
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="font-size:12px;filter:drop-shadow(0 0 4px ${color});">${emoji}</div>`,
+        iconSize: [16, 16],
+        iconAnchor: [8, 8],
+      });
+      const marker = L.marker([f.lat, f.lon], { icon })
+        .on('click', () => setDetailPanel({ type: 'fire', data: f }));
+      marker.bindTooltip(`${emoji} ${f.title.substring(0, 40)}`, { direction: 'top' });
+      group.addLayer(marker);
+    });
+  }, [fires, layers.fires, setDetailPanel]);
+
+  // Render submarine cables
+  useEffect(() => {
+    const group = layersRef.current['cables'];
+    if (!group) return;
+    group.clearLayers();
+    if (!layers.underseaCables) return;
+    SUBMARINE_CABLES.forEach((cable) => {
+      const latlngs = cable.coordinates.map(([lat, lon]) => [lat, lon] as [number, number]);
+      const polyline = L.polyline(latlngs, { color: cable.color, weight: 1.5, opacity: 0.6, dashArray: '6,4', pane: 'cablesPane' });
+      polyline.bindTooltip(`🔌 ${cable.name} | ${cable.capacity} | ${cable.length}`, { sticky: true });
+      polyline.on('click', () => setDetailPanel({ type: 'cable', data: cable }));
+      group.addLayer(polyline);
+    });
+  }, [layers.underseaCables, setDetailPanel]);
+
+  // Render vessels
+  useEffect(() => {
+    const group = layersRef.current['vessels'];
+    if (!group) return;
+    group.clearLayers();
+    if (!layers.vessels || vessels.length === 0) return;
+
+    vessels.forEach((v) => {
+      const colors: Record<string, string> = { yacht: '#FFD700', cargo: '#4488ff', tanker: '#ff8800', military: '#ff0044', fishing: '#44ff88', passenger: '#ff44ff', container: '#00aaff' };
+      const color = colors[v.type] || '#4488ff';
+      const isYacht = v.type === 'yacht';
+      const isMil = v.type === 'military';
+      const size = isYacht ? 8 : isMil ? 9 : 6;
+
+      const icon = L.divIcon({
+        className: '',
+        html: `<svg width="${size * 2}" height="${size * 2}" viewBox="0 0 24 24" style="transform: rotate(${v.heading}deg); filter: drop-shadow(0 0 3px ${color}80);">
+          <path d="M12 2L6 18H18L12 2Z" fill="${color}" fill-opacity="0.85" stroke="${color}" stroke-width="0.5"/>
+          <path d="M6 18Q12 22 18 18Z" fill="${color}" fill-opacity="0.5"/>
+        </svg>`,
+        iconSize: [size * 2, size * 2],
+        iconAnchor: [size, size],
+      });
+
+      const marker = L.marker([v.lat, v.lon], { icon })
+        .on('click', () => setDetailPanel({ type: 'vessel', data: v }));
+      marker.bindTooltip(`${isYacht ? '🛥' : isMil ? '⚓' : '🚢'} ${v.name} | ${v.flag} | ${v.speedKnots}kts${v.destination ? ' → ' + v.destination : ''}`, { direction: 'top', offset: [0, -10] });
+      group.addLayer(marker);
+    });
+  }, [vessels, layers.vessels, setDetailPanel]);
+
+  // Render protests
+  useEffect(() => {
+    const group = layersRef.current['protests'];
+    if (!group) return;
+    group.clearLayers();
+    if (!layers.protests || protests.length === 0) return;
+
+    protests.forEach((p) => {
+      const color = p.intensity === 'large' ? '#ff0088' : p.intensity === 'medium' ? '#ff44aa' : '#ff88cc';
+      const size = p.intensity === 'large' ? 20 : p.intensity === 'medium' ? 14 : 10;
+
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="position:relative;width:${size}px;height:${size}px;">
+          <div style="position:absolute;inset:0;border:1.5px solid ${color};border-radius:50%;animation:ping-ring 2s ease-out infinite;opacity:0.5;"></div>
+          <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:${size * 0.7}px;">✊</div>
+        </div>`,
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size / 2],
+      });
+
+      const marker = L.marker([p.lat, p.lon], { icon })
+        .on('click', () => setDetailPanel({ type: 'protest', data: p }));
+      marker.bindTooltip(`✊ ${p.country} | ${p.intensity.toUpperCase()} | ${p.title.slice(0, 60)}...`, { direction: 'top', offset: [0, -10] });
+      group.addLayer(marker);
+    });
+  }, [protests, layers.protests, setDetailPanel]);
+
+  // Render outages — full news popup with source link
+  useEffect(() => {
+    const group = layersRef.current['outages'];
+    if (!group) return;
+    group.clearLayers();
+    if (!layers.outages || outages.length === 0) return;
+
+    outages.forEach((o) => {
+      const typeIcons: Record<string, string> = { internet: '🌐', power: '⚡', cyber: '🔒', telecom: '📡', ddos: '💀', ransomware: '🔐' };
+      const color = o.severity === 'critical' ? '#ff0044' : o.severity === 'major' ? '#ff6b35' : '#ffb000';
+
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="position:relative;width:18px;height:18px;">
+          <div style="position:absolute;inset:0;background:${color}20;border:1px solid ${color}60;border-radius:4px;"></div>
+          <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:11px;">${typeIcons[o.type] || '⚠'}</div>
+          <div style="position:absolute;inset:-3px;border:1.5px solid ${color};border-radius:50%;animation:ping-ring 2.5s ease-out infinite;opacity:0.4;"></div>
+        </div>`,
+        iconSize: [18, 18],
+        iconAnchor: [9, 9],
+      });
+
+      const timeLabel = o.time ? new Date(o.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+      const sourceLink = o.link ? `<a href="javascript:void(0)" onclick="window.__openHoloBrowser('${o.link}')" style="display:block;margin-top:8px;font-family:'JetBrains Mono',monospace;font-size:9px;color:hsla(150,100%,50%,0.6);text-decoration:none;letter-spacing:0.1em;text-align:center;border:1px solid hsla(150,100%,50%,0.2);padding:4px 8px;border-radius:4px;">🔗 VIEW SOURCE</a>` : '';
+
+      const popupHtml = `<div style="
+        background: linear-gradient(135deg, hsla(210,60%,4%,0.95), hsla(210,50%,8%,0.9));
+        border: 1px solid ${color}40;
+        border-radius: 6px;
+        padding: 12px 14px;
+        min-width: 240px;
+        max-width: 320px;
+        box-shadow: 0 0 24px ${color}15, 0 8px 32px rgba(0,0,0,0.6);
+        backdrop-filter: blur(16px);
+        font-family: 'Barlow Condensed', sans-serif;
+      ">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+          <span style="font-size:16px;">${typeIcons[o.type] || '⚠'}</span>
+          <span style="font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:600;color:${color};letter-spacing:0.1em;text-transform:uppercase;">${o.type} — ${o.severity}</span>
+          <span style="margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:8px;color:hsla(200,50%,88%,0.4);">${timeLabel}</span>
+        </div>
+        <div style="height:1px;background:linear-gradient(90deg,transparent,${color}40,transparent);margin-bottom:8px;"></div>
+        <p style="font-size:12px;color:hsla(200,50%,88%,0.9);line-height:1.5;margin:0;">${o.title}</p>
+        ${o.affected ? `<div style="margin-top:6px;font-family:'JetBrains Mono',monospace;font-size:9px;color:hsla(200,50%,88%,0.5);">AFFECTED: ${o.affected}</div>` : ''}
+        <div style="margin-top:4px;font-family:'JetBrains Mono',monospace;font-size:8px;color:hsla(200,50%,88%,0.3);">SRC: ${o.source}</div>
+        ${sourceLink}
+      </div>`;
+
+      const marker = L.marker([o.lat, o.lon], { icon });
+      marker.bindPopup(popupHtml, { className: 'osint-popup', maxWidth: 340, minWidth: 240, closeButton: false, autoPan: true });
+      marker.bindTooltip(`${typeIcons[o.type] || '⚠'} ${o.type.toUpperCase()} | ${o.severity} | ${o.title.slice(0, 60)}...`, { direction: 'top' });
+      group.addLayer(marker);
+    });
+  }, [outages, layers.outages, setDetailPanel]);
+
+  // Render IODA internet outages — multiple pulsing markers per country based on severity
+  useEffect(() => {
+    const group = layersRef.current['iodaOutages'];
+    if (!group) return;
+    group.clearLayers();
+    if (!layers.outages || internetOutages.length === 0) return;
+
+    internetOutages.forEach((o) => {
+      const color = o.severity === 'critical' ? '#ff0044' : o.severity === 'major' ? '#ff6b35' : '#ffb000';
+      const markerCount = o.severity === 'critical' ? 5 : o.severity === 'major' ? 3 : 2;
+      const baseSize = o.severity === 'critical' ? 28 : o.severity === 'major' ? 22 : 16;
+
+      // Central marker with drop % label
+      const centralHtml = `<div style="position:relative;width:${baseSize}px;height:${baseSize}px;">
+        <div style="position:absolute;inset:0;border:2px solid ${color};border-radius:50%;animation:ping-ring 2s ease-out infinite;opacity:0.6;"></div>
+        <div style="position:absolute;inset:3px;border:1px solid ${color}80;border-radius:50%;animation:ping-ring 2s ease-out 0.5s infinite;opacity:0.4;"></div>
+        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:${baseSize * 0.35}px;height:${baseSize * 0.35}px;background:${color};border-radius:50%;box-shadow:0 0 12px ${color};"></div>
+        <div style="position:absolute;bottom:-12px;left:50%;transform:translateX(-50%);white-space:nowrap;font-family:'JetBrains Mono',monospace;font-size:7px;color:${color};background:hsla(210,60%,4%,0.85);padding:1px 4px;border-radius:2px;border:1px solid ${color}40;">🌐 ↓${o.dropPercent}%</div>
+      </div>`;
+
+      const centralIcon = L.divIcon({ className: '', html: centralHtml, iconSize: [baseSize, baseSize + 14], iconAnchor: [baseSize / 2, baseSize / 2] });
+      const centralMarker = L.marker([o.lat, o.lon], { icon: centralIcon });
+      centralMarker.bindTooltip(`🌐 ${o.country} | ↓${o.dropPercent}% | ${o.severity.toUpperCase()}`, { direction: 'top', offset: [0, -baseSize / 2 - 4] });
+      centralMarker.on('click', () => {
+        setDetailPanel({ type: 'outage', data: {
+          id: `ioda-${o.countryCode}`, title: `${o.country} — Internet ↓${o.dropPercent}%`,
+          lat: o.lat, lon: o.lon, type: 'internet',
+          severity: o.severity === 'normal' ? 'minor' : o.severity,
+          source: 'IODA/CAIDA', time: new Date(o.timestamp), affected: o.country,
+        }});
+      });
+      group.addLayer(centralMarker);
+
+      // Scatter secondary pulsing dots around country center
+      for (let i = 1; i < markerCount; i++) {
+        const angle = (i / markerCount) * Math.PI * 2 + Math.random() * 0.5;
+        const dist = 1.5 + Math.random() * 2.5;
+        const sLat = o.lat + Math.cos(angle) * dist;
+        const sLon = o.lon + Math.sin(angle) * dist;
+        const sSize = 10 + Math.random() * 6;
+        const scatterHtml = `<div style="position:relative;width:${sSize}px;height:${sSize}px;">
+          <div style="position:absolute;inset:0;border:1.5px solid ${color};border-radius:50%;animation:ping-ring ${2 + i * 0.3}s ease-out infinite;opacity:0.5;"></div>
+          <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:${sSize * 0.4}px;height:${sSize * 0.4}px;background:${color};border-radius:50%;box-shadow:0 0 6px ${color};opacity:0.8;"></div>
+        </div>`;
+        const scatterIcon = L.divIcon({ className: '', html: scatterHtml, iconSize: [sSize, sSize], iconAnchor: [sSize / 2, sSize / 2] });
+        group.addLayer(L.marker([sLat, sLon], { icon: scatterIcon, interactive: false }));
+      }
+
+      // Area circle
+      const areaCircle = L.circle([o.lat, o.lon], {
+        radius: o.severity === 'critical' ? 500000 : o.severity === 'major' ? 350000 : 200000,
+        color, fillColor: color, fillOpacity: 0.06, weight: 1, opacity: 0.3, interactive: false,
+      });
+      group.addLayer(areaCircle);
+    });
+  }, [internetOutages, layers.outages, setDetailPanel]);
+
+  // Render aircraft
+  useEffect(() => {
+    const group = layersRef.current['aircraft'];
+    if (!group) return;
+    group.clearLayers();
+    if ((!layers.aircraft && !layers.militaryFlights) || aircraft.length === 0) return;
+    aircraft.forEach((ac) => {
+      // If only militaryFlights is on (not aircraft), show military only
+      if (!layers.aircraft && layers.militaryFlights && !ac.isMilitary) return;
+      if (!layers.militaryFlights && ac.isMilitary) return;
+      const color = ac.isMilitary ? '#ff6b35' : '#00ff88';
+      const size = ac.isMilitary ? 10 : 7;
+      const icon = L.divIcon({
+        className: '',
+        html: `<svg width="${size * 2}" height="${size * 2}" viewBox="0 0 24 24" style="transform: rotate(${ac.heading}deg); filter: drop-shadow(0 0 3px ${color}80);"><path d="M12 2L8 10H3L5 13H9L12 22L15 13H19L21 10H16L12 2Z" fill="${color}" fill-opacity="0.9" stroke="${color}" stroke-width="0.5"/></svg>`,
+        iconSize: [size * 2, size * 2], iconAnchor: [size, size],
+      });
+      const marker = L.marker([ac.lat, ac.lon], { icon }).on('click', () => setDetailPanel({ type: 'aircraft', data: ac }));
+      marker.bindTooltip(`${ac.callsign} | FL${Math.round(ac.altitudeFt / 100)} | ${ac.speedKts}kts`, { direction: 'top', offset: [0, -10] });
+      group.addLayer(marker);
+    });
+  }, [aircraft, layers.aircraft, layers.militaryFlights, setDetailPanel]);
+
+  // Render satellites
+  useEffect(() => {
+    const group = layersRef.current['satellites'];
+    if (!group) return;
+    group.clearLayers();
+    if (!layers.satellites || satellites.length === 0) return;
+    satellites.forEach((sat) => {
+      const isISS = sat.name.includes('ISS');
+      const isMil = sat.name.includes('COSMOS') || sat.name.includes('USA-') || sat.name.includes('MUOS') || sat.name.includes('NROL');
+      const isGPS = sat.name.includes('GPS');
+      const color = isMil ? '#ff6b35' : isISS ? '#ff6600' : isGPS ? '#ffdd00' : '#00d4ff';
+      const size = isISS ? 8 : 5;
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="position:relative;width:${size * 2}px;height:${size * 2}px;"><div style="position:absolute;inset:0;border:1px solid ${color};border-radius:50%;opacity:0.5;animation:ping-ring 3s ease-out infinite;"></div><div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:${size}px;height:${size}px;background:${color};border-radius:50%;box-shadow:0 0 6px ${color};"></div></div>`,
+        iconSize: [size * 2, size * 2], iconAnchor: [size, size],
+      });
+      const marker = L.marker([sat.lat, sat.lon], { icon }).on('click', () => setDetailPanel({ type: 'satellite', data: sat }));
+      if (isISS) marker.bindTooltip('ISS ●LIVE', { permanent: true, direction: 'right', offset: [10, 0], className: 'iss-label' });
+      group.addLayer(marker);
+    });
+  }, [satellites, layers.satellites, setDetailPanel]);
+
+  // Render earthquakes
+  useEffect(() => {
+    const group = layersRef.current['earthquakes'];
+    if (!group) return;
+    group.clearLayers();
+    if (!layers.earthquakes || earthquakes.length === 0) return;
+    earthquakes.forEach((eq) => {
+      const radius = Math.pow(eq.magnitude, 1.5) * 3;
+      const color = eq.magnitude >= 6 ? '#ff0044' : eq.magnitude >= 4.5 ? '#ff6600' : '#aa44ff';
+      const circle = L.circleMarker([eq.lat, eq.lon], { radius, color, fillColor: color, fillOpacity: 0.3, weight: 1.5 }).on('click', () => setDetailPanel({ type: 'earthquake', data: eq }));
+      if (eq.magnitude >= 4.0) {
+        const pulseIcon = L.divIcon({ className: '', html: `<div style="width:${radius * 4}px;height:${radius * 4}px;border:1.5px solid ${color};border-radius:50%;animation:ping-ring 2s ease-out infinite;opacity:0.5;"></div>`, iconSize: [radius * 4, radius * 4], iconAnchor: [radius * 2, radius * 2] });
+        group.addLayer(L.marker([eq.lat, eq.lon], { icon: pulseIcon, interactive: false }));
+      }
+      group.addLayer(circle);
+    });
+  }, [earthquakes, layers.earthquakes, setDetailPanel]);
+
+  // Render conflict zones with explosion/missile hit animations
+  useEffect(() => {
+    const group = layersRef.current['conflicts'];
+    if (!group) return;
+    group.clearLayers();
+    if (!layers.conflicts) return;
+    CONFLICT_ZONES.forEach((cz) => {
+      const color = cz.intensity >= 8 ? '#ff0044' : cz.intensity >= 6 ? '#ff6b35' : '#ffb000';
+      const radius = cz.intensity * 3;
+      const isWar = cz.type === 'war' || cz.intensity >= 8;
+      const isHot = cz.intensity >= 6;
+
+      // Outer blast radius — clickable
+      const outer = L.circleMarker([cz.lat, cz.lon], { radius: radius * 2, color, fillColor: color, fillOpacity: 0.08, weight: 0.5, interactive: true });
+      outer.bindTooltip(`🎯 ${cz.name} [${cz.intensity}/10]`, { direction: 'top', offset: [0, -10] });
+      outer.on('click', () => setDetailPanel({ type: 'conflict', data: cz }));
+      group.addLayer(outer);
+
+      // Inner marker
+      const inner = L.circleMarker([cz.lat, cz.lon], { radius, color, fillColor: color, fillOpacity: 0.25, weight: 1.5 });
+      inner.bindTooltip(`🎯 ${cz.name} [${cz.intensity}/10]`, { direction: 'top', offset: [0, -10] });
+      inner.on('click', () => setDetailPanel({ type: 'conflict', data: cz }));
+      group.addLayer(inner);
+
+      // Pulsing ring — pointer-events:none so clicks pass through
+      const pulseIcon = L.divIcon({ className: '', html: `<div style="width:${radius * 4}px;height:${radius * 4}px;border:1.5px solid ${color};border-radius:50%;animation:ping-ring 3s ease-out infinite;opacity:0.4;pointer-events:none;"></div>`, iconSize: [radius * 4, radius * 4], iconAnchor: [radius * 2, radius * 2] });
+      group.addLayer(L.marker([cz.lat, cz.lon], { icon: pulseIcon, interactive: false }));
+
+      // Explosion/missile-hit SVG animation for war zones — pointer-events:none so clicks pass through
+      if (isWar || isHot) {
+        const explosionSize = isWar ? 48 : 32;
+        const explosionHtml = `<div style="width:${explosionSize}px;height:${explosionSize}px;position:relative;pointer-events:none;">
+          <svg viewBox="0 0 100 100" width="${explosionSize}" height="${explosionSize}" style="position:absolute;inset:0;pointer-events:none;">
+            <!-- Shockwave rings -->
+            <circle cx="50" cy="50" r="8" fill="none" stroke="${color}" stroke-width="1.5" opacity="0.6">
+              <animate attributeName="r" values="8;45" dur="2.5s" repeatCount="indefinite"/>
+              <animate attributeName="opacity" values="0.6;0" dur="2.5s" repeatCount="indefinite"/>
+            </circle>
+            <circle cx="50" cy="50" r="8" fill="none" stroke="${color}" stroke-width="1" opacity="0.4">
+              <animate attributeName="r" values="8;45" dur="2.5s" begin="0.8s" repeatCount="indefinite"/>
+              <animate attributeName="opacity" values="0.4;0" dur="2.5s" begin="0.8s" repeatCount="indefinite"/>
+            </circle>
+            <!-- Fire core -->
+            <circle cx="50" cy="50" r="6" fill="${color}" opacity="0.7">
+              <animate attributeName="r" values="4;8;4" dur="1.2s" repeatCount="indefinite"/>
+              <animate attributeName="opacity" values="0.7;1;0.7" dur="1.2s" repeatCount="indefinite"/>
+            </circle>
+            ${isWar ? `<!-- Secondary explosions -->
+            <circle cx="38" cy="42" r="3" fill="${color}" opacity="0.5">
+              <animate attributeName="r" values="2;5;2" dur="1.8s" begin="0.3s" repeatCount="indefinite"/>
+              <animate attributeName="opacity" values="0.5;0.8;0.5" dur="1.8s" begin="0.3s" repeatCount="indefinite"/>
+            </circle>
+            <circle cx="62" cy="55" r="3" fill="${color}" opacity="0.4">
+              <animate attributeName="r" values="2;4;2" dur="2s" begin="0.6s" repeatCount="indefinite"/>
+              <animate attributeName="opacity" values="0.4;0.7;0.4" dur="2s" begin="0.6s" repeatCount="indefinite"/>
+            </circle>` : ''}
+            <!-- Smoke plume -->
+            <circle cx="50" cy="44" r="4" fill="${color}" opacity="0.15">
+              <animate attributeName="cy" values="44;30" dur="3s" repeatCount="indefinite"/>
+              <animate attributeName="r" values="4;12" dur="3s" repeatCount="indefinite"/>
+              <animate attributeName="opacity" values="0.15;0" dur="3s" repeatCount="indefinite"/>
+            </circle>
+          </svg>
+        </div>`;
+        const explosionIcon = L.divIcon({
+          className: '',
+          html: explosionHtml,
+          iconSize: [explosionSize, explosionSize],
+          iconAnchor: [explosionSize / 2, explosionSize / 2],
+        });
+        group.addLayer(L.marker([cz.lat, cz.lon], { icon: explosionIcon, interactive: false }));
+      }
+    });
+  }, [layers.conflicts, setDetailPanel]);
+
+  // Render weather
+  useEffect(() => {
+    const group = layersRef.current['weather'];
+    if (!group) return;
+    group.clearLayers();
+    if (!layers.weather || weatherAlerts.length === 0) return;
+    weatherAlerts.forEach((w) => {
+      const color = w.isExtreme ? '#ff0044' : w.temp > 35 ? '#ff6b35' : w.temp < 0 ? '#00d4ff' : '#ffb000';
+      const icon = L.divIcon({ className: '', html: `<div style="background:${color}20;border:1px solid ${color}60;border-radius:4px;padding:2px 4px;font-size:9px;font-family:monospace;color:${color};white-space:nowrap;">${Math.round(w.temp)}°C</div>`, iconSize: [40, 16], iconAnchor: [20, 8] });
+      const marker = L.marker([w.lat, w.lon], { icon });
+      marker.bindTooltip(`🌤 ${w.city}: ${w.description} | ${w.temp}°C | Wind: ${w.windSpeed}km/h`, { direction: 'top' });
+      marker.on('click', () => setDetailPanel({ type: 'weather', data: w }));
+      group.addLayer(marker);
+    });
+  }, [weatherAlerts, layers.weather, setDetailPanel]);
+
+  // Render volcanoes
+  useEffect(() => {
+    const group = layersRef.current['volcanoes'];
+    if (!group) return;
+    group.clearLayers();
+    if (!layers.volcanoes || volcanoes.length === 0) return;
+    volcanoes.forEach((v) => {
+      const color = v.status === 'erupting' ? '#ff0044' : v.status === 'warning' ? '#ff6b35' : '#ffb000';
+      const icon = L.divIcon({ className: '', html: `<div style="font-size:14px;filter:drop-shadow(0 0 4px ${color});">🌋</div>`, iconSize: [18, 18], iconAnchor: [9, 9] });
+      const marker = L.marker([v.lat, v.lon], { icon });
+      marker.bindTooltip(`🌋 ${v.name} | ${v.status.toUpperCase()} | ${v.elevation}m | ${v.country}`, { direction: 'top' });
+      marker.on('click', () => setDetailPanel({ type: 'volcano', data: v }));
+      group.addLayer(marker);
+    });
+  }, [volcanoes, layers.volcanoes, setDetailPanel]);
+
+  // Render nuclear sites
+  useEffect(() => {
+    const group = layersRef.current['nuclear'];
+    if (!group) return;
+    group.clearLayers();
+    if (!layers.nuclearSites) return;
+    NUCLEAR_SITES.forEach((site) => {
+      const icon = L.divIcon({ className: '', html: `<div style="font-size:12px;filter:drop-shadow(0 0 4px #bbff00);">☢️</div>`, iconSize: [16, 16], iconAnchor: [8, 8] });
+      const marker = L.marker([site.lat, site.lon], { icon });
+      marker.bindTooltip(`☢️ ${site.name} | ${site.type.toUpperCase()} | ${site.country}`, { direction: 'top' });
+      group.addLayer(marker);
+    });
+  }, [layers.nuclearSites]);
+
+  // Render Military Bases
+  useEffect(() => {
+    const group = layersRef.current['militaryBases'];
+    if (!group) return;
+    group.clearLayers();
+    if (!layers.militaryBases) return;
+    MILITARY_BASES.forEach((b) => {
+      const icon = L.divIcon({ className: '', html: `<div style="font-size:12px;filter:drop-shadow(0 0 4px #ff6b35);">🎖️</div>`, iconSize: [16, 16], iconAnchor: [8, 8] });
+      const marker = L.marker([b.lat, b.lon], { icon });
+      marker.bindTooltip(`🎖️ ${b.name} | ${b.country}`, { direction: 'top' });
+      group.addLayer(marker);
+    });
+  }, [layers.militaryBases]);
+
+  // Render Spaceports
+  useEffect(() => {
+    const group = layersRef.current['spaceports'];
+    if (!group) return;
+    group.clearLayers();
+    if (!layers.spaceports) return;
+    SPACEPORTS.forEach((s) => {
+      const icon = L.divIcon({ className: '', html: `<div style="font-size:12px;filter:drop-shadow(0 0 4px #00d4ff);">🚀</div>`, iconSize: [16, 16], iconAnchor: [8, 8] });
+      const marker = L.marker([s.lat, s.lon], { icon });
+      marker.bindTooltip(`🚀 ${s.name} | ${s.country}`, { direction: 'top' });
+      group.addLayer(marker);
+    });
+  }, [layers.spaceports]);
+
+  // Render Chokepoints
+  useEffect(() => {
+    const group = layersRef.current['chokepoints'];
+    if (!group) return;
+    group.clearLayers();
+    if (!layers.chokepoints) return;
+    CHOKEPOINTS.forEach((c) => {
+      const icon = L.divIcon({ className: '', html: `<div style="font-size:12px;filter:drop-shadow(0 0 4px #ff0088);">⚓</div>`, iconSize: [16, 16], iconAnchor: [8, 8] });
+      const marker = L.marker([c.lat, c.lon], { icon });
+      marker.bindTooltip(`⚓ ${c.name}${c.flow ? ' | ' + c.flow : ''}`, { direction: 'top' });
+      group.addLayer(marker);
+    });
+  }, [layers.chokepoints]);
+
+  // Render Twitter/X OSINT geo markers
+  useEffect(() => {
+    const group = layersRef.current['twitterOsint'];
+    if (!group) return;
+    group.clearLayers();
+    if (twitterGeoMarkers.length === 0) return;
+
+    twitterGeoMarkers.forEach((m) => {
+      const isConflict = /\b(strike|missile|attack|killed|bomb|explosion|war|troops|drone)\b/i.test(m.text);
+      const color = isConflict ? '#ff0044' : '#00aaff';
+      const size = isConflict ? 22 : 16;
+
+      let html = `<div style="position:relative;width:${size}px;height:${size}px;">
+        <div style="position:absolute;inset:0;border:1.5px solid ${color};border-radius:50%;animation:ping-ring 2.5s ease-out infinite;opacity:0.5;"></div>
+        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:${size * 0.4}px;height:${size * 0.4}px;background:${color};border-radius:50%;box-shadow:0 0 8px ${color};"></div>
+      </div>`;
+
+      // Add explosion animation for conflict posts
+      if (isConflict) {
+        html = `<div style="position:relative;width:${size}px;height:${size}px;">
+          <svg viewBox="0 0 100 100" width="${size}" height="${size}" style="position:absolute;inset:0;">
+            <circle cx="50" cy="50" r="10" fill="none" stroke="${color}" stroke-width="2" opacity="0.6">
+              <animate attributeName="r" values="10;45" dur="2s" repeatCount="indefinite"/>
+              <animate attributeName="opacity" values="0.6;0" dur="2s" repeatCount="indefinite"/>
+            </circle>
+            <circle cx="50" cy="50" r="8" fill="${color}" opacity="0.8">
+              <animate attributeName="r" values="5;10;5" dur="1.5s" repeatCount="indefinite"/>
+              <animate attributeName="opacity" values="0.8;1;0.8" dur="1.5s" repeatCount="indefinite"/>
+            </circle>
+          </svg>
+        </div>`;
+      }
+
+      const icon = L.divIcon({
+        className: '',
+        html,
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size / 2],
+      });
+
+      const marker = L.marker([m.lat, m.lon], { icon });
+
+      // Holographic popup with full tweet
+      const timeAgo = (() => {
+        const diff = Date.now() - new Date(m.createdAt).getTime();
+        const mins = Math.floor(diff / 60000);
+        if (mins < 1) return 'NOW';
+        if (mins < 60) return `${mins}m ago`;
+        return `${Math.floor(mins / 60)}h ago`;
+      })();
+
+      const popupHtml = `<div style="
+        background: linear-gradient(135deg, hsla(210,60%,4%,0.95), hsla(210,50%,8%,0.9));
+        border: 1px solid ${isConflict ? 'hsla(345,100%,50%,0.4)' : 'hsla(150,100%,50%,0.25)'};
+        border-radius: 6px;
+        padding: 12px 14px;
+        min-width: 260px;
+        max-width: 320px;
+        box-shadow: 0 0 24px ${isConflict ? 'hsla(345,100%,50%,0.15)' : 'hsla(150,100%,50%,0.1)'}, 0 8px 32px rgba(0,0,0,0.6);
+        backdrop-filter: blur(16px);
+        font-family: 'Barlow Condensed', sans-serif;
+        position: relative;
+        overflow: hidden;
+      ">
+        <!-- Scanlines -->
+        <div style="position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,transparent,transparent 2px,hsla(150,100%,50%,0.015) 2px,hsla(150,100%,50%,0.015) 4px);border-radius:6px;"></div>
+        <!-- Corner brackets -->
+        <div style="position:absolute;top:0;left:0;width:8px;height:8px;border-top:2px solid ${isConflict ? 'hsla(345,100%,50%,0.5)' : 'hsla(150,100%,50%,0.4)'};border-left:2px solid ${isConflict ? 'hsla(345,100%,50%,0.5)' : 'hsla(150,100%,50%,0.4)'};border-radius:3px 0 0 0;"></div>
+        <div style="position:absolute;top:0;right:0;width:8px;height:8px;border-top:2px solid ${isConflict ? 'hsla(345,100%,50%,0.5)' : 'hsla(150,100%,50%,0.4)'};border-right:2px solid ${isConflict ? 'hsla(345,100%,50%,0.5)' : 'hsla(150,100%,50%,0.4)'};border-radius:0 3px 0 0;"></div>
+        <div style="position:absolute;bottom:0;left:0;width:8px;height:8px;border-bottom:2px solid ${isConflict ? 'hsla(345,100%,50%,0.5)' : 'hsla(150,100%,50%,0.4)'};border-left:2px solid ${isConflict ? 'hsla(345,100%,50%,0.5)' : 'hsla(150,100%,50%,0.4)'};border-radius:0 0 0 3px;"></div>
+        <div style="position:absolute;bottom:0;right:0;width:8px;height:8px;border-bottom:2px solid ${isConflict ? 'hsla(345,100%,50%,0.5)' : 'hsla(150,100%,50%,0.4)'};border-right:2px solid ${isConflict ? 'hsla(345,100%,50%,0.5)' : 'hsla(150,100%,50%,0.4)'};border-radius:0 0 3px 0;"></div>
+        <!-- Header -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:13px;">𝕏</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:${isConflict ? '#ff0044' : '#00ff88'};letter-spacing:0.08em;">@${m.account}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:4px;">
+            <div style="width:5px;height:5px;border-radius:50%;background:${isConflict ? '#ff0044' : '#00ff88'};animation:pulse-dot 1.5s ease-in-out infinite;"></div>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:8px;color:${isConflict ? '#ff0044' : '#00ff88'};letter-spacing:0.1em;">${isConflict ? 'CONFLICT' : 'OSINT'}</span>
+          </div>
+        </div>
+        ${isConflict ? '<div style="height:1px;background:linear-gradient(90deg,transparent,hsla(345,100%,50%,0.3),transparent);margin-bottom:8px;"></div>' : '<div style="height:1px;background:linear-gradient(90deg,transparent,hsla(150,100%,50%,0.2),transparent);margin-bottom:8px;"></div>'}
+        <!-- Tweet body -->
+        <p style="font-size:12px;color:hsla(200,50%,88%,0.9);line-height:1.5;margin:0 0 8px 0;word-wrap:break-word;">${m.text}</p>
+        <!-- Footer -->
+        <div style="display:flex;align-items:center;justify-content:space-between;padding-top:6px;border-top:1px solid hsla(150,100%,50%,0.08);">
+          <div style="display:flex;align-items:center;gap:4px;">
+            <span style="font-family:'JetBrains Mono',monospace;font-size:8px;color:hsla(200,50%,88%,0.4);">📍 ${m.place || 'GEO'}</span>
+          </div>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:8px;color:hsla(200,50%,88%,0.3);">${timeAgo}</span>
+        </div>
+        <a href="javascript:void(0)" onclick="window.__openHoloBrowser('${m.url}')" style="display:block;margin-top:6px;font-family:'JetBrains Mono',monospace;font-size:8px;color:hsla(150,100%,50%,0.5);text-decoration:none;letter-spacing:0.1em;text-align:center;">🔗 OPEN ON 𝕏</a>
+      </div>`;
+
+      marker.bindPopup(popupHtml, {
+        className: 'osint-popup',
+        maxWidth: 340,
+        minWidth: 260,
+        closeButton: false,
+        autoPan: true,
+      });
+
+      marker.on('click', () => {
+        setMapCenter({ lat: m.lat, lon: m.lon, zoom: 8 });
+      });
+      group.addLayer(marker);
+    });
+  }, [twitterGeoMarkers, setMapCenter]);
+
+  // Render news markers on countries — GEOINT-relevant news only
+  useEffect(() => {
+    const group = layersRef.current['newsMarkers'];
+    if (!group) return;
+    group.clearLayers();
+    if (news.length === 0) return;
+
+    // ── 10 AM daily reset: discard news from before today's 10:00 local time ──
+    const now = new Date();
+    const resetHour = 10;
+    const todayReset = new Date(now.getFullYear(), now.getMonth(), now.getDate(), resetHour, 0, 0);
+    const cutoff = now >= todayReset ? todayReset : new Date(todayReset.getTime() - 86400000);
+
+    // ── GEOINT filter: only show geospatially relevant intel ──
+    const GEOINT_PATTERN = /\b(military|missile|strike|airstrike|bomb|drone|conflict|war|troops|deploy|nuclear|radiation|earthquake|seismic|wildfire|fire|volcano|eruption|flood|hurricane|typhoon|cyclone|tornado|storm|tsunami|explosion|terror|attack|maritime|naval|blockade|sanctions|refugee|border|invasion|occupation|ceasefire|weapon|artillery|tank|armored|convoy|rebel|militia|insurgent|coup|martial law|evacuation|chemical|biological|cyber.?attack|hack|infrastructure|pipeline|blackout|outage|submarine|satellite|airspace|no.fly|radar|surveillance|espionage|intelligence|base|carrier|fleet|squadron|intercept|escalat|provocat|incursion|annex|checkpoint)\b/i;
+
+    const geointNews = news.filter(n => {
+      // Time filter — only show since last 10 AM reset
+      if (n.time < cutoff) return false;
+      // Category filter
+      const validCats = ['military', 'conflict', 'earthquake', 'fire', 'nuclear', 'weather', 'maritime', 'volcano', 'cyber', 'protest', 'disaster', 'crisis'];
+      if (n.category && validCats.includes(n.category)) return true;
+      // Keyword filter
+      if (GEOINT_PATTERN.test(n.title)) return true;
+      // High severity always shows
+      if (n.severity === 'critical') return true;
+      return false;
+    });
+
+    // Build country coords from CONFLICT_ZONES + known centroids
+    const COUNTRY_CENTROIDS: Record<string, { lat: number; lon: number }> = {
+      'united states': { lat: 39.8, lon: -98.5 }, 'usa': { lat: 39.8, lon: -98.5 }, 'us': { lat: 39.8, lon: -98.5 },
+      'china': { lat: 35.8, lon: 104.1 }, 'cn': { lat: 35.8, lon: 104.1 },
+      'russia': { lat: 61.5, lon: 105.3 }, 'ru': { lat: 61.5, lon: 105.3 },
+      'ukraine': { lat: 48.3, lon: 31.1 }, 'ua': { lat: 48.3, lon: 31.1 },
+      'iran': { lat: 32.4, lon: 53.6 }, 'ir': { lat: 32.4, lon: 53.6 },
+      'israel': { lat: 31.0, lon: 34.8 }, 'il': { lat: 31.0, lon: 34.8 },
+      'gaza': { lat: 31.35, lon: 34.31 }, 'palestine': { lat: 31.9, lon: 35.2 },
+      'india': { lat: 20.6, lon: 78.9 }, 'in': { lat: 20.6, lon: 78.9 },
+      'pakistan': { lat: 30.4, lon: 69.3 }, 'pk': { lat: 30.4, lon: 69.3 },
+      'turkey': { lat: 38.9, lon: 35.2 }, 'tr': { lat: 38.9, lon: 35.2 },
+      'iraq': { lat: 33.2, lon: 43.7 }, 'iq': { lat: 33.2, lon: 43.7 },
+      'syria': { lat: 34.8, lon: 38.9 }, 'sy': { lat: 34.8, lon: 38.9 },
+      'yemen': { lat: 15.5, lon: 48.5 }, 'ye': { lat: 15.5, lon: 48.5 },
+      'sudan': { lat: 12.8, lon: 30.2 }, 'sd': { lat: 12.8, lon: 30.2 },
+      'somalia': { lat: 5.1, lon: 46.2 }, 'so': { lat: 5.1, lon: 46.2 },
+      'myanmar': { lat: 19.8, lon: 96.7 }, 'mm': { lat: 19.8, lon: 96.7 },
+      'haiti': { lat: 19.0, lon: -72.3 }, 'ht': { lat: 19.0, lon: -72.3 },
+      'congo': { lat: -4.0, lon: 21.7 }, 'cd': { lat: -4.0, lon: 21.7 },
+      'ethiopia': { lat: 9.1, lon: 40.5 }, 'et': { lat: 9.1, lon: 40.5 },
+      'nigeria': { lat: 9.1, lon: 8.7 }, 'ng': { lat: 9.1, lon: 8.7 },
+      'lebanon': { lat: 33.8, lon: 35.8 }, 'lb': { lat: 33.8, lon: 35.8 },
+      'libya': { lat: 26.3, lon: 17.2 }, 'ly': { lat: 26.3, lon: 17.2 },
+      'mali': { lat: 17.6, lon: -4.0 }, 'ml': { lat: 17.6, lon: -4.0 },
+      'taiwan': { lat: 23.7, lon: 120.9 }, 'tw': { lat: 23.7, lon: 120.9 },
+      'north korea': { lat: 40.3, lon: 127.5 }, 'kp': { lat: 40.3, lon: 127.5 },
+      'south korea': { lat: 35.9, lon: 127.8 }, 'kr': { lat: 35.9, lon: 127.8 },
+      'japan': { lat: 36.2, lon: 138.2 }, 'jp': { lat: 36.2, lon: 138.2 },
+      'germany': { lat: 51.2, lon: 10.4 }, 'de': { lat: 51.2, lon: 10.4 },
+      'france': { lat: 46.2, lon: 2.2 }, 'fr': { lat: 46.2, lon: 2.2 },
+      'united kingdom': { lat: 55.4, lon: -3.4 }, 'uk': { lat: 55.4, lon: -3.4 }, 'gb': { lat: 55.4, lon: -3.4 },
+      'mexico': { lat: 23.6, lon: -102.5 }, 'mx': { lat: 23.6, lon: -102.5 },
+      'brazil': { lat: -14.2, lon: -51.9 }, 'br': { lat: -14.2, lon: -51.9 },
+      'egypt': { lat: 26.8, lon: 30.8 }, 'eg': { lat: 26.8, lon: 30.8 },
+      'south africa': { lat: -30.6, lon: 22.9 }, 'za': { lat: -30.6, lon: 22.9 },
+      'australia': { lat: -25.3, lon: 133.8 }, 'au': { lat: -25.3, lon: 133.8 },
+      'canada': { lat: 56.1, lon: -106.3 }, 'ca': { lat: 56.1, lon: -106.3 },
+      'saudi arabia': { lat: 23.9, lon: 45.1 }, 'sa': { lat: 23.9, lon: 45.1 },
+      'mozambique': { lat: -18.7, lon: 35.5 }, 'mz': { lat: -18.7, lon: 35.5 },
+      'burkina faso': { lat: 12.3, lon: -1.5 }, 'bf': { lat: 12.3, lon: -1.5 },
+      'cyprus': { lat: 35.13, lon: 33.43 }, 'cy': { lat: 35.13, lon: 33.43 },
+      'greece': { lat: 39.07, lon: 21.82 }, 'gr': { lat: 39.07, lon: 21.82 },
+      'poland': { lat: 51.92, lon: 19.15 }, 'pl': { lat: 51.92, lon: 19.15 },
+      'romania': { lat: 45.94, lon: 24.97 }, 'ro': { lat: 45.94, lon: 24.97 },
+      'hungary': { lat: 47.16, lon: 19.50 }, 'hu': { lat: 47.16, lon: 19.50 },
+      'italy': { lat: 41.87, lon: 12.57 }, 'it': { lat: 41.87, lon: 12.57 },
+      'spain': { lat: 40.46, lon: -3.75 }, 'es': { lat: 40.46, lon: -3.75 },
+      'portugal': { lat: 39.40, lon: -8.22 }, 'pt': { lat: 39.40, lon: -8.22 },
+      'netherlands': { lat: 52.13, lon: 5.29 }, 'nl': { lat: 52.13, lon: 5.29 },
+      'belgium': { lat: 50.50, lon: 4.47 }, 'be': { lat: 50.50, lon: 4.47 },
+      'sweden': { lat: 60.13, lon: 18.64 }, 'se': { lat: 60.13, lon: 18.64 },
+      'norway': { lat: 60.47, lon: 8.47 }, 'no': { lat: 60.47, lon: 8.47 },
+      'finland': { lat: 61.92, lon: 25.75 }, 'fi': { lat: 61.92, lon: 25.75 },
+      'denmark': { lat: 56.26, lon: 9.50 }, 'dk': { lat: 56.26, lon: 9.50 },
+      'austria': { lat: 47.52, lon: 14.55 }, 'at': { lat: 47.52, lon: 14.55 },
+      'switzerland': { lat: 46.82, lon: 8.23 }, 'ch': { lat: 46.82, lon: 8.23 },
+      'czech republic': { lat: 49.82, lon: 15.47 }, 'cz': { lat: 49.82, lon: 15.47 },
+      'uae': { lat: 23.42, lon: 53.85 }, 'ae': { lat: 23.42, lon: 53.85 },
+      'qatar': { lat: 25.35, lon: 51.18 }, 'qa': { lat: 25.35, lon: 51.18 },
+      'kuwait': { lat: 29.31, lon: 47.48 }, 'kw': { lat: 29.31, lon: 47.48 },
+      'bahrain': { lat: 26.07, lon: 50.56 }, 'bh': { lat: 26.07, lon: 50.56 },
+      'oman': { lat: 21.51, lon: 55.92 }, 'om': { lat: 21.51, lon: 55.92 },
+      'jordan': { lat: 30.59, lon: 36.24 }, 'jo': { lat: 30.59, lon: 36.24 },
+      'tunisia': { lat: 33.89, lon: 9.54 }, 'tn': { lat: 33.89, lon: 9.54 },
+      'algeria': { lat: 28.03, lon: 1.66 }, 'dz': { lat: 28.03, lon: 1.66 },
+      'morocco': { lat: 31.79, lon: -7.09 }, 'ma': { lat: 31.79, lon: -7.09 },
+      'kenya': { lat: -0.02, lon: 37.91 }, 'ke': { lat: -0.02, lon: 37.91 },
+      'ghana': { lat: 7.95, lon: -1.02 }, 'gh': { lat: 7.95, lon: -1.02 },
+      'senegal': { lat: 14.50, lon: -14.45 }, 'sn': { lat: 14.50, lon: -14.45 },
+      'argentina': { lat: -38.42, lon: -63.62 }, 'ar': { lat: -38.42, lon: -63.62 },
+      'chile': { lat: -35.68, lon: -71.54 }, 'cl': { lat: -35.68, lon: -71.54 },
+      'peru': { lat: -9.19, lon: -75.02 }, 'pe': { lat: -9.19, lon: -75.02 },
+      'philippines': { lat: 12.88, lon: 121.77 }, 'ph': { lat: 12.88, lon: 121.77 },
+      'indonesia': { lat: -0.79, lon: 113.92 }, 'id': { lat: -0.79, lon: 113.92 },
+      'malaysia': { lat: 4.21, lon: 101.97 }, 'my': { lat: 4.21, lon: 101.97 },
+      'thailand': { lat: 15.87, lon: 100.99 }, 'th': { lat: 15.87, lon: 100.99 },
+      'vietnam': { lat: 14.06, lon: 108.28 }, 'vn': { lat: 14.06, lon: 108.28 },
+      'singapore': { lat: 1.35, lon: 103.82 }, 'sg': { lat: 1.35, lon: 103.82 },
+      'new zealand': { lat: -40.90, lon: 174.89 }, 'nz': { lat: -40.90, lon: 174.89 },
+      'bangladesh': { lat: 23.68, lon: 90.36 }, 'bd': { lat: 23.68, lon: 90.36 },
+      'sri lanka': { lat: 7.87, lon: 80.77 }, 'lk': { lat: 7.87, lon: 80.77 },
+      'nepal': { lat: 28.39, lon: 84.12 }, 'np': { lat: 28.39, lon: 84.12 },
+      'afghanistan': { lat: 33.94, lon: 67.71 }, 'af': { lat: 33.94, lon: 67.71 },
+      'uzbekistan': { lat: 41.38, lon: 64.59 }, 'uz': { lat: 41.38, lon: 64.59 },
+      'kazakhstan': { lat: 48.02, lon: 66.92 }, 'kz': { lat: 48.02, lon: 66.92 },
+      'georgia': { lat: 42.32, lon: 43.36 }, 'ge': { lat: 42.32, lon: 43.36 },
+      'armenia': { lat: 40.07, lon: 45.04 }, 'am': { lat: 40.07, lon: 45.04 },
+      'azerbaijan': { lat: 40.14, lon: 47.58 }, 'az': { lat: 40.14, lon: 47.58 },
+      'belarus': { lat: 53.71, lon: 27.95 }, 'by': { lat: 53.71, lon: 27.95 },
+      'moldova': { lat: 47.41, lon: 28.37 }, 'md': { lat: 47.41, lon: 28.37 },
+      'serbia': { lat: 44.02, lon: 21.01 }, 'rs': { lat: 44.02, lon: 21.01 },
+      'kosovo': { lat: 42.60, lon: 20.90 }, 'xk': { lat: 42.60, lon: 20.90 },
+      'bosnia': { lat: 43.92, lon: 17.68 }, 'ba': { lat: 43.92, lon: 17.68 },
+      'croatia': { lat: 45.10, lon: 15.20 }, 'hr': { lat: 45.10, lon: 15.20 },
+      'bulgaria': { lat: 42.73, lon: 25.49 }, 'bg': { lat: 42.73, lon: 25.49 },
+      'cuba': { lat: 21.52, lon: -77.78 }, 'cu': { lat: 21.52, lon: -77.78 },
+      'nicaragua': { lat: 12.87, lon: -85.21 }, 'ni': { lat: 12.87, lon: -85.21 },
+      'honduras': { lat: 15.20, lon: -86.24 }, 'hn': { lat: 15.20, lon: -86.24 },
+      'el salvador': { lat: 13.79, lon: -88.90 }, 'sv': { lat: 13.79, lon: -88.90 },
+      'guatemala': { lat: 15.78, lon: -90.23 }, 'gt': { lat: 15.78, lon: -90.23 },
+      'hong kong': { lat: 22.40, lon: 114.11 }, 'hk': { lat: 22.40, lon: 114.11 },
+    };
+
+    // Also add COUNTRY_META entries matched to centroids
+    const countryCoords: Record<string, { lat: number; lon: number; name: string; flag: string }> = {};
+    Object.values(COUNTRY_META).forEach(c => {
+      const key = c.name.toLowerCase();
+      const centroid = COUNTRY_CENTROIDS[key] || COUNTRY_CENTROIDS[c.code.toLowerCase()];
+      if (centroid) {
+        countryCoords[key] = { ...centroid, name: c.name, flag: c.flag };
+        countryCoords[c.code.toLowerCase()] = { ...centroid, name: c.name, flag: c.flag };
+      }
+    });
+
+    // Aggregate news per country — max 1 marker per country
+    const countryNews: Record<string, { items: typeof news; coords: { lat: number; lon: number; name: string; flag: string } }> = {};
+
+    geointNews.slice(0, 200).forEach(n => {
+      if (n.country) {
+        const key = n.country.toLowerCase();
+        const coords = countryCoords[key];
+        if (coords && !countryNews[key]) {
+          countryNews[key] = { items: [], coords };
+        }
+        if (countryNews[key]) {
+          countryNews[key].items.push(n);
+        }
+      } else {
+        // Try to match country name in title
+        const titleLower = n.title.toLowerCase();
+        for (const [key, coords] of Object.entries(countryCoords)) {
+          if (key.length > 3 && titleLower.includes(key) && !countryNews[key]) {
+            countryNews[key] = { items: [], coords };
+          }
+          if (countryNews[key] && key.length > 3 && titleLower.includes(key)) {
+            countryNews[key].items.push(n);
+            break;
+          }
+        }
+      }
+    });
+
+    Object.entries(countryNews).forEach(([, { items, coords }]) => {
+      if (items.length === 0) return;
+      const hasCritical = items.some(i => i.severity === 'critical');
+      const hasHigh = items.some(i => i.severity === 'high');
+      const color = hasCritical ? '#ff0044' : hasHigh ? '#ff6b35' : '#ffb000';
+      const count = items.length;
+      const dotSize = 10;
+
+      const markerHtml = `<div style="position:relative;width:${dotSize * 2}px;height:${dotSize * 2}px;">
+        <div style="position:absolute;inset:0;border:1.5px solid ${color};border-radius:50%;animation:ping-ring 2.5s ease-out infinite;opacity:0.5;"></div>
+        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:${dotSize * 0.7}px;height:${dotSize * 0.7}px;background:${color};border-radius:50%;box-shadow:0 0 8px ${color};animation:pulse-dot 1.5s ease-in-out infinite;"></div>
+        <div style="position:absolute;top:-7px;right:-8px;background:${color};color:#000;font-size:8px;font-weight:bold;font-family:'JetBrains Mono',monospace;padding:0 3px;border-radius:3px;min-width:12px;text-align:center;line-height:14px;">${count}</div>
+      </div>`;
+
+      const icon = L.divIcon({ className: '', html: markerHtml, iconSize: [dotSize * 2, dotSize * 2], iconAnchor: [dotSize, dotSize] });
+      const marker = L.marker([coords.lat, coords.lon], { icon });
+
+      // Build holographic popup with all news items, sources, and links
+      const severityBadge = (sev: string) => {
+        const c = sev === 'critical' ? '#ff0044' : sev === 'high' ? '#ff6b35' : sev === 'medium' ? '#ffb000' : '#88cc44';
+        return `<span style="font-family:'JetBrains Mono',monospace;font-size:8px;color:${c};background:${c}15;border:1px solid ${c}40;padding:0 4px;border-radius:2px;letter-spacing:0.08em;">${sev.toUpperCase()}</span>`;
+      };
+
+      const newsListHtml = items.slice(0, 6).map(n => {
+        const src = n.source || 'Unknown';
+        const link = n.link || '#';
+        const sev = n.severity || 'info';
+        const tierLabel = n.tier === 1 ? 'WIRE' : n.tier === 2 ? 'QUALITY' : 'SRC';
+        return `<div style="padding:6px 0;border-bottom:1px solid hsla(150,100%,50%,0.06);cursor:pointer;" onclick="window.__openHoloBrowser('${link}')">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">
+            ${severityBadge(sev)}
+            <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:hsla(150,100%,50%,0.6);letter-spacing:0.06em;">${tierLabel}</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:hsla(200,50%,88%,0.5);margin-left:auto;">${src}</span>
+          </div>
+          <p style="font-size:12px;color:hsla(200,50%,88%,0.85);line-height:1.4;margin:0;font-family:'Barlow Condensed',sans-serif;">${n.title}</p>
+        </div>`;
+      }).join('');
+
+      const extraCount = items.length > 6 ? `<div style="text-align:center;font-family:'JetBrains Mono',monospace;font-size:9px;color:hsla(150,100%,50%,0.4);padding:4px 0;">+${items.length - 6} MORE REPORTS</div>` : '';
+
+      const popupHtml = `<div style="
+        background: linear-gradient(135deg, hsla(210,60%,4%,0.95), hsla(210,50%,8%,0.9));
+        border: 1px solid ${hasCritical ? 'hsla(345,100%,50%,0.4)' : hasHigh ? 'hsla(24,100%,50%,0.3)' : 'hsla(150,100%,50%,0.25)'};
+        border-radius: 6px;
+        padding: 12px 14px;
+        min-width: 280px;
+        max-width: 360px;
+        max-height: 400px;
+        overflow-y: auto;
+        box-shadow: 0 0 24px ${hasCritical ? 'hsla(345,100%,50%,0.15)' : 'hsla(150,100%,50%,0.1)'}, 0 8px 32px rgba(0,0,0,0.6);
+        backdrop-filter: blur(16px);
+        font-family: 'Barlow Condensed', sans-serif;
+        position: relative;
+        overflow: hidden;
+      ">
+        <!-- Scanlines -->
+        <div style="position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,transparent,transparent 2px,hsla(150,100%,50%,0.015) 2px,hsla(150,100%,50%,0.015) 4px);border-radius:6px;"></div>
+        <!-- Corner brackets -->
+        <div style="position:absolute;top:0;left:0;width:8px;height:8px;border-top:2px solid ${color}80;border-left:2px solid ${color}80;border-radius:3px 0 0 0;"></div>
+        <div style="position:absolute;top:0;right:0;width:8px;height:8px;border-top:2px solid ${color}80;border-right:2px solid ${color}80;border-radius:0 3px 0 0;"></div>
+        <div style="position:absolute;bottom:0;left:0;width:8px;height:8px;border-bottom:2px solid ${color}80;border-left:2px solid ${color}80;border-radius:0 0 0 3px;"></div>
+        <div style="position:absolute;bottom:0;right:0;width:8px;height:8px;border-bottom:2px solid ${color}80;border-right:2px solid ${color}80;border-radius:0 0 3px 0;"></div>
+        <!-- Header -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:16px;">${coords.flag}</span>
+            <span style="font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:600;color:hsla(200,50%,88%,0.95);letter-spacing:0.1em;text-transform:uppercase;">${coords.name}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:4px;">
+            <div style="width:5px;height:5px;border-radius:50%;background:${color};animation:pulse-dot 1.5s ease-in-out infinite;"></div>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:${color};letter-spacing:0.1em;">${count} INTEL</span>
+          </div>
+        </div>
+        <div style="height:1px;background:linear-gradient(90deg,transparent,${color}40,transparent);margin-bottom:4px;"></div>
+        <!-- News list -->
+        ${newsListHtml}
+        ${extraCount}
+      </div>`;
+
+      marker.bindPopup(popupHtml, {
+        className: 'osint-popup',
+        maxWidth: 380,
+        minWidth: 280,
+        closeButton: false,
+        autoPan: true,
+      });
+
+      marker.on('click', () => {
+        setMapCenter({ lat: coords.lat, lon: coords.lon, zoom: 6 });
+      });
+      group.addLayer(marker);
+    });
+  }, [news]);
+
+  // ── News Hotspot Highlights — pulsing circles showing news-dense regions ──
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    const group = layersRef.current['newsHotspots'];
+    if (!map || !group) return;
+    group.clearLayers();
+
+    if (newsHotspots.length === 0) return;
+
+    const INTENSITY_CONFIG = {
+      critical: { color: '#ff0044', fillOpacity: 0.08, weight: 2, pulseSize: 1.4 },
+      high: { color: '#ff6b35', fillOpacity: 0.06, weight: 1.5, pulseSize: 1.2 },
+      medium: { color: '#ffb000', fillOpacity: 0.04, weight: 1, pulseSize: 1.1 },
+    };
+
+    for (const hotspot of newsHotspots) {
+      const cfg = INTENSITY_CONFIG[hotspot.intensity];
+
+      // Outer pulsing ring
+      const outerRadius = hotspot.radius * 1000; // km to meters
+      const circle = L.circle([hotspot.lat, hotspot.lon], {
+        radius: outerRadius,
+        color: cfg.color,
+        weight: cfg.weight,
+        fillColor: cfg.color,
+        fillOpacity: cfg.fillOpacity,
+        dashArray: hotspot.intensity === 'critical' ? undefined : '6 4',
+        className: `hotspot-ring hotspot-${hotspot.intensity}`,
+      });
+
+      // Tooltip with news count
+      circle.bindTooltip(
+        `<div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.08em;">` +
+        `<span style="color:${cfg.color};font-weight:bold;">${hotspot.intensity.toUpperCase()}</span> ` +
+        `<span style="color:hsla(200,50%,88%,0.8);">${hotspot.label}</span>` +
+        `<br/><span style="color:hsla(200,50%,88%,0.5);">${hotspot.newsCount} NEWS ITEMS</span>` +
+        `<br/><span style="color:hsla(200,50%,88%,0.4);">${hotspot.categories.join(' · ').toUpperCase()}</span>` +
+        `</div>`,
+        {
+          permanent: false,
+          direction: 'top',
+          className: 'hotspot-tooltip',
+          offset: [0, -10],
+        }
+      );
+
+      circle.on('click', () => {
+        setMapCenter({ lat: hotspot.lat, lon: hotspot.lon, zoom: 6 });
+      });
+
+      group.addLayer(circle);
+
+      // Inner marker dot
+      const dotHtml = `<div style="position:relative;width:16px;height:16px;">
+        <div style="position:absolute;inset:0;border:1.5px solid ${cfg.color};border-radius:50%;animation:ping-ring 3s ease-out infinite;opacity:0.4;"></div>
+        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:6px;height:6px;background:${cfg.color};border-radius:50%;box-shadow:0 0 12px ${cfg.color};"></div>
+        <div style="position:absolute;top:-8px;left:50%;transform:translateX(-50%);font-family:'JetBrains Mono',monospace;font-size:7px;color:${cfg.color};white-space:nowrap;text-shadow:0 0 4px rgba(0,0,0,0.8);">${hotspot.newsCount}</div>
+      </div>`;
+
+      const icon = L.divIcon({ className: '', html: dotHtml, iconSize: [16, 16], iconAnchor: [8, 8] });
+      const marker = L.marker([hotspot.lat, hotspot.lon], { icon });
+      group.addLayer(marker);
+    }
+  }, [newsHotspots]);
+
+  // ── Epstein Mode — render known locations, properties, flight routes ──
+  useEffect(() => {
+    const group = layersRef.current['epstein'];
+    if (!group) return;
+    group.clearLayers();
+    if (!epsteinMode) return;
+
+    const typeColors: Record<string, string> = {
+      island: '#ff0088',
+      property: '#ff6b35',
+      flight_dest: '#00d4ff',
+      associate: '#ffb000',
+    };
+
+    // Draw flight routes from Teterboro to key destinations
+    const teterboro = EPSTEIN_LOCATIONS.find(l => l.name.includes('Teterboro'));
+    if (teterboro) {
+      EPSTEIN_LOCATIONS.filter(l => l.type === 'flight_dest' && !l.name.includes('Teterboro')).forEach(dest => {
+        const line = L.polyline(
+          [[teterboro.lat, teterboro.lon], [dest.lat, dest.lon]],
+          { color: '#ff008880', weight: 1, dashArray: '8 6', opacity: 0.5 }
+        );
+        group.addLayer(line);
+      });
+    }
+
+    // Also draw routes from STT to the islands
+    const stt = EPSTEIN_LOCATIONS.find(l => l.name.includes('Cyril'));
+    const islands = EPSTEIN_LOCATIONS.filter(l => l.type === 'island');
+    if (stt) {
+      islands.forEach(isl => {
+        const line = L.polyline(
+          [[stt.lat, stt.lon], [isl.lat, isl.lon]],
+          { color: '#ff008880', weight: 2, dashArray: '4 3', opacity: 0.7 }
+        );
+        group.addLayer(line);
+      });
+    }
+
+    EPSTEIN_LOCATIONS.forEach(loc => {
+      const color = typeColors[loc.type] || '#ff0088';
+      const size = loc.type === 'island' ? 28 : loc.type === 'property' ? 22 : 18;
+
+      const html = loc.type === 'island'
+        ? `<div style="position:relative;width:${size}px;height:${size}px;">
+            <div style="position:absolute;inset:0;border:2px solid ${color};border-radius:50%;animation:ping-ring 2s ease-out infinite;opacity:0.6;"></div>
+            <div style="position:absolute;inset:3px;border:1.5px solid ${color};border-radius:50%;animation:ping-ring 2s ease-out 0.5s infinite;opacity:0.4;"></div>
+            <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:${size * 0.55}px;filter:drop-shadow(0 0 6px ${color});">${loc.icon}</div>
+          </div>`
+        : `<div style="position:relative;width:${size}px;height:${size}px;">
+            <div style="position:absolute;inset:0;border:1.5px solid ${color};border-radius:50%;opacity:0.5;"></div>
+            <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:${size * 0.55}px;">${loc.icon}</div>
+          </div>`;
+
+      const icon = L.divIcon({
+        className: '',
+        html,
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size / 2],
+      });
+
+      const marker = L.marker([loc.lat, loc.lon], { icon });
+
+      const popupHtml = `<div style="
+        background: linear-gradient(135deg, hsla(330,60%,4%,0.95), hsla(330,50%,8%,0.9));
+        border: 1px solid hsla(330,100%,50%,0.4);
+        border-radius: 6px;
+        padding: 12px 14px;
+        min-width: 240px;
+        max-width: 300px;
+        box-shadow: 0 0 24px hsla(330,100%,50%,0.15), 0 8px 32px rgba(0,0,0,0.6);
+        backdrop-filter: blur(16px);
+        font-family: 'Barlow Condensed', sans-serif;
+        position: relative;
+      ">
+        <div style="position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,transparent,transparent 2px,hsla(330,100%,50%,0.015) 2px,hsla(330,100%,50%,0.015) 4px);border-radius:6px;"></div>
+        <div style="position:absolute;top:0;left:0;width:8px;height:8px;border-top:2px solid ${color}80;border-left:2px solid ${color}80;border-radius:3px 0 0 0;"></div>
+        <div style="position:absolute;top:0;right:0;width:8px;height:8px;border-top:2px solid ${color}80;border-right:2px solid ${color}80;border-radius:0 3px 0 0;"></div>
+        <div style="position:absolute;bottom:0;left:0;width:8px;height:8px;border-bottom:2px solid ${color}80;border-left:2px solid ${color}80;border-radius:0 0 0 3px;"></div>
+        <div style="position:absolute;bottom:0;right:0;width:8px;height:8px;border-bottom:2px solid ${color}80;border-right:2px solid ${color}80;border-radius:0 0 3px 0;"></div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+          <span style="font-size:18px;">${loc.icon}</span>
+          <span style="font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:600;color:hsla(330,80%,80%,0.95);letter-spacing:0.1em;text-transform:uppercase;">${loc.name}</span>
+        </div>
+        <div style="height:1px;background:linear-gradient(90deg,transparent,hsla(330,100%,50%,0.3),transparent);margin-bottom:8px;"></div>
+        <p style="font-size:12px;color:hsla(200,50%,88%,0.8);line-height:1.5;margin:0;">${loc.description}</p>
+        <div style="margin-top:8px;display:flex;align-items:center;gap:4px;">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:9px;background:${color}20;color:${color};padding:1px 6px;border-radius:3px;border:1px solid ${color}40;letter-spacing:0.1em;">${loc.type.toUpperCase().replace('_', ' ')}</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:8px;color:hsla(200,50%,88%,0.4);">${loc.lat.toFixed(3)}, ${loc.lon.toFixed(3)}</span>
+        </div>
+      </div>`;
+
+      marker.bindPopup(popupHtml, {
+        className: 'osint-popup',
+        maxWidth: 320,
+        minWidth: 240,
+        closeButton: false,
+        autoPan: true,
+      });
+
+      marker.bindTooltip(`${loc.icon} ${loc.name}`, { direction: 'top', offset: [0, -10] });
+      group.addLayer(marker);
+    });
+  }, [epsteinMode]);
+
+  // Render missile arcs on 2D map
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    const group = layersRef.current['missileArcs'];
+    if (!group || !map) return;
+    group.clearLayers();
+    if (!layers.conflicts || missileArcs.length === 0) return;
+
+    missileArcs.forEach((arc) => {
+      const from: [number, number] = [arc.fromLat, arc.fromLon];
+      const to: [number, number] = [arc.toLat, arc.toLon];
+
+      // Color by type
+      const colors: Record<string, string> = {
+        ballistic: '#ff0044', cruise: '#ff6b35', drone: '#ffb000', rocket: '#ff4488',
+      };
+      const color = colors[arc.type] || '#ff4488';
+
+      // Generate curved arc points (parabolic)
+      const points: [number, number][] = [];
+      const steps = 40;
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        const lat = from[0] + (to[0] - from[0]) * t;
+        const lon = from[1] + (to[1] - from[1]) * t;
+        points.push([lat, lon]);
+      }
+
+      // Animated dashed polyline for the arc trail
+      const trail = L.polyline(points, {
+        color,
+        weight: 2,
+        opacity: 0.6,
+        dashArray: '8,6',
+        className: 'missile-arc-trail',
+      });
+      group.addLayer(trail);
+
+      // Glow line underneath
+      const glow = L.polyline(points, {
+        color,
+        weight: 5,
+        opacity: 0.15,
+      });
+      group.addLayer(glow);
+
+      // Origin marker — pulsing circle
+      const originSize = 14;
+      const originIcon = L.divIcon({
+        className: '',
+        html: `<div style="position:relative;width:${originSize}px;height:${originSize}px;">
+          <div style="position:absolute;inset:0;border:2px solid ${color};border-radius:50%;animation:ping-ring 2s ease-out infinite;opacity:0.6;"></div>
+          <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:5px;height:5px;background:${color};border-radius:50%;box-shadow:0 0 8px ${color};"></div>
+        </div>`,
+        iconSize: [originSize, originSize],
+        iconAnchor: [originSize / 2, originSize / 2],
+      });
+      group.addLayer(L.marker(from, { icon: originIcon, interactive: false }));
+
+      // Impact marker — explosion effect at target
+      const impactSize = 22;
+      const statusEmoji = arc.status === 'intercepted' ? '🛡' : arc.status === 'hit' ? '💥' : '🚀';
+      const impactIcon = L.divIcon({
+        className: '',
+        html: `<div style="position:relative;width:${impactSize}px;height:${impactSize}px;">
+          <svg viewBox="0 0 60 60" width="${impactSize}" height="${impactSize}">
+            <circle cx="30" cy="30" r="6" fill="${color}" opacity="0.8">
+              <animate attributeName="r" values="4;12;4" dur="1.5s" repeatCount="indefinite"/>
+              <animate attributeName="opacity" values="0.8;0.3;0.8" dur="1.5s" repeatCount="indefinite"/>
+            </circle>
+            <circle cx="30" cy="30" r="10" fill="none" stroke="${color}" stroke-width="1.5" opacity="0.5">
+              <animate attributeName="r" values="10;28" dur="2s" repeatCount="indefinite"/>
+              <animate attributeName="opacity" values="0.5;0" dur="2s" repeatCount="indefinite"/>
+            </circle>
+          </svg>
+          <div style="position:absolute;top:-14px;left:50%;transform:translateX(-50%);white-space:nowrap;font-family:'JetBrains Mono',monospace;font-size:8px;color:${color};background:hsla(210,60%,4%,0.85);padding:1px 4px;border-radius:2px;border:1px solid ${color}40;">
+            ${statusEmoji} ${arc.type.toUpperCase()} ${arc.from}→${arc.to}
+          </div>
+        </div>`,
+        iconSize: [impactSize, impactSize + 16],
+        iconAnchor: [impactSize / 2, impactSize / 2],
+      });
+      const impactMarker = L.marker(to, { icon: impactIcon, interactive: true });
+      impactMarker.bindTooltip(`${statusEmoji} ${arc.type.toUpperCase()} | ${arc.from} → ${arc.to} | ${arc.status}`, { direction: 'top', offset: [0, -impactSize / 2 - 8] });
+      group.addLayer(impactMarker);
+
+      // Moving warhead dot along the arc
+      const headIdx = Math.floor(steps * 0.7); // show head at ~70% of path
+      const headPos = points[headIdx] || to;
+      const headIcon = L.divIcon({
+        className: '',
+        html: `<div style="width:8px;height:8px;background:${color};border-radius:50%;box-shadow:0 0 12px ${color}, 0 0 24px ${color}80;"></div>`,
+        iconSize: [8, 8],
+        iconAnchor: [4, 4],
+      });
+      group.addLayer(L.marker(headPos, { icon: headIcon, interactive: false }));
+    });
+  }, [missileArcs, layers.conflicts]);
+
+  return <div ref={mapRef} className="w-full h-full" />;
+});
+
+MapContainer.displayName = 'MapContainer';
+export default MapContainer;
