@@ -325,28 +325,57 @@ const XPostCard = memo(({ post }: { post: TwitterOsintPost }) => {
 
   return (
     <div
-      className={`rounded border px-2 py-1.5 cursor-pointer transition-colors hover:border-primary/30 ${
-        isConflict ? 'border-alert-critical/20 bg-alert-critical/5' : 'border-border/20 bg-card-bg/20'
+      className={`relative rounded-lg overflow-hidden cursor-pointer transition-all hover:brightness-110 ${
+        isConflict ? 'border border-alert-critical/30' : 'border border-primary/15'
       }`}
       onClick={handleClick}
       title={post.geo ? 'Click to fly to location' : 'Click to open on 𝕏'}
+      style={{
+        background: isConflict
+          ? 'linear-gradient(135deg, hsla(345,80%,8%,0.9), hsla(210,60%,6%,0.85))'
+          : 'linear-gradient(135deg, hsla(210,60%,6%,0.9), hsla(210,50%,8%,0.85))',
+        backdropFilter: 'blur(12px)',
+        boxShadow: isConflict
+          ? '0 0 12px hsla(345,100%,50%,0.08), inset 0 1px 0 hsla(345,100%,50%,0.05)'
+          : '0 0 8px hsla(150,100%,50%,0.05), inset 0 1px 0 hsla(150,100%,50%,0.03)',
+      }}
     >
-      <div className="flex items-center justify-between mb-0.5">
-        <span className="text-[8px] font-data text-primary/80">@{post.account}</span>
-        <div className="flex items-center gap-1">
-          {post.geo && (
-            <span className="text-[6px] font-data text-primary/50 bg-primary/10 px-1 rounded">📍</span>
-          )}
-          <span className="text-[7px] font-data text-muted-foreground/40">{timeAgo()}</span>
+      {/* Scanlines */}
+      <div className="absolute inset-0 pointer-events-none rounded-lg" style={{ background: 'repeating-linear-gradient(0deg, transparent, transparent 2px, hsla(150,100%,50%,0.01) 2px, hsla(150,100%,50%,0.01) 4px)' }} />
+      {/* Corner brackets */}
+      <div className="absolute top-0 left-0 w-1.5 h-1.5" style={{ borderTop: `1.5px solid ${isConflict ? 'hsla(345,100%,50%,0.4)' : 'hsla(150,100%,50%,0.3)'}`, borderLeft: `1.5px solid ${isConflict ? 'hsla(345,100%,50%,0.4)' : 'hsla(150,100%,50%,0.3)'}`, borderRadius: '2px 0 0 0' }} />
+      <div className="absolute top-0 right-0 w-1.5 h-1.5" style={{ borderTop: `1.5px solid ${isConflict ? 'hsla(345,100%,50%,0.4)' : 'hsla(150,100%,50%,0.3)'}`, borderRight: `1.5px solid ${isConflict ? 'hsla(345,100%,50%,0.4)' : 'hsla(150,100%,50%,0.3)'}`, borderRadius: '0 2px 0 0' }} />
+      <div className="absolute bottom-0 left-0 w-1.5 h-1.5" style={{ borderBottom: `1.5px solid ${isConflict ? 'hsla(345,100%,50%,0.4)' : 'hsla(150,100%,50%,0.3)'}`, borderLeft: `1.5px solid ${isConflict ? 'hsla(345,100%,50%,0.4)' : 'hsla(150,100%,50%,0.3)'}`, borderRadius: '0 0 0 2px' }} />
+      <div className="absolute bottom-0 right-0 w-1.5 h-1.5" style={{ borderBottom: `1.5px solid ${isConflict ? 'hsla(345,100%,50%,0.4)' : 'hsla(150,100%,50%,0.3)'}`, borderRight: `1.5px solid ${isConflict ? 'hsla(345,100%,50%,0.4)' : 'hsla(150,100%,50%,0.3)'}`, borderRadius: '0 0 2px 0' }} />
+      
+      <div className="relative px-2.5 py-2">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs">𝕏</span>
+            <span className={`text-[10px] font-data ${isConflict ? 'text-alert-critical' : 'text-primary'} tracking-wide`}>@{post.account}</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            {post.geo && (
+              <span className="text-[8px] font-data text-primary/50 bg-primary/10 px-1 rounded">📍 GEO</span>
+            )}
+            <div className={`w-1 h-1 rounded-full ${isConflict ? 'bg-alert-critical' : 'bg-primary'} animate-pulse-dot`} />
+            <span className={`text-[9px] font-data ${isConflict ? 'text-alert-critical/60' : 'text-primary/40'}`}>{timeAgo()}</span>
+          </div>
         </div>
+        {/* Divider */}
+        <div className="h-px mb-1.5" style={{ background: `linear-gradient(90deg, transparent, ${isConflict ? 'hsla(345,100%,50%,0.2)' : 'hsla(150,100%,50%,0.15)'}, transparent)` }} />
+        {/* Body */}
+        <p className="text-[11px] font-data text-foreground/80 leading-relaxed line-clamp-3">{post.text}</p>
+        {/* Metrics */}
+        {post.metrics && ((post.metrics.retweet_count || 0) > 0 || (post.metrics.like_count || 0) > 0) && (
+          <div className="flex items-center gap-3 mt-1.5 pt-1" style={{ borderTop: '1px solid hsla(150,100%,50%,0.06)' }}>
+            {(post.metrics.retweet_count || 0) > 0 && <span className="text-[9px] font-data text-muted-foreground/40">🔁 {post.metrics.retweet_count}</span>}
+            {(post.metrics.like_count || 0) > 0 && <span className="text-[9px] font-data text-muted-foreground/40">♥ {post.metrics.like_count}</span>}
+            <span className="text-[8px] font-data text-primary/30 ml-auto">API</span>
+          </div>
+        )}
       </div>
-      <p className="text-[9px] font-data text-foreground/70 leading-relaxed line-clamp-3">{post.text}</p>
-      {post.metrics && (post.metrics.retweet_count || 0) > 0 && (
-        <div className="flex items-center gap-2 mt-0.5">
-          <span className="text-[6px] font-data text-muted-foreground/30">🔁 {post.metrics.retweet_count}</span>
-          {(post.metrics.like_count || 0) > 0 && <span className="text-[6px] font-data text-muted-foreground/30">♥ {post.metrics.like_count}</span>}
-        </div>
-      )}
     </div>
   );
 });

@@ -716,26 +716,87 @@ const MapContainer = memo(() => {
       const count = items.length;
       const dotSize = 10;
 
-      // Small flashing circle for all news markers
       const markerHtml = `<div style="position:relative;width:${dotSize * 2}px;height:${dotSize * 2}px;">
         <div style="position:absolute;inset:0;border:1.5px solid ${color};border-radius:50%;animation:ping-ring 2.5s ease-out infinite;opacity:0.5;"></div>
         <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:${dotSize * 0.7}px;height:${dotSize * 0.7}px;background:${color};border-radius:50%;box-shadow:0 0 8px ${color};animation:pulse-dot 1.5s ease-in-out infinite;"></div>
-        <div style="position:absolute;top:-7px;right:-8px;background:${color};color:#000;font-size:7px;font-weight:bold;font-family:'JetBrains Mono',monospace;padding:0 3px;border-radius:3px;min-width:12px;text-align:center;line-height:14px;">${count}</div>
+        <div style="position:absolute;top:-7px;right:-8px;background:${color};color:#000;font-size:8px;font-weight:bold;font-family:'JetBrains Mono',monospace;padding:0 3px;border-radius:3px;min-width:12px;text-align:center;line-height:14px;">${count}</div>
       </div>`;
 
       const icon = L.divIcon({ className: '', html: markerHtml, iconSize: [dotSize * 2, dotSize * 2], iconAnchor: [dotSize, dotSize] });
-      const topHeadline = items[0];
       const marker = L.marker([coords.lat + (Math.random() - 0.5) * 0.5, coords.lon + (Math.random() - 0.5) * 0.5], { icon });
-      const tooltipText = `${coords.flag} ${coords.name} — ${count} report${count > 1 ? 's' : ''}\n${topHeadline.title.substring(0, 70)}`;
-      marker.bindTooltip(tooltipText, { direction: 'top', offset: [0, -14] });
+
+      // Build holographic popup with all news items, sources, and links
+      const severityBadge = (sev: string) => {
+        const c = sev === 'critical' ? '#ff0044' : sev === 'high' ? '#ff6b35' : sev === 'medium' ? '#ffb000' : '#00d4ff';
+        return `<span style="font-family:'JetBrains Mono',monospace;font-size:8px;color:${c};background:${c}15;border:1px solid ${c}40;padding:0 4px;border-radius:2px;letter-spacing:0.08em;">${sev.toUpperCase()}</span>`;
+      };
+
+      const newsListHtml = items.slice(0, 6).map(n => {
+        const src = n.source || 'Unknown';
+        const link = n.link || '#';
+        const sev = n.severity || 'info';
+        const tierLabel = n.tier === 1 ? 'WIRE' : n.tier === 2 ? 'QUALITY' : 'SRC';
+        return `<div style="padding:6px 0;border-bottom:1px solid hsla(150,100%,50%,0.06);cursor:pointer;" onclick="window.open('${link}','_blank')">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">
+            ${severityBadge(sev)}
+            <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:hsla(150,100%,50%,0.6);letter-spacing:0.06em;">${tierLabel}</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:hsla(200,50%,88%,0.5);margin-left:auto;">${src}</span>
+          </div>
+          <p style="font-size:12px;color:hsla(200,50%,88%,0.85);line-height:1.4;margin:0;font-family:'Barlow Condensed',sans-serif;">${n.title}</p>
+        </div>`;
+      }).join('');
+
+      const extraCount = items.length > 6 ? `<div style="text-align:center;font-family:'JetBrains Mono',monospace;font-size:9px;color:hsla(150,100%,50%,0.4);padding:4px 0;">+${items.length - 6} MORE REPORTS</div>` : '';
+
+      const popupHtml = `<div style="
+        background: linear-gradient(135deg, hsla(210,60%,4%,0.95), hsla(210,50%,8%,0.9));
+        border: 1px solid ${hasCritical ? 'hsla(345,100%,50%,0.4)' : hasHigh ? 'hsla(24,100%,50%,0.3)' : 'hsla(150,100%,50%,0.25)'};
+        border-radius: 6px;
+        padding: 12px 14px;
+        min-width: 280px;
+        max-width: 360px;
+        max-height: 400px;
+        overflow-y: auto;
+        box-shadow: 0 0 24px ${hasCritical ? 'hsla(345,100%,50%,0.15)' : 'hsla(150,100%,50%,0.1)'}, 0 8px 32px rgba(0,0,0,0.6);
+        backdrop-filter: blur(16px);
+        font-family: 'Barlow Condensed', sans-serif;
+        position: relative;
+        overflow: hidden;
+      ">
+        <!-- Scanlines -->
+        <div style="position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,transparent,transparent 2px,hsla(150,100%,50%,0.015) 2px,hsla(150,100%,50%,0.015) 4px);border-radius:6px;"></div>
+        <!-- Corner brackets -->
+        <div style="position:absolute;top:0;left:0;width:8px;height:8px;border-top:2px solid ${color}80;border-left:2px solid ${color}80;border-radius:3px 0 0 0;"></div>
+        <div style="position:absolute;top:0;right:0;width:8px;height:8px;border-top:2px solid ${color}80;border-right:2px solid ${color}80;border-radius:0 3px 0 0;"></div>
+        <div style="position:absolute;bottom:0;left:0;width:8px;height:8px;border-bottom:2px solid ${color}80;border-left:2px solid ${color}80;border-radius:0 0 0 3px;"></div>
+        <div style="position:absolute;bottom:0;right:0;width:8px;height:8px;border-bottom:2px solid ${color}80;border-right:2px solid ${color}80;border-radius:0 0 3px 0;"></div>
+        <!-- Header -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:16px;">${coords.flag}</span>
+            <span style="font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:600;color:hsla(200,50%,88%,0.95);letter-spacing:0.1em;text-transform:uppercase;">${coords.name}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:4px;">
+            <div style="width:5px;height:5px;border-radius:50%;background:${color};animation:pulse-dot 1.5s ease-in-out infinite;"></div>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:${color};letter-spacing:0.1em;">${count} INTEL</span>
+          </div>
+        </div>
+        <div style="height:1px;background:linear-gradient(90deg,transparent,${color}40,transparent);margin-bottom:4px;"></div>
+        <!-- News list -->
+        ${newsListHtml}
+        ${extraCount}
+      </div>`;
+
+      marker.bindPopup(popupHtml, {
+        className: 'osint-popup',
+        maxWidth: 380,
+        minWidth: 280,
+        closeButton: false,
+        autoPan: true,
+      });
+
       marker.on('click', () => {
-        // Open country dossier
-        import('@/services/countryService').then(({ searchCountries }) => {
-          const matches = searchCountries(coords.name);
-          if (matches.length > 0) {
-            useWorldViewStore.getState().openCountryDossier(matches[0]);
-          }
-        });
+        setMapCenter({ lat: coords.lat, lon: coords.lon, zoom: 6 });
       });
       group.addLayer(marker);
     });
