@@ -19,7 +19,7 @@ export interface TwitterOsintData {
 }
 
 const cache: { data: TwitterOsintData | null; ts: number } = { data: null, ts: 0 };
-const CACHE_TTL = 120_000; // 2 minutes
+const CACHE_TTL = 55_000; // 55 seconds (slightly under 60s refresh)
 
 export const fetchTwitterOsint = async (): Promise<TwitterOsintData | null> => {
   if (cache.data && Date.now() - cache.ts < CACHE_TTL) return cache.data;

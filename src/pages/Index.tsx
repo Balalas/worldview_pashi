@@ -16,6 +16,7 @@ import TacticalAlerts from '@/components/hud/TacticalAlerts';
 import CountryDossier from '@/components/panels/CountryDossier';
 import MinimapRadar from '@/components/hud/MinimapRadar';
 import BootScreen from '@/components/hud/BootScreen';
+import XOsintCard from '@/components/panels/XOsintCard';
 import { useWorldViewStore, LAYER_SHORTCUTS, LANDMARK_PRESETS, VisualStyle } from '@/store/worldview';
 import { fetchEarthquakes, fetchLiveNews, fetchLiveAircraft } from '@/services/dataServices';
 import { generateRealisticSatellites, fetchISSPosition } from '@/services/satelliteService';
@@ -153,7 +154,7 @@ const CctvPip = memo(() => {
 CctvPip.displayName = 'CctvPip';
 
 const Index = () => {
-  const { setAircraft, setSatellites, setEarthquakes, setNews, setLastRefresh, setNewsLoading, setWeatherAlerts, setVolcanoes, setVessels, setProtests, setOutages, setFires, setLiveCameras, toggleLayer, closeDetailPanel, mapMode, setFollowTarget, visualStyle, setVisualStyle, filterParams, bottomPanelCollapsed, bottomPanelExpanded, setMapCenter, isScreensaver, setScreensaver, immersiveMode, circularViewport, hudLayout, warMode, setGeoEvents, layerSubFilters, setConflictIntel, setMissileArcs, manualRefresh, setTwitterGeoMarkers } = useWorldViewStore();
+  const { setAircraft, setSatellites, setEarthquakes, setNews, setLastRefresh, setNewsLoading, setWeatherAlerts, setVolcanoes, setVessels, setProtests, setOutages, setFires, setLiveCameras, toggleLayer, closeDetailPanel, mapMode, setFollowTarget, visualStyle, setVisualStyle, filterParams, bottomPanelCollapsed, bottomPanelExpanded, setMapCenter, isScreensaver, setScreensaver, immersiveMode, circularViewport, hudLayout, warMode, setGeoEvents, layerSubFilters, setConflictIntel, setMissileArcs, manualRefresh, setTwitterGeoMarkers, setTwitterPosts, setTwitterLastFetch } = useWorldViewStore();
   const earthquakeTimeWindow = layerSubFilters.earthquakeTimeWindow || '24H';
   const styleConfig = computeStyleConfig(visualStyle, filterParams);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -346,33 +347,41 @@ const Index = () => {
     return () => { clearTimeout(timer); clearInterval(interval); };
   }, [setConflictIntel, setMissileArcs]);
 
-  // ── Twitter/X OSINT → geo markers on map ──
+  // ── Twitter/X OSINT → geo markers on map + full posts for card ──
   useEffect(() => {
     const fetchTwitter = async () => {
       try {
         const data = await fetchTwitterOsint();
-        if (data?.geolocated && data.geolocated.length > 0) {
-          const markers = data.geolocated.map(p => ({
-            id: p.id,
-            lat: p.geo!.lat,
-            lon: p.geo!.lon,
-            place: p.geo!.place,
-            text: p.text,
-            account: p.account,
-            url: p.url,
-            createdAt: p.createdAt,
-          }));
-          setTwitterGeoMarkers(markers);
-          console.log(`[X/OSINT] ${markers.length} geolocated posts plotted on map`);
+        if (data) {
+          // Store full posts for X OSINT card
+          if (data.posts.length > 0) {
+            setTwitterPosts(data.posts);
+            setTwitterLastFetch(data.fetchedAt);
+          }
+          // Geolocated markers on map
+          if (data.geolocated && data.geolocated.length > 0) {
+            const markers = data.geolocated.map(p => ({
+              id: p.id,
+              lat: p.geo!.lat,
+              lon: p.geo!.lon,
+              place: p.geo!.place,
+              text: p.text,
+              account: p.account,
+              url: p.url,
+              createdAt: p.createdAt,
+            }));
+            setTwitterGeoMarkers(markers);
+            console.log(`[X/OSINT] ${markers.length} geolocated + ${data.posts.length} total posts`);
+          }
         }
       } catch (e) {
         console.warn('Twitter OSINT fetch error:', e);
       }
     };
-    const timer = setTimeout(fetchTwitter, 8000); // after initial load
-    const interval = setInterval(fetchTwitter, 120_000); // every 2 min
+    const timer = setTimeout(fetchTwitter, 4000); // fast initial
+    const interval = setInterval(fetchTwitter, 60_000); // every 60s
     return () => { clearTimeout(timer); clearInterval(interval); };
-  }, [setTwitterGeoMarkers]);
+  }, [setTwitterGeoMarkers, setTwitterPosts, setTwitterLastFetch]);
 
   // Manual refresh trigger
   useEffect(() => {
@@ -582,6 +591,7 @@ const Index = () => {
         )}
 
         {!isScreensaver && <RightPanel />}
+        {!isScreensaver && !immersiveMode && <XOsintCard />}
 
         {!isScreensaver && (
           <div className="pointer-events-auto">
