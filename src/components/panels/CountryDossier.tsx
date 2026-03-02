@@ -5,9 +5,10 @@ import { PUBLIC_CAMERAS } from '@/data/publicCameras';
 import { CONFLICT_ZONES } from '@/data/conflictZones';
 import { LIVESTREAM_FEEDS, LivestreamFeed } from '@/services/dataServices';
 import { fetchAINewsEnrichment, AINewsEnrichment } from '@/services/aiEnrichService';
+import { fetchPerplexityCountryIntel, PerplexityIntel } from '@/services/perplexityIntelService';
 
 
-type DossierTab = 'war' | 'intelligence' | 'cyber' | 'crime' | 'xosint' | 'cameras' | 'tv' | 'all';
+type DossierTab = 'war' | 'intelligence' | 'cyber' | 'crime' | 'xosint' | 'perplexity' | 'cameras' | 'tv' | 'all';
 
 const TAB_CONFIG: { key: DossierTab; label: string; icon: string; keywords: RegExp }[] = [
   { key: 'all', label: 'ALL INTEL', icon: '📡', keywords: /./i },
@@ -16,6 +17,7 @@ const TAB_CONFIG: { key: DossierTab; label: string; icon: string; keywords: RegE
   { key: 'cyber', label: 'CYBER', icon: '🔒', keywords: /\b(cyber|hack|breach|ransomware|ddos|malware|phishing|data leak|exploit|vulnerability|zero.day|apt|botnet|encryption)\b/i },
   { key: 'crime', label: 'CRIME', icon: '🚨', keywords: /\b(crime|murder|arrest|drug|cartel|gang|trafficking|smuggling|corruption|fraud|launder|theft|robbery|terrorist|extremist|organized crime)\b/i },
   { key: 'xosint', label: '𝕏 OSINT', icon: '𝕏', keywords: /./i },
+  { key: 'perplexity', label: 'AI INTEL', icon: '🔍', keywords: /./i },
   { key: 'tv', label: 'LIVE TV', icon: '📺', keywords: /./i },
   { key: 'cameras', label: 'CCTV', icon: '📹', keywords: /./i },
 ];
@@ -52,7 +54,7 @@ const CountryDossier = memo(() => {
 
   // Filter by active tab
   const filteredNews = useMemo(() => {
-    if (activeTab === 'cameras' || activeTab === 'xosint') return [];
+    if (activeTab === 'cameras' || activeTab === 'xosint' || activeTab === 'perplexity') return [];
     const tabCfg = TAB_CONFIG.find(t => t.key === activeTab);
     if (!tabCfg || activeTab === 'all') return countryNews;
     return countryNews.filter(n => tabCfg.keywords.test(n.title));
@@ -239,6 +241,7 @@ const CountryDossier = memo(() => {
             const count = tab.key === 'cameras' ? countryCameras.length :
               tab.key === 'tv' ? countryTVChannels.length :
               tab.key === 'xosint' ? countryXPosts.length :
+              tab.key === 'perplexity' ? -1 :
               tab.key === 'all' ? countryNews.length :
                 countryNews.filter(n => tab.keywords.test(n.title)).length;
             return (
@@ -255,7 +258,7 @@ const CountryDossier = memo(() => {
                 <span>{tab.label}</span>
                 <span className={`ml-1 px-1 rounded text-[8px] ${
                   activeTab === tab.key ? 'bg-primary/20 text-primary' : 'bg-muted/50 text-muted-foreground'
-                }`}>{count}</span>
+                }`}>{count === -1 ? '🔍' : count}</span>
               </button>
             );
           })}
@@ -314,6 +317,8 @@ const CountryDossier = memo(() => {
                 <CountryTVPanel channels={countryTVChannels} />
               ) : activeTab === 'xosint' ? (
                 <XOsintFeed posts={countryXPosts} />
+              ) : activeTab === 'perplexity' ? (
+                <PerplexityIntelPanel countryName={country.name} />
               ) : (
                 <>
                   <CountryAIBanner news={filteredNews} countryName={country.name} />
@@ -471,6 +476,146 @@ const XOsintFeed = memo(({ posts }: { posts: TwitterOsintPost[] }) => {
   );
 });
 XOsintFeed.displayName = 'XOsintFeed';
+
+const PerplexityIntelPanel = memo(({ countryName }: { countryName: string }) => {
+  const [intel, setIntel] = useState<PerplexityIntel | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const fetchIntel = useCallback(async () => {
+    setLoading(true);
+    const result = await fetchPerplexityCountryIntel(countryName);
+    if (result) setIntel(result);
+    setLoading(false);
+  }, [countryName]);
+
+  useEffect(() => {
+    fetchIntel();
+    const interval = setInterval(fetchIntel, 60_000);
+    return () => clearInterval(interval);
+  }, [fetchIntel]);
+
+  const threatColor = intel?.threatLevel === 'CRITICAL' ? 'text-alert-critical border-alert-critical/30 bg-alert-critical/5' :
+    intel?.threatLevel === 'HIGH' ? 'text-alert-high border-alert-high/30 bg-alert-high/5' :
+    intel?.threatLevel === 'MEDIUM' ? 'text-alert-medium border-alert-medium/30 bg-alert-medium/5' :
+    'text-primary border-primary/30 bg-primary/5';
+
+  if (loading && !intel) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center">
+          <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+          <div className="text-[10px] font-data text-muted-foreground tracking-wider">QUERYING PERPLEXITY AI...</div>
+          <div className="text-[8px] font-data text-muted-foreground/50 mt-1">Real-time web search for {countryName}</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!intel) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center">
+          <div className="text-2xl mb-2 opacity-30">🔍</div>
+          <div className="text-[10px] font-data text-muted-foreground tracking-wider">NO AI INTEL AVAILABLE</div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-sm">🔍</span>
+          <span className="text-[9px] font-display tracking-[0.15em] text-primary">PERPLEXITY AI INTELLIGENCE</span>
+          <span className="flex items-center gap-0.5">
+            <span className="w-1 h-1 rounded-full bg-primary animate-pulse" />
+            <span className="text-[7px] font-data text-primary">LIVE</span>
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className={`text-[8px] font-data font-bold tracking-wider ${threatColor.split(' ')[0]}`}>
+            ● {intel.threatLevel}
+          </span>
+          <button onClick={fetchIntel} disabled={loading}
+            className="text-[7px] font-data text-primary/60 hover:text-primary disabled:opacity-50">🔄</button>
+        </div>
+      </div>
+
+      {/* Briefing */}
+      <div className={`rounded border px-3 py-2.5 ${threatColor}`}>
+        <div className="text-[8px] font-display tracking-[0.15em] text-primary/70 mb-1">SITUATION BRIEFING</div>
+        <p className="text-[10px] font-data text-foreground leading-relaxed">{intel.briefing}</p>
+      </div>
+
+      {/* Key Developments */}
+      {intel.developments && intel.developments.length > 0 && (
+        <div>
+          <div className="text-[8px] font-display tracking-[0.15em] text-primary/70 mb-1.5">KEY DEVELOPMENTS</div>
+          <div className="space-y-1.5">
+            {intel.developments.map((dev, i) => (
+              <div key={i} className="flex items-start gap-2 rounded border border-border/30 bg-card-bg/30 px-3 py-2">
+                <span className="text-[8px] font-data text-primary/60 mt-0.5 flex-shrink-0">▸</span>
+                <p className="text-[9px] font-data text-foreground/80 leading-relaxed">{dev}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Risks */}
+      {intel.risks && intel.risks.length > 0 && (
+        <div>
+          <div className="text-[8px] font-display tracking-[0.15em] text-alert-high/70 mb-1.5">⚠ RISK ASSESSMENT</div>
+          <div className="space-y-1">
+            {intel.risks.map((risk, i) => (
+              <div key={i} className="flex items-start gap-2 text-[9px]">
+                <span className="text-alert-high/60 flex-shrink-0">●</span>
+                <span className="font-data text-foreground/70">{risk}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Keywords */}
+      {intel.keywords && intel.keywords.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {intel.keywords.map((kw, i) => (
+            <span key={i} className="text-[7px] font-data text-primary/70 bg-primary/5 px-1.5 py-0.5 rounded border border-primary/10">
+              #{kw}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Citations */}
+      {intel.citations && intel.citations.length > 0 && (
+        <div className="border-t border-border/30 pt-2">
+          <div className="text-[7px] font-data text-muted-foreground/50 tracking-wider mb-1">SOURCES</div>
+          <div className="space-y-0.5">
+            {intel.citations.slice(0, 5).map((url, i) => (
+              <a key={i} href={url} target="_blank" rel="noopener noreferrer"
+                className="block text-[7px] font-data text-primary/50 hover:text-primary truncate transition-colors">
+                🔗 {url.replace(/https?:\/\/(www\.)?/, '').split('/')[0]}
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Footer */}
+      <div className="flex items-center justify-between border-t border-border/20 pt-1.5">
+        <span className="text-[7px] font-data text-muted-foreground/40">AUTO-REFRESH 60s</span>
+        <span className="text-[7px] font-data text-muted-foreground/30">
+          Updated {intel.fetchedAt ? new Date(intel.fetchedAt).toLocaleTimeString('en-US', { hour12: false }) : '—'} UTC
+        </span>
+      </div>
+    </div>
+  );
+});
+PerplexityIntelPanel.displayName = 'PerplexityIntelPanel';
 
 const NewsFeed = memo(({ news, onNewsClick }: { news: NewsItem[]; onNewsClick: (n: NewsItem) => void }) => {
   if (news.length === 0) {
