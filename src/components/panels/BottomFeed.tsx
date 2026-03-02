@@ -520,7 +520,7 @@ const BottomFeed = memo(() => {
       </div>
 
       {/* Dynamic sections based on user config */}
-      <div>
+      <div className="overflow-y-auto scrollbar-thin" style={{ maxHeight: 'calc(100vh - 120px)' }}>
         {sections.filter(s => s.visible).map(s => (
           <CollapsibleRow key={s.id} title={s.title} icon={s.icon} defaultOpen={s.defaultOpen}>
             {renderSection(s)}
