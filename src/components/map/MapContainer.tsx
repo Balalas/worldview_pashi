@@ -37,9 +37,9 @@ const MapContainer = memo(() => {
 
     L.control.zoom({ position: 'bottomright' }).addTo(map);
     
-    // Create custom panes for proper z-ordering (cables above country borders)
+    // Custom pane for cables to render below country borders
     map.createPane('cablesPane');
-    map.getPane('cablesPane')!.style.zIndex = '450';
+    map.getPane('cablesPane')!.style.zIndex = '350';
     
     mapInstanceRef.current = map;
 
