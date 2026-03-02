@@ -20,7 +20,7 @@ const SEVERITY_CONFIG = {
 };
 
 const TYPE_ICONS: Record<string, string> = {
-  earthquake: '🌍', military: '⚔', protest: '✊', cyber: '🔒', fire: '🔥', weather: '⚠', conflict: '💥', war: '🔴',
+  earthquake: '🌍', military: '🎯', protest: '✊', cyber: '🔒', fire: '🔥', weather: '⚠', conflict: '💥', war: '🔴',
 };
 
 const WAR_KEYWORDS = /\b(war|airstrike|airstrikes|strike|strikes|shelling|shelled|bombed|bombing|bombardment|missile|missiles|rocket|rockets|killed|casualties|troops|offensive|invasion|siege|ceasefire|frontline|battle|combat|ambush|drone strike|artillery|mortar|gunfire|sniper|incursion|occupation|annex)\b/i;
