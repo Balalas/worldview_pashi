@@ -40,7 +40,7 @@ export function generateIntelBrief(data: BriefData): void {
   ctx.font = '700 22px Rajdhani, sans-serif';
   ctx.fillStyle = '#00ff88';
   ctx.textAlign = 'center';
-  ctx.fillText('WORLDVIEW INTELLIGENCE BRIEF', 400, 40);
+  ctx.fillText('WARMONITOR INTELLIGENCE BRIEF', 400, 40);
 
   ctx.font = '400 10px JetBrains Mono, monospace';
   ctx.fillStyle = '#cc2244';
