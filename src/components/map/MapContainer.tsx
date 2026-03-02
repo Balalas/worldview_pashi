@@ -17,7 +17,7 @@ const MapContainer = memo(() => {
   const layersRef = useRef<Record<string, L.LayerGroup>>({});
   const geoLayerRef = useRef<L.GeoJSON | null>(null);
 
-  const { layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, fires, liveCameras, setDetailPanel, setActiveLivestream, mapCenter, twitterGeoMarkers, news, setMapCenter, newsHotspots, epsteinMode } = useWorldViewStore();
+  const { layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, fires, liveCameras, setDetailPanel, setActiveLivestream, mapCenter, twitterGeoMarkers, news, setMapCenter, newsHotspots, epsteinMode, internetOutages } = useWorldViewStore();
 
   // Initialize map
   useEffect(() => {
@@ -37,7 +37,7 @@ const MapContainer = memo(() => {
     L.control.zoom({ position: 'bottomright' }).addTo(map);
     mapInstanceRef.current = map;
 
-    ['aircraft', 'satellites', 'earthquakes', 'conflicts', 'cables', 'weather', 'volcanoes', 'nuclear', 'vessels', 'protests', 'outages', 'cameras', 'fires', 'twitterOsint', 'newsMarkers', 'newsHotspots', 'epstein'].forEach((key) => {
+    ['aircraft', 'satellites', 'earthquakes', 'conflicts', 'cables', 'weather', 'volcanoes', 'nuclear', 'vessels', 'protests', 'outages', 'cameras', 'fires', 'twitterOsint', 'newsMarkers', 'newsHotspots', 'epstein', 'iodaOutages'].forEach((key) => {
       layersRef.current[key] = L.layerGroup().addTo(map);
     });
 
@@ -328,6 +328,63 @@ const MapContainer = memo(() => {
       group.addLayer(marker);
     });
   }, [outages, layers.outages, setDetailPanel]);
+
+  // Render IODA internet outages — multiple pulsing markers per country based on severity
+  useEffect(() => {
+    const group = layersRef.current['iodaOutages'];
+    if (!group) return;
+    group.clearLayers();
+    if (!layers.outages || internetOutages.length === 0) return;
+
+    internetOutages.forEach((o) => {
+      const color = o.severity === 'critical' ? '#ff0044' : o.severity === 'major' ? '#ff6b35' : '#ffb000';
+      const markerCount = o.severity === 'critical' ? 5 : o.severity === 'major' ? 3 : 2;
+      const baseSize = o.severity === 'critical' ? 28 : o.severity === 'major' ? 22 : 16;
+
+      // Central marker with drop % label
+      const centralHtml = `<div style="position:relative;width:${baseSize}px;height:${baseSize}px;">
+        <div style="position:absolute;inset:0;border:2px solid ${color};border-radius:50%;animation:ping-ring 2s ease-out infinite;opacity:0.6;"></div>
+        <div style="position:absolute;inset:3px;border:1px solid ${color}80;border-radius:50%;animation:ping-ring 2s ease-out 0.5s infinite;opacity:0.4;"></div>
+        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:${baseSize * 0.35}px;height:${baseSize * 0.35}px;background:${color};border-radius:50%;box-shadow:0 0 12px ${color};"></div>
+        <div style="position:absolute;bottom:-12px;left:50%;transform:translateX(-50%);white-space:nowrap;font-family:'JetBrains Mono',monospace;font-size:7px;color:${color};background:hsla(210,60%,4%,0.85);padding:1px 4px;border-radius:2px;border:1px solid ${color}40;">🌐 ↓${o.dropPercent}%</div>
+      </div>`;
+
+      const centralIcon = L.divIcon({ className: '', html: centralHtml, iconSize: [baseSize, baseSize + 14], iconAnchor: [baseSize / 2, baseSize / 2] });
+      const centralMarker = L.marker([o.lat, o.lon], { icon: centralIcon });
+      centralMarker.bindTooltip(`🌐 ${o.country} | ↓${o.dropPercent}% | ${o.severity.toUpperCase()}`, { direction: 'top', offset: [0, -baseSize / 2 - 4] });
+      centralMarker.on('click', () => {
+        setDetailPanel({ type: 'outage', data: {
+          id: `ioda-${o.countryCode}`, title: `${o.country} — Internet ↓${o.dropPercent}%`,
+          lat: o.lat, lon: o.lon, type: 'internet',
+          severity: o.severity === 'normal' ? 'minor' : o.severity,
+          source: 'IODA/CAIDA', time: new Date(o.timestamp), affected: o.country,
+        }});
+      });
+      group.addLayer(centralMarker);
+
+      // Scatter secondary pulsing dots around country center
+      for (let i = 1; i < markerCount; i++) {
+        const angle = (i / markerCount) * Math.PI * 2 + Math.random() * 0.5;
+        const dist = 1.5 + Math.random() * 2.5;
+        const sLat = o.lat + Math.cos(angle) * dist;
+        const sLon = o.lon + Math.sin(angle) * dist;
+        const sSize = 10 + Math.random() * 6;
+        const scatterHtml = `<div style="position:relative;width:${sSize}px;height:${sSize}px;">
+          <div style="position:absolute;inset:0;border:1.5px solid ${color};border-radius:50%;animation:ping-ring ${2 + i * 0.3}s ease-out infinite;opacity:0.5;"></div>
+          <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:${sSize * 0.4}px;height:${sSize * 0.4}px;background:${color};border-radius:50%;box-shadow:0 0 6px ${color};opacity:0.8;"></div>
+        </div>`;
+        const scatterIcon = L.divIcon({ className: '', html: scatterHtml, iconSize: [sSize, sSize], iconAnchor: [sSize / 2, sSize / 2] });
+        group.addLayer(L.marker([sLat, sLon], { icon: scatterIcon, interactive: false }));
+      }
+
+      // Area circle
+      const areaCircle = L.circle([o.lat, o.lon], {
+        radius: o.severity === 'critical' ? 500000 : o.severity === 'major' ? 350000 : 200000,
+        color, fillColor: color, fillOpacity: 0.06, weight: 1, opacity: 0.3, interactive: false,
+      });
+      group.addLayer(areaCircle);
+    });
+  }, [internetOutages, layers.outages, setDetailPanel]);
 
   // Render aircraft
   useEffect(() => {

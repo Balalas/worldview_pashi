@@ -3,6 +3,7 @@ import { WeatherAlert, VolcanoData } from '@/services/weatherService';
 import { CountryData } from '@/services/countryService';
 import { GlobalCamera } from '@/services/cameraService';
 import { ConflictIntel, MissileActivity } from '@/services/conflictIntelService';
+import { InternetOutage } from '@/services/internetOutageService';
 
 export interface NewsHotspot {
   id: string;
@@ -495,6 +496,10 @@ export interface WorldViewState {
   // News-driven hotspots
   newsHotspots: NewsHotspot[];
   setNewsHotspots: (hotspots: NewsHotspot[]) => void;
+
+  // IODA internet outages (geocoded)
+  internetOutages: InternetOutage[];
+  setInternetOutages: (outages: InternetOutage[]) => void;
 }
 
 export interface TwitterGeoMarker {
@@ -747,6 +752,9 @@ export const useWorldViewStore = create<WorldViewState>((set) => ({
 
   newsHotspots: [],
   setNewsHotspots: (newsHotspots) => set({ newsHotspots }),
+
+  internetOutages: [],
+  setInternetOutages: (internetOutages) => set({ internetOutages }),
 }));
 
 // Keyboard shortcuts
