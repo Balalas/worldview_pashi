@@ -89,11 +89,11 @@ const LandmarksDropdown = memo(() => {
         <div className="mt-1.5 max-h-[200px] overflow-y-auto space-y-1.5 animate-fade-in">
           {categories.map(cat => (
             <div key={cat.label}>
-              <div className="text-[7px] font-data text-muted-foreground/40 tracking-wider mb-0.5">{cat.label}</div>
+              <div className="text-[9px] font-data text-muted-foreground/40 tracking-wider mb-0.5">{cat.label}</div>
               <div className="flex flex-wrap gap-0.5">
                 {cat.items.map(lm => (
                   <button key={lm.label} onClick={() => { setMapCenter({ lat: lm.lat, lon: lm.lon, zoom: lm.zoom }); }}
-                    className="px-1.5 py-0.5 text-[7px] font-data text-muted-foreground/60 hover:text-primary hover:bg-primary/5 rounded transition-colors truncate">
+                    className="px-1.5 py-0.5 text-[9px] font-data text-muted-foreground/60 hover:text-primary hover:bg-primary/5 rounded transition-colors truncate">
                     {lm.emoji} {lm.label}
                   </button>
                 ))}
@@ -139,10 +139,10 @@ const LeftPanel = memo(() => {
         {/* Section Tabs */}
         <div className="flex border-b border-border/50">
           <button onClick={() => setActiveSection('layers')}
-            className={`flex-1 py-1.5 text-[8px] font-display tracking-[0.2em] transition-colors ${activeSection === 'layers' ? 'text-primary bg-primary/5 border-b border-primary/40' : 'text-muted-foreground hover:text-foreground'}`}
+            className={`flex-1 py-1.5 text-[10px] font-display tracking-[0.2em] transition-colors ${activeSection === 'layers' ? 'text-primary bg-primary/5 border-b border-primary/40' : 'text-muted-foreground hover:text-foreground'}`}
           >DATA LAYERS</button>
           <button onClick={() => setActiveSection('xosint')}
-            className={`flex-1 py-1.5 text-[8px] font-display tracking-[0.2em] transition-colors flex items-center justify-center gap-1.5 ${activeSection === 'xosint' ? 'text-primary bg-primary/5 border-b border-primary/40' : 'text-muted-foreground hover:text-foreground'}`}
+            className={`flex-1 py-1.5 text-[10px] font-display tracking-[0.2em] transition-colors flex items-center justify-center gap-1.5 ${activeSection === 'xosint' ? 'text-primary bg-primary/5 border-b border-primary/40' : 'text-muted-foreground hover:text-foreground'}`}
           >
             <span>𝕏 OSINT</span>
             {twitterPosts.length > 0 && <span className="w-1 h-1 rounded-full bg-alert-critical animate-pulse" />}
@@ -164,11 +164,11 @@ const LeftPanel = memo(() => {
                           <button onClick={() => toggleLayer(key)} className="flex-1 flex items-center justify-between px-2 py-0.5 rounded text-xs hover:bg-primary/5 transition-colors group">
                             <div className="flex items-center gap-2">
                               <div className={`w-1.5 h-1.5 rounded-full ${layers[key] ? colorClass : 'bg-muted/30'} transition-colors`} />
-                              <span className={`font-display tracking-wider text-[10px] ${layers[key] ? 'text-foreground' : 'text-muted-foreground/60'}`}>{label}</span>
+                              <span className={`font-display tracking-wider text-[12px] ${layers[key] ? 'text-foreground' : 'text-muted-foreground/60'}`}>{label}</span>
                             </div>
                             <div className="flex items-center gap-1.5">
-                              <span className={`text-[8px] font-data ${layers[key] ? 'text-primary' : 'text-muted/40'}`}>{layers[key] ? 'ON' : '—'}</span>
-                              {shortcut && <span className="text-[7px] font-data text-muted/30 opacity-0 group-hover:opacity-100">[{shortcut}]</span>}
+                              <span className={`text-[10px] font-data ${layers[key] ? 'text-primary' : 'text-muted/40'}`}>{layers[key] ? 'ON' : '—'}</span>
+                              {shortcut && <span className="text-[9px] font-data text-muted/30 opacity-0 group-hover:opacity-100">[{shortcut}]</span>}
                             </div>
                           </button>
                           {hasSubs && layers[key] && (
@@ -247,11 +247,11 @@ const LeftPanel = memo(() => {
 
               {/* Region Presets */}
               <div className="px-2 pb-2 border-t border-border/30 pt-2">
-                <div className="text-[8px] font-display tracking-[0.2em] text-muted-foreground/60 mb-1.5">REGION</div>
+                <div className="text-[10px] font-display tracking-[0.2em] text-muted-foreground/60 mb-1.5">REGION</div>
                 <div className="flex flex-wrap gap-0.5">
                   {REGION_PRESETS.map((preset) => (
                     <button key={preset.label} onClick={() => handleRegion(preset)}
-                      className={`px-1.5 py-0.5 text-[8px] font-display tracking-wider rounded transition-colors ${activeRegion === preset.label ? 'text-primary bg-primary/10 border border-primary/20' : 'text-muted-foreground/50 hover:text-foreground border border-transparent'}`}>
+                      className={`px-1.5 py-0.5 text-[10px] font-display tracking-wider rounded transition-colors ${activeRegion === preset.label ? 'text-primary bg-primary/10 border border-primary/20' : 'text-muted-foreground/50 hover:text-foreground border border-transparent'}`}>
                       {preset.emoji} {preset.label}
                     </button>
                   ))}
@@ -269,17 +269,17 @@ const LeftPanel = memo(() => {
               <div className="p-2">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-xs">𝕏</span>
-                  <span className="text-[9px] font-display tracking-[0.12em] text-primary">LIVE OSINT FEED</span>
+                  <span className="text-[11px] font-display tracking-[0.12em] text-primary">LIVE OSINT FEED</span>
                   <span className="flex items-center gap-0.5 ml-auto">
                     <span className="w-1.5 h-1.5 rounded-full bg-alert-critical animate-pulse" />
-                    <span className="text-[7px] font-data text-alert-critical">LIVE</span>
+                    <span className="text-[9px] font-data text-alert-critical">LIVE</span>
                   </span>
                 </div>
-                <div className="text-[7px] font-data text-muted-foreground/50 mb-2">{twitterPosts.length} posts from OSINT accounts</div>
+                <div className="text-[9px] font-data text-muted-foreground/50 mb-2">{twitterPosts.length} posts from OSINT accounts</div>
                 {twitterPosts.length === 0 ? (
                   <div className="text-center py-6">
                     <div className="text-xl mb-1 opacity-20">𝕏</div>
-                    <div className="text-[9px] font-data text-muted-foreground/40">Loading OSINT feed...</div>
+                    <div className="text-[11px] font-data text-muted-foreground/40">Loading OSINT feed...</div>
                   </div>
                 ) : (
                   <div className="space-y-1.5 max-h-[calc(100vh-200px)] overflow-y-auto">

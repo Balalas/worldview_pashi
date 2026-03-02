@@ -36,14 +36,14 @@ const TopBar = memo(() => {
 
         {/* Classification tag */}
         <div className={`hidden md:flex px-2 py-0.5 border rounded-sm ${warMode ? 'border-destructive/40 bg-destructive/10' : 'border-destructive/20 bg-destructive/5'}`}>
-          <span className={`text-[7px] font-data tracking-[0.3em] ${warMode ? 'text-destructive' : 'text-destructive/70'}`}>
+          <span className={`text-[9px] font-data tracking-[0.3em] ${warMode ? 'text-destructive' : 'text-destructive/70'}`}>
             {warMode ? 'WAR MODE // MILITARY ONLY' : 'UNCLASSIFIED // FOUO'}
           </span>
         </div>
       </div>
 
       {/* Center — counters + map mode */}
-      <div className="hidden lg:flex items-center gap-2 font-data text-[9px]">
+      <div className="hidden lg:flex items-center gap-2 font-data text-[11px]">
         {!warMode && <CounterBadge icon="✈" count={aircraft.length} color="text-signal-aircraft" />}
         <CounterBadge icon="⚔" count={militaryCount} color="text-signal-military" />
         {!warMode && <CounterBadge icon="🛰" count={satellites.length} color="text-signal-satellite" />}
@@ -67,7 +67,7 @@ const TopBar = memo(() => {
         {mapMode === 'google3d' && (
           <>
             <button onClick={toggleDroneMode}
-              className={`px-2 py-0.5 text-[8px] font-display tracking-[0.15em] rounded border transition-all ${
+              className={`px-2 py-0.5 text-[10px] font-display tracking-[0.15em] rounded border transition-all ${
                 droneMode
                   ? 'bg-accent/20 text-accent border-accent/40 shadow-[0_0_8px_hsl(150_100%_50%/0.15)]'
                   : 'text-muted-foreground border-transparent hover:border-accent/20 hover:text-accent/70'
@@ -83,7 +83,7 @@ const TopBar = memo(() => {
             <span className="text-primary/20 mx-1">│</span>
             {/* Detection mode toggle */}
             <button onClick={toggleDetectionMode}
-              className={`px-2 py-0.5 text-[8px] font-display tracking-[0.15em] rounded border transition-all ${
+              className={`px-2 py-0.5 text-[10px] font-display tracking-[0.15em] rounded border transition-all ${
                 detectionMode === 'sparse'
                   ? 'bg-accent/15 text-accent border-accent/25'
                   : 'bg-primary/10 text-primary border-primary/20'
@@ -98,7 +98,7 @@ const TopBar = memo(() => {
         {styleLabel && (
           <>
             <span className="text-primary/20 mx-1">│</span>
-            <span className="text-[8px] font-data text-amber-400 tracking-wider">[{styleLabel}]</span>
+            <span className="text-[10px] font-data text-amber-400 tracking-wider">[{styleLabel}]</span>
           </>
         )}
 
@@ -123,7 +123,7 @@ const TopBar = memo(() => {
             >
               {circularViewport ? '⊙ CIRC' : '⊘ CIRC'}
             </button>
-            <span className="text-[8px] font-data text-muted-foreground/50 tracking-wider">[{hudLayout.toUpperCase()}]</span>
+            <span className="text-[10px] font-data text-muted-foreground/50 tracking-wider">[{hudLayout.toUpperCase()}]</span>
           </>
         )}
       </div>
@@ -228,13 +228,13 @@ const WarModeButton = ({ active, onClick, compact }: { active: boolean; onClick:
 };
 
 const MapToggleBtn = ({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) => (
-  <button onClick={onClick} className={`px-2 py-0.5 text-[8px] font-display tracking-[0.15em] transition-all ${active ? 'bg-primary/20 text-primary shadow-[0_0_6px_hsl(150_100%_50%/0.15)]' : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'}`}>{label}</button>
+  <button onClick={onClick} className={`px-2 py-0.5 text-[10px] font-display tracking-[0.15em] transition-all ${active ? 'bg-primary/20 text-primary shadow-[0_0_6px_hsl(150_100%_50%/0.15)]' : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'}`}>{label}</button>
 );
 
 const CounterBadge = ({ icon, count, color }: { icon: string; count: number; color: string }) => (
   <div className="flex items-center gap-1">
-    <span className="text-[9px]">{icon}</span>
-    <span className={`${color} font-bold tabular-nums text-[9px]`}>{count.toLocaleString()}</span>
+    <span className="text-[11px]">{icon}</span>
+    <span className={`${color} font-bold tabular-nums text-[11px]`}>{count.toLocaleString()}</span>
   </div>
 );
 
