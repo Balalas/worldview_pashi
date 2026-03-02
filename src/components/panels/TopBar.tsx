@@ -1,11 +1,13 @@
 import { memo, useEffect, useState } from 'react';
 import { useWorldViewStore, MapMode, DashboardMode, DetectionMode } from '@/store/worldview';
+import NetworkStatusPanel from '@/components/hud/NetworkStatusPanel';
 
 const TopBar = memo(() => {
   const { aircraft, satellites, earthquakes, vessels, toggleLeftPanel, mapMode, setMapMode, detectionMode, toggleDetectionMode, visualStyle, circularViewport, toggleCircularViewport, panopticEnabled, togglePanoptic, hudLayout, immersiveMode, warMode, toggleWarMode, triggerManualRefresh, newsLoading, droneMode, toggleDroneMode, epsteinMode, toggleEpsteinMode, setMapCenter } = useWorldViewStore();
   const militaryCount = aircraft.filter(a => a.isMilitary).length;
   const [utc, setUtc] = useState('');
   const [refreshFlash, setRefreshFlash] = useState(false);
+  const [networkOpen, setNetworkOpen] = useState(false);
 
   useEffect(() => {
     const tick = () => setUtc(new Date().toLocaleTimeString('en-US', { hour12: false, timeZone: 'UTC' }));
@@ -142,6 +144,15 @@ const TopBar = memo(() => {
 
       {/* Right — Refresh + WAR/LIVE + UTC */}
       <div className="flex items-center gap-2.5">
+        {/* Network status button */}
+        <button
+          onClick={() => setNetworkOpen(!networkOpen)}
+          className={`px-2 py-0.5 text-[8px] font-display tracking-[0.15em] rounded border transition-all ${
+            networkOpen ? 'bg-primary/20 border-primary/40 text-primary' : 'border-primary/15 text-muted-foreground hover:text-primary hover:border-primary/30'
+          }`}
+        >
+          📡 NET
+        </button>
         {/* Live refresh button */}
         <button
           onClick={() => { triggerManualRefresh(); setRefreshFlash(true); setTimeout(() => setRefreshFlash(false), 1000); }}
@@ -162,6 +173,9 @@ const TopBar = memo(() => {
         </div>
         <span className="text-[9px] font-data text-muted-foreground hidden sm:block tracking-wider tabular-nums">{utc} UTC</span>
       </div>
+
+      {/* Network Status Panel */}
+      <NetworkStatusPanel open={networkOpen} onClose={() => setNetworkOpen(false)} />
     </header>
   );
 });
