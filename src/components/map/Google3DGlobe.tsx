@@ -82,7 +82,7 @@ function aircraftReticleSvg(heading: number, isMilitary: boolean, callsign: stri
           fill="${color}" stroke="#000" stroke-width="0.5" opacity="0.95"/>
       </g>
     </g>
-    <text x="${w/2}" y="49" text-anchor="middle" font-family="monospace" font-size="9" fill="${color}" font-weight="bold" stroke="#000" stroke-width="2.5" paint-order="stroke">${callsign}${isMilitary ? ' ★' : ''}</text>
+    <text x="${w/2}" y="49" text-anchor="middle" font-family="monospace" font-size="11" fill="${color}" font-weight="bold" stroke="#000" stroke-width="3" paint-order="stroke">${callsign}${isMilitary ? ' ★' : ''}</text>
   </svg>`);
 }
 
@@ -108,9 +108,9 @@ function satelliteReticleSvg(color: string, name: string, isISS: boolean, catego
     ${isISS ? `
       <line x1="${s/2-16}" y1="20" x2="${s/2+16}" y2="20" stroke="${color}" stroke-width="2" opacity="0.7"/>
       <rect x="${s/2-3}" y="38" width="${s-s/2+6}" height="14" rx="2" fill="#000" fill-opacity="0.7" transform="translate(${-s/2+s/2-3},0)"/>
-      <text x="${s/2}" y="49" text-anchor="middle" font-family="monospace" font-size="10" fill="#ff6600" font-weight="bold">ISS${missionLabel}</text>
+      <text x="${s/2}" y="49" text-anchor="middle" font-family="monospace" font-size="12" fill="#ff6600" font-weight="bold">ISS${missionLabel}</text>
     ` : `
-      <text x="${s/2}" y="${s-4}" text-anchor="middle" font-family="monospace" font-size="6" fill="${color}" opacity="0.7">${name.substring(0,12)}${missionLabel}</text>
+      <text x="${s/2}" y="${s-4}" text-anchor="middle" font-family="monospace" font-size="9" fill="${color}" opacity="0.8" stroke="#000" stroke-width="2" paint-order="stroke">${name.substring(0,12)}${missionLabel}</text>
     `}
   </svg>`);
 }
@@ -144,8 +144,8 @@ function quakeSvg(mag: number, depth: number, color: string, isSignificant: bool
     </circle>
     <circle cx="${cx}" cy="${cy}" r="${s/4}" fill="${color}" opacity="0.8"/>
     ${isSignificant ? `<circle cx="${cx}" cy="${cy}" r="${s/6}" fill="#fff" opacity="0.9"><animate attributeName="opacity" values="0.9;0.4;0.9" dur="0.8s" repeatCount="indefinite"/></circle>` : ''}
-    <text x="${cx}" y="${h-6}" text-anchor="middle" font-family="monospace" font-size="10" fill="${color}" font-weight="bold">M${mag.toFixed(1)}</text>
-    <text x="${cx}" y="${h+4}" text-anchor="middle" font-family="monospace" font-size="6" fill="${color}" opacity="0.6">${depthLabel} ${Math.round(depth)}km</text>
+    <text x="${cx}" y="${h-6}" text-anchor="middle" font-family="monospace" font-size="12" fill="${color}" font-weight="bold" stroke="#000" stroke-width="3" paint-order="stroke">M${mag.toFixed(1)}</text>
+    <text x="${cx}" y="${h+4}" text-anchor="middle" font-family="monospace" font-size="9" fill="${color}" opacity="0.7" stroke="#000" stroke-width="2" paint-order="stroke">${depthLabel} ${Math.round(depth)}km</text>
   </svg>`);
 }
 
@@ -155,17 +155,17 @@ function vesselSvg(heading: number, color: string, name: string, type: string) {
     <g transform="translate(35,16) rotate(${heading})">
       <path d="M0,-10 L-6,8 L0,6 L6,8 Z" fill="${color}" stroke="#000" stroke-width="0.6" opacity="0.9"/>
     </g>
-    <text x="35" y="45" text-anchor="middle" font-family="monospace" font-size="8" fill="${color}" stroke="#000" stroke-width="2" paint-order="stroke">${emoji} ${name.substring(0,10)}</text>
+    <text x="35" y="45" text-anchor="middle" font-family="monospace" font-size="10" fill="${color}" stroke="#000" stroke-width="2.5" paint-order="stroke">${emoji} ${name.substring(0,10)}</text>
   </svg>`);
 }
 
 function iconSvg(icon: string, color: string, label: string, sublabel?: string) {
-  const w = Math.max(70, label.length * 6 + 16);
-  const h = sublabel ? 52 : 40;
+  const w = Math.max(80, label.length * 7 + 16);
+  const h = sublabel ? 56 : 44;
   return svgEl(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
-    <text x="${w/2}" y="16" text-anchor="middle" font-size="16">${icon}</text>
-    <text x="${w/2}" y="32" text-anchor="middle" font-family="monospace" font-size="7" fill="${color}" stroke="#000" stroke-width="2.5" paint-order="stroke">${label}</text>
-    ${sublabel ? `<text x="${w/2}" y="${h-4}" text-anchor="middle" font-family="monospace" font-size="6" fill="${color}" opacity="0.6">${sublabel}</text>` : ''}
+    <text x="${w/2}" y="18" text-anchor="middle" font-size="18">${icon}</text>
+    <text x="${w/2}" y="34" text-anchor="middle" font-family="monospace" font-size="10" fill="${color}" stroke="#000" stroke-width="3" paint-order="stroke" font-weight="bold">${label}</text>
+    ${sublabel ? `<text x="${w/2}" y="${h-4}" text-anchor="middle" font-family="monospace" font-size="8" fill="${color}" opacity="0.7" stroke="#000" stroke-width="2" paint-order="stroke">${sublabel}</text>` : ''}
   </svg>`);
 }
 
@@ -228,14 +228,14 @@ function explosionSvg(intensity: number, color: string, label: string) {
       <animate attributeName="opacity" values="0.3;0;0.3" dur="${(parseFloat(d3)+1).toFixed(1)}s" repeatCount="indefinite" begin="0.4s"/>
     </circle>
     <!-- label -->
-    <text x="${w/2}" y="${h-6}" text-anchor="middle" font-family="monospace" font-size="7" fill="${color}" font-weight="bold" stroke="#000" stroke-width="2.5" paint-order="stroke">⚔ ${label}</text>
+    <text x="${w/2}" y="${h-6}" text-anchor="middle" font-family="monospace" font-size="10" fill="${color}" font-weight="bold" stroke="#000" stroke-width="3" paint-order="stroke">⚔ ${label}</text>
   </svg>`);
 }
 
 function gdeltEventSvg(color: string, size: number, label: string, icon: string, severity: string) {
   const r = size * 2.5;
-  const w = Math.max(80, label.length * 5 + 16);
-  const h = r * 2 + 24;
+  const w = Math.max(90, label.length * 6 + 16);
+  const h = r * 2 + 28;
   const cx = w / 2;
   const cy = r + 2;
   const isCrit = severity === 'critical';
@@ -248,8 +248,8 @@ function gdeltEventSvg(color: string, size: number, label: string, icon: string,
   return svgEl(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
     <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${color}" stroke-width="1" opacity="0.4">${pulseAnim}</circle>
     <circle cx="${cx}" cy="${cy}" r="${r*0.5}" fill="${color}" opacity="0.7"/>
-    <text x="${cx}" y="${cy+4}" text-anchor="middle" font-size="10">${icon}</text>
-    <text x="${w/2}" y="${h-6}" text-anchor="middle" font-family="monospace" font-size="6" fill="${color}" stroke="#000" stroke-width="2" paint-order="stroke">${label}</text>
+    <text x="${cx}" y="${cy+4}" text-anchor="middle" font-size="12">${icon}</text>
+    <text x="${w/2}" y="${h-6}" text-anchor="middle" font-family="monospace" font-size="9" fill="${color}" stroke="#000" stroke-width="2.5" paint-order="stroke" font-weight="bold">${label}</text>
   </svg>`);
 }
 
@@ -285,7 +285,7 @@ function twitterPostSvg(account: string, text: string, isConflict: boolean) {
     <!-- X symbol -->
     <text x="${w/2}" y="${h/2+4}" text-anchor="middle" font-family="monospace" font-size="9" fill="#fff" font-weight="bold" filter="url(#xglow)">𝕏</text>
     <!-- Account label with glow instead of black box -->
-    <text x="${w/2}" y="${h-2}" text-anchor="middle" font-family="monospace" font-size="6" fill="${color}" font-weight="bold" filter="url(#xglow)">@${account.substring(0,10)}</text>
+    <text x="${w/2}" y="${h-2}" text-anchor="middle" font-family="monospace" font-size="8" fill="${color}" font-weight="bold" filter="url(#xglow)" stroke="#000" stroke-width="2" paint-order="stroke">@${account.substring(0,10)}</text>
   </svg>`);
 }
 
