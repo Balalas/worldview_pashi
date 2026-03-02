@@ -5,7 +5,7 @@ interface BootScreenProps {
 }
 
 const BOOT_MESSAGES = [
-  { text: '[SYS] Initializing WORLDVIEW intelligence platform...', delay: 200 },
+  { text: '[SYS] Initializing WARMONITOR intelligence platform...', delay: 200 },
   { text: '[NET] Establishing secure data channels...', delay: 400 },
   { text: '[SAT] Loading orbital propagation engine (SGP4)...', delay: 600 },
   { text: '[MAP] Initializing Google 3D Globe renderer...', delay: 800 },
@@ -24,7 +24,7 @@ const BOOT_MESSAGES = [
   { text: '[TRN] Connecting to EU rail APIs (FI/DE/CH)...', delay: 2900 },
   { text: '[WX]  Loading global weather stations...', delay: 3000 },
   { text: '[OK]  All systems nominal. 24+ data layers active.', delay: 3400 },
-  { text: '[OK]  WORLDVIEW ready. Welcome, operator.', delay: 3800 },
+  { text: '[OK]  WARMONITOR ready. Welcome, operator.', delay: 3800 },
 ];
 
 const CREDENTIALS = [
@@ -113,7 +113,7 @@ const BootScreen = memo(({ onComplete }: BootScreenProps) => {
       </div>
 
       {/* Title */}
-      <h1 className="text-2xl font-display tracking-[0.5em] text-primary font-bold mb-1 glow-green">WORLDVIEW</h1>
+      <h1 className="text-2xl font-display tracking-[0.5em] text-primary font-bold mb-1 glow-green">WARMONITOR</h1>
       <div className="text-[9px] font-data tracking-[0.4em] text-primary/40 mb-6">GLOBAL INTELLIGENCE PLATFORM</div>
 
       {/* Classification banner */}

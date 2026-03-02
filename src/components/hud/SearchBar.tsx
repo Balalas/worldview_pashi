@@ -52,7 +52,7 @@ const SearchBar = memo(() => {
     geoTimer.current = setTimeout(async () => {
       try {
         const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5&addressdetails=1`, {
-          headers: { 'User-Agent': 'WorldView/1.0' },
+          headers: { 'User-Agent': 'WarMonitor/1.0' },
         });
         const data = await res.json();
         const geo: SearchResult[] = data.map((d: any) => ({
