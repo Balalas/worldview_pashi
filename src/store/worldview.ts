@@ -4,6 +4,18 @@ import { CountryData } from '@/services/countryService';
 import { GlobalCamera } from '@/services/cameraService';
 import { ConflictIntel, MissileActivity } from '@/services/conflictIntelService';
 
+export interface NewsHotspot {
+  id: string;
+  lat: number;
+  lon: number;
+  radius: number;
+  intensity: 'critical' | 'high' | 'medium';
+  label: string;
+  newsCount: number;
+  categories: string[];
+  timestamp: Date;
+}
+
 export type LayerType =
   | 'aircraft' | 'satellites' | 'cameras' | 'militaryFlights'
   | 'vessels' | 'nuclearSites' | 'underseaCables' | 'conflicts'
@@ -475,6 +487,10 @@ export interface WorldViewState {
   setTwitterPosts: (posts: TwitterOsintPost[]) => void;
   twitterLastFetch: string | null;
   setTwitterLastFetch: (ts: string) => void;
+
+  // News-driven hotspots
+  newsHotspots: NewsHotspot[];
+  setNewsHotspots: (hotspots: NewsHotspot[]) => void;
 }
 
 export interface TwitterGeoMarker {
@@ -721,6 +737,9 @@ export const useWorldViewStore = create<WorldViewState>((set) => ({
   setTwitterPosts: (twitterPosts) => set({ twitterPosts }),
   twitterLastFetch: null,
   setTwitterLastFetch: (twitterLastFetch) => set({ twitterLastFetch }),
+
+  newsHotspots: [],
+  setNewsHotspots: (newsHotspots) => set({ newsHotspots }),
 }));
 
 // Keyboard shortcuts

@@ -31,6 +31,7 @@ import { fetchConflictIntel } from '@/services/conflictIntelService';
 import { fetchOsintData } from '@/services/osintService';
 import { fetchTwitterOsint } from '@/services/twitterOsintService';
 import { CONFLICT_ZONES } from '@/data/conflictZones';
+import { syncLayersWithNews } from '@/services/newsLayerSyncService';
 
 const Google3DGlobe = lazy(() => import('@/components/map/Google3DGlobe'));
 
@@ -196,6 +197,8 @@ const Index = () => {
         setProtests(extractProtestsFromNews(allNews));
         setOutages(extractOutagesFromNews(allNews));
         setNewsLoading(false);
+        // Sync layers with news
+        setTimeout(syncLayersWithNews, 500);
       } catch (e) {
         console.warn('News fetch error:', e);
         // Fallback to RSS only
@@ -272,6 +275,7 @@ const Index = () => {
         setGeoEvents(gdeltResult.events);
         setProtests(extractProtestsFromNews(allNews));
         setOutages(extractOutagesFromNews(allNews));
+        syncLayersWithNews();
       } catch (e) {
         console.warn('News refresh error:', e);
       }
@@ -309,6 +313,7 @@ const Index = () => {
         const allNews = [...gdeltResult.articles, ...uniqueRss].sort((a, b) => b.time.getTime() - a.time.getTime());
         setNews(allNews);
         setGeoEvents(gdeltResult.events);
+        syncLayersWithNews();
       } catch (e) {
         console.warn('War mode refresh error:', e);
       }
@@ -372,6 +377,7 @@ const Index = () => {
             }));
             setTwitterGeoMarkers(markers);
             console.log(`[X/OSINT] ${markers.length} geolocated + ${data.posts.length} total posts`);
+            syncLayersWithNews();
           }
         }
       } catch (e) {
