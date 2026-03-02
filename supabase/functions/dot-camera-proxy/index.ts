@@ -18,18 +18,26 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Only allow known DOT camera domains
+    // Allow known camera domains from all aggregator sources
     const allowed = [
-      '207.251.86.238',        // NYC DOT
-      'webcams.nyctmc.org',    // NYC TMC
-      'cwwp2.dot.ca.gov',      // Caltrans
-      'its.ny.gov',            // NY State
+      '207.251.86.238',           // NYC DOT
+      'webcams.nyctmc.org',       // NYC TMC
+      'cwwp2.dot.ca.gov',         // Caltrans
+      'its.ny.gov',               // NY State
       'trafficcams.vancouver.ca', // Vancouver
-      'tdg-images-cctv',       // misc DOT
-      'fl511.com',             // Florida DOT
-      'hb.511ia.org',          // Iowa DOT
-      'video.dot.ca.gov',      // Caltrans video
-      'wzmedia.dot.ca.gov',    // Caltrans media
+      'tdg-images-cctv',          // misc DOT
+      'fl511.com',                // Florida DOT
+      'hb.511ia.org',             // Iowa DOT
+      'video.dot.ca.gov',         // Caltrans video
+      'wzmedia.dot.ca.gov',       // Caltrans media
+      'weathercam.digitraffic.fi',// Finland Digitraffic
+      'tie.digitraffic.fi',       // Finland Digitraffic alt
+      'images.data.gov.sg',       // Singapore LTA
+      'tdcctv.data.one.gov.hk',   // Hong Kong traffic
+      's3-eu-west-1.amazonaws.com', // TfL JamCams
+      'tfl.gov.uk',               // TfL
+      'jamcams.tfl.gov.uk',       // TfL JamCams
+      'api.tfl.gov.uk',           // TfL API
     ];
 
     const urlObj = new URL(url);

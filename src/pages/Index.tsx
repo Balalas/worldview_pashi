@@ -55,8 +55,17 @@ const QUICK_LANDMARKS = [
 const DotSnapshotImage = memo(({ snapshotUrl, name }: { snapshotUrl: string; name: string }) => {
   const [imgSrc, setImgSrc] = useState('');
   const [error, setError] = useState(false);
+  const [useProxy, setUseProxy] = useState(false);
 
   const refreshImage = useCallback(() => {
+    if (!useProxy) {
+      // Try direct load first (works for digitraffic, singapore, etc.)
+      const directUrl = `${snapshotUrl}${snapshotUrl.includes('?') ? '&' : '?'}t=${Date.now()}`;
+      setImgSrc(directUrl);
+      setError(false);
+      return;
+    }
+    // Proxy fallback for CORS-blocked sources
     const proxyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/dot-camera-proxy`;
     fetch(proxyUrl, {
       method: 'POST',
@@ -70,22 +79,30 @@ const DotSnapshotImage = memo(({ snapshotUrl, name }: { snapshotUrl: string; nam
       .then(blob => {
         const objectUrl = URL.createObjectURL(blob);
         setImgSrc(prev => {
-          if (prev) URL.revokeObjectURL(prev);
+          if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
           return objectUrl;
         });
         setError(false);
       })
       .catch(() => setError(true));
-  }, [snapshotUrl]);
+  }, [snapshotUrl, useProxy]);
 
   useEffect(() => {
     refreshImage();
-    const interval = setInterval(refreshImage, 4000);
+    const interval = setInterval(refreshImage, 8000);
     return () => {
       clearInterval(interval);
-      if (imgSrc) URL.revokeObjectURL(imgSrc);
+      if (imgSrc && imgSrc.startsWith('blob:')) URL.revokeObjectURL(imgSrc);
     };
   }, [refreshImage]);
+
+  const handleImgError = useCallback(() => {
+    if (!useProxy) {
+      setUseProxy(true); // Switch to proxy on direct load failure
+    } else {
+      setError(true);
+    }
+  }, [useProxy]);
 
   if (error) {
     return (
@@ -99,7 +116,7 @@ const DotSnapshotImage = memo(({ snapshotUrl, name }: { snapshotUrl: string; nam
   }
 
   return imgSrc ? (
-    <img src={imgSrc} alt={name} className="w-full h-full object-cover" />
+    <img src={imgSrc} alt={name} className="w-full h-full object-cover" onError={handleImgError} />
   ) : (
     <div className="w-full h-full flex items-center justify-center bg-background/80">
       <div className="w-4 h-4 border border-primary border-t-transparent rounded-full animate-spin" />
