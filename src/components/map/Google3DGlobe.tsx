@@ -1153,9 +1153,11 @@ const Google3DGlobe = memo(() => {
       }
     };
 
-    // Aircraft — filtered by sub-options
-    if (layers.aircraft) {
+    // Aircraft — filtered by sub-options (also show military-only when militaryFlights is on)
+    if (layers.aircraft || layers.militaryFlights) {
       let filteredAircraft = aircraft.filter(ac => {
+        // If only militaryFlights is on (not aircraft), show military only
+        if (!layers.aircraft && layers.militaryFlights) return ac.isMilitary;
         if (!layers.militaryFlights && ac.isMilitary) return false;
         if (!layerSubFilters.showMilitaryAC && ac.isMilitary) return false;
         if (!layerSubFilters.showCivilian && !ac.isMilitary) return false;
