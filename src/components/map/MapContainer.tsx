@@ -65,10 +65,8 @@ const MapContainer = memo(() => {
               mouseover: (e) => {
                 const l = e.target;
                 l.setStyle({
-                  fillColor: 'hsl(var(--primary))',
-                  fillOpacity: 0.15,
-                  weight: 1.5,
-                  opacity: 0.7,
+                  weight: 1.2,
+                  opacity: 0.6,
                 });
                 l.bringToFront();
               },
@@ -654,37 +652,18 @@ const MapContainer = memo(() => {
       if (items.length === 0) return;
       const hasCritical = items.some(i => i.severity === 'critical');
       const hasHigh = items.some(i => i.severity === 'high');
-      const isConflict = items.some(i => i.category === 'conflict' || i.category === 'military');
-      const color = hasCritical ? '#ff0044' : hasHigh ? '#ff6b35' : isConflict ? '#ff6b35' : '#00d4ff';
+      const color = hasCritical ? '#ff0044' : hasHigh ? '#ff6b35' : '#00d4ff';
       const count = items.length;
-      const size = hasCritical ? 28 : hasHigh ? 22 : 18;
+      const dotSize = 10;
 
-      let markerHtml: string;
-      if (isConflict || hasCritical) {
-        // Animated explosion/pulse for conflict news
-        markerHtml = `<div style="position:relative;width:${size}px;height:${size}px;">
-          <svg viewBox="0 0 100 100" width="${size}" height="${size}" style="position:absolute;inset:0;">
-            <circle cx="50" cy="50" r="10" fill="none" stroke="${color}" stroke-width="1.5" opacity="0.5">
-              <animate attributeName="r" values="10;42" dur="2.5s" repeatCount="indefinite"/>
-              <animate attributeName="opacity" values="0.5;0" dur="2.5s" repeatCount="indefinite"/>
-            </circle>
-            <circle cx="50" cy="50" r="7" fill="${color}" opacity="0.7">
-              <animate attributeName="r" values="5;9;5" dur="1.4s" repeatCount="indefinite"/>
-              <animate attributeName="opacity" values="0.7;1;0.7" dur="1.4s" repeatCount="indefinite"/>
-            </circle>
-          </svg>
-          <div style="position:absolute;top:-8px;right:-10px;background:${color};color:#000;font-size:8px;font-weight:bold;font-family:'JetBrains Mono',monospace;padding:0 3px;border-radius:3px;min-width:14px;text-align:center;">${count}</div>
-        </div>`;
-      } else {
-        // Simple pulsing dot for regular news
-        markerHtml = `<div style="position:relative;width:${size}px;height:${size}px;">
-          <div style="position:absolute;inset:0;border:1.5px solid ${color};border-radius:50%;animation:ping-ring 3s ease-out infinite;opacity:0.4;"></div>
-          <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:${size * 0.35}px;height:${size * 0.35}px;background:${color};border-radius:50%;box-shadow:0 0 6px ${color};"></div>
-          <div style="position:absolute;top:-8px;right:-10px;background:${color}cc;color:#000;font-size:7px;font-weight:bold;font-family:'JetBrains Mono',monospace;padding:0 3px;border-radius:3px;min-width:12px;text-align:center;">${count}</div>
-        </div>`;
-      }
+      // Small flashing circle for all news markers
+      const markerHtml = `<div style="position:relative;width:${dotSize * 2}px;height:${dotSize * 2}px;">
+        <div style="position:absolute;inset:0;border:1.5px solid ${color};border-radius:50%;animation:ping-ring 2.5s ease-out infinite;opacity:0.5;"></div>
+        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:${dotSize * 0.7}px;height:${dotSize * 0.7}px;background:${color};border-radius:50%;box-shadow:0 0 8px ${color};animation:pulse-dot 1.5s ease-in-out infinite;"></div>
+        <div style="position:absolute;top:-7px;right:-8px;background:${color};color:#000;font-size:7px;font-weight:bold;font-family:'JetBrains Mono',monospace;padding:0 3px;border-radius:3px;min-width:12px;text-align:center;line-height:14px;">${count}</div>
+      </div>`;
 
-      const icon = L.divIcon({ className: '', html: markerHtml, iconSize: [size, size], iconAnchor: [size / 2, size / 2] });
+      const icon = L.divIcon({ className: '', html: markerHtml, iconSize: [dotSize * 2, dotSize * 2], iconAnchor: [dotSize, dotSize] });
       const topHeadline = items[0];
       const marker = L.marker([coords.lat + (Math.random() - 0.5) * 0.5, coords.lon + (Math.random() - 0.5) * 0.5], { icon });
       const tooltipText = `${coords.flag} ${coords.name} — ${count} report${count > 1 ? 's' : ''}\n${topHeadline.title.substring(0, 70)}`;
