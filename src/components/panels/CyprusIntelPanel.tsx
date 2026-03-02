@@ -1,5 +1,48 @@
 import { memo, useState, useEffect, useCallback } from 'react';
 import { fetchCyprusNews, CyprusNewsData, CyprusArticle } from '@/services/cyprusNewsService';
+import { useWorldViewStore, GeoEvent } from '@/store/worldview';
+
+// Spread articles across real Cyprus cities so markers don't stack
+const CYPRUS_LOCATIONS = [
+  { lat: 35.1856, lon: 33.3823, name: 'Nicosia' },
+  { lat: 34.6786, lon: 33.0413, name: 'Limassol' },
+  { lat: 34.7720, lon: 32.4297, name: 'Paphos' },
+  { lat: 35.0400, lon: 33.9600, name: 'Famagusta' },
+  { lat: 34.9167, lon: 33.6333, name: 'Larnaca' },
+  { lat: 35.3500, lon: 33.3200, name: 'Kyrenia' },
+  { lat: 34.7071, lon: 33.0226, name: 'Akrotiri' },
+  { lat: 35.1000, lon: 33.9500, name: 'Paralimni' },
+  { lat: 34.8833, lon: 33.6167, name: 'Dhekelia' },
+  { lat: 35.0167, lon: 32.4167, name: 'Polis' },
+];
+
+function cyprusArticlesToGeoEvents(articles: CyprusArticle[]): GeoEvent[] {
+  const categoryToType: Record<string, string> = {
+    security: 'military', politics: 'protest', economy: 'general',
+    energy: 'general', society: 'protest', general: 'general',
+  };
+  const categoryToSeverity: Record<string, GeoEvent['severity']> = {
+    security: 'high', politics: 'medium', economy: 'low',
+    energy: 'medium', society: 'low', general: 'info',
+  };
+  return articles.map((a, i) => {
+    const loc = CYPRUS_LOCATIONS[i % CYPRUS_LOCATIONS.length];
+    // Add slight jitter so overlapping markers spread
+    const jitter = () => (Math.random() - 0.5) * 0.05;
+    return {
+      id: `cy-${i}-${a.title.substring(0, 10).replace(/\s/g, '')}`,
+      title: a.title,
+      lat: loc.lat + jitter(),
+      lon: loc.lon + jitter(),
+      country: 'Cyprus',
+      severity: categoryToSeverity[a.category] || 'info',
+      category: a.category,
+      source: a.source,
+      time: new Date().toISOString(),
+      type: categoryToType[a.category] || 'general',
+    };
+  });
+}
 
 const CATEGORY_CONFIG: Record<string, { icon: string; color: string }> = {
   security: { icon: '🔴', color: 'border-l-destructive bg-destructive/5' },
@@ -22,6 +65,14 @@ const CyprusIntelPanel = memo(() => {
     try {
       const result = await fetchCyprusNews('full');
       setData(result);
+      // Push Cyprus articles as geo markers onto the map
+      if (result?.articles?.length) {
+        const cyprusGeo = cyprusArticlesToGeoEvents(result.articles);
+        const state = useWorldViewStore.getState();
+        // Merge: remove old Cyprus events, add new ones
+        const existing = state.geoEvents.filter(e => !e.id.startsWith('cy-'));
+        state.setGeoEvents([...existing, ...cyprusGeo]);
+      }
     } catch {
       // handled in service
     } finally {
@@ -33,7 +84,18 @@ const CyprusIntelPanel = memo(() => {
 
   // Auto-refresh every 2 minutes
   useEffect(() => {
-    const iv = setInterval(() => fetchCyprusNews('quick').then(setData), 120_000);
+    const iv = setInterval(async () => {
+      const result = await fetchCyprusNews('quick');
+      if (result) {
+        setData(result);
+        if (result.articles?.length) {
+          const cyprusGeo = cyprusArticlesToGeoEvents(result.articles);
+          const state = useWorldViewStore.getState();
+          const existing = state.geoEvents.filter(e => !e.id.startsWith('cy-'));
+          state.setGeoEvents([...existing, ...cyprusGeo]);
+        }
+      }
+    }, 120_000);
     return () => clearInterval(iv);
   }, []);
 
