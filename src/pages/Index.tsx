@@ -33,6 +33,7 @@ import { fetchOsintData } from '@/services/osintService';
 import { fetchTwitterOsint } from '@/services/twitterOsintService';
 import { CONFLICT_ZONES } from '@/data/conflictZones';
 import { syncLayersWithNews } from '@/services/newsLayerSyncService';
+import { startAnimationEngine, tickAnimationEngine } from '@/services/conflictAnimationEngine';
 
 const Google3DGlobe = lazy(() => import('@/components/map/Google3DGlobe'));
 
@@ -374,6 +375,14 @@ const Index = () => {
     const interval = setInterval(fetchIntel, 120_000); // every 2 min
     return () => { clearTimeout(timer); clearInterval(interval); };
   }, [setConflictIntel, setMissileArcs]);
+
+  // ── Conflict Animation Engine — auto-trigger missile arcs + highlights from news ──
+  useEffect(() => {
+    // Initial tick after news loads
+    const initTimer = setTimeout(tickAnimationEngine, 8000);
+    const cleanup = startAnimationEngine();
+    return () => { clearTimeout(initTimer); cleanup(); };
+  }, []);
 
   // ── Twitter/X OSINT → geo markers on map + full posts for card ──
   useEffect(() => {
