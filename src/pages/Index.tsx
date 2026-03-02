@@ -16,7 +16,7 @@ import TacticalAlerts from '@/components/hud/TacticalAlerts';
 import CountryDossier from '@/components/panels/CountryDossier';
 import MinimapRadar from '@/components/hud/MinimapRadar';
 import BootScreen from '@/components/hud/BootScreen';
-import XOsintCard from '@/components/panels/XOsintCard';
+
 import { useWorldViewStore, LAYER_SHORTCUTS, LANDMARK_PRESETS, VisualStyle } from '@/store/worldview';
 import { fetchEarthquakes, fetchLiveNews, fetchLiveAircraft } from '@/services/dataServices';
 import { generateRealisticSatellites, fetchISSPosition } from '@/services/satelliteService';
@@ -591,7 +591,7 @@ const Index = () => {
         )}
 
         {!isScreensaver && <RightPanel />}
-        {!isScreensaver && !immersiveMode && <XOsintCard />}
+        
 
         {!isScreensaver && (
           <div className="pointer-events-auto">
