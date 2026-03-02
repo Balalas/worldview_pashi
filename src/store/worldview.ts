@@ -461,6 +461,25 @@ export interface WorldViewState {
 
   manualRefresh: number;
   triggerManualRefresh: () => void;
+
+  // Drone fly mode
+  droneMode: boolean;
+  toggleDroneMode: () => void;
+
+  // Twitter OSINT geo markers
+  twitterGeoMarkers: TwitterGeoMarker[];
+  setTwitterGeoMarkers: (markers: TwitterGeoMarker[]) => void;
+}
+
+export interface TwitterGeoMarker {
+  id: string;
+  lat: number;
+  lon: number;
+  place: string;
+  text: string;
+  account: string;
+  url: string;
+  createdAt: string;
 }
 
 export const useWorldViewStore = create<WorldViewState>((set) => ({
@@ -675,6 +694,12 @@ export const useWorldViewStore = create<WorldViewState>((set) => ({
 
   manualRefresh: 0,
   triggerManualRefresh: () => set((s) => ({ manualRefresh: s.manualRefresh + 1 })),
+
+  droneMode: false,
+  toggleDroneMode: () => set((s) => ({ droneMode: !s.droneMode })),
+
+  twitterGeoMarkers: [],
+  setTwitterGeoMarkers: (twitterGeoMarkers) => set({ twitterGeoMarkers }),
 }));
 
 // Keyboard shortcuts

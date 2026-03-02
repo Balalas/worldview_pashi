@@ -1,5 +1,5 @@
 import { useEffect, useRef, memo, useCallback, useState } from 'react';
-import { useWorldViewStore, NUCLEAR_SITES, FollowTarget, LANDMARK_PRESETS, GeoEvent } from '@/store/worldview';
+import { useWorldViewStore, NUCLEAR_SITES, FollowTarget, LANDMARK_PRESETS, GeoEvent, TwitterGeoMarker } from '@/store/worldview';
 import { computeOrbitTrajectory, projectAircraftPath } from '@/services/satelliteService';
 import { CONFLICT_ZONES } from '@/data/conflictZones';
 import { SUBMARINE_CABLES } from '@/data/submarineCables';
@@ -254,6 +254,22 @@ function gdeltEventSvg(color: string, size: number, label: string, icon: string,
     <text x="${cx}" y="${cy+4}" text-anchor="middle" font-size="10">${icon}</text>
     <rect x="2" y="${h-16}" width="${w-4}" height="14" rx="2" fill="#000" fill-opacity="0.75"/>
     <text x="${w/2}" y="${h-6}" text-anchor="middle" font-family="monospace" font-size="6" fill="${color}">${label}</text>
+  </svg>`);
+}
+
+function twitterPostSvg(account: string, text: string) {
+  const w = Math.max(100, text.length * 5 + 20);
+  const h = 52;
+  return svgEl(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+    <circle cx="${w/2}" cy="10" r="8" fill="#1d9bf0" opacity="0.7">
+      <animate attributeName="r" values="8;14;8" dur="2s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.7;0.2;0.7" dur="2s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="${w/2}" cy="10" r="5" fill="#1d9bf0" opacity="0.9"/>
+    <text x="${w/2}" y="14" text-anchor="middle" font-size="8" fill="#fff" font-weight="bold">𝕏</text>
+    <rect x="2" y="22" width="${w-4}" height="26" rx="3" fill="#000" fill-opacity="0.85"/>
+    <text x="6" y="34" font-family="monospace" font-size="7" fill="#1d9bf0" font-weight="bold">@${account}</text>
+    <text x="6" y="44" font-family="monospace" font-size="6" fill="#aaa">${text}</text>
   </svg>`);
 }
 
@@ -547,7 +563,7 @@ const Google3DGlobe = memo(() => {
   const followIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const initRef = useRef(false);
 
-  const { layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, fires, geoEvents, news, missileArcs, setDetailPanel, setActiveLivestream, mapCenter, followTarget, setFollowTarget, layerSubFilters } = useWorldViewStore();
+  const { layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, fires, geoEvents, news, missileArcs, setDetailPanel, setActiveLivestream, mapCenter, followTarget, setFollowTarget, layerSubFilters, droneMode, twitterGeoMarkers } = useWorldViewStore();
 
   // Start following a target with cinematic camera
   const startFollow = useCallback((target: FollowTarget) => {
@@ -1547,9 +1563,165 @@ const Google3DGlobe = memo(() => {
     return () => clearInterval(check);
   }, []);
 
+  // ── Drone Fly Mode: WASD + mouse look ──
+  useEffect(() => {
+    const map = mapRef.current;
+    const container = containerRef.current;
+    if (!map || !container || !droneMode) return;
+
+    const keys = new Set<string>();
+    const MOVE_SPEED = 0.0003; // degrees per frame
+    const ALT_SPEED = 50; // meters per frame
+    const LOOK_SENSITIVITY = 0.15;
+    let heading = map.heading || 0;
+    let tilt = map.tilt || 60;
+    let droneAlt = map.range || 500;
+    let lat = map.center?.lat || 20;
+    let lon = map.center?.lng || 0;
+    let isMouseDown = false;
+    let lastMouseX = 0;
+    let lastMouseY = 0;
+    let rafId: number | null = null;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (['w','a','s','d','q','e'].includes(e.key.toLowerCase())) {
+        e.preventDefault();
+        e.stopPropagation();
+        keys.add(e.key.toLowerCase());
+      }
+    };
+    const onKeyUp = (e: KeyboardEvent) => {
+      keys.delete(e.key.toLowerCase());
+    };
+    const onMouseDown = (e: MouseEvent) => {
+      if (e.button === 0) { isMouseDown = true; lastMouseX = e.clientX; lastMouseY = e.clientY; }
+    };
+    const onMouseUp = () => { isMouseDown = false; };
+    const onMouseMove = (e: MouseEvent) => {
+      if (!isMouseDown) return;
+      const dx = e.clientX - lastMouseX;
+      const dy = e.clientY - lastMouseY;
+      heading = (heading + dx * LOOK_SENSITIVITY) % 360;
+      tilt = Math.max(0, Math.min(85, tilt + dy * LOOK_SENSITIVITY));
+      lastMouseX = e.clientX;
+      lastMouseY = e.clientY;
+    };
+
+    const tick = () => {
+      const hdgRad = (heading * Math.PI) / 180;
+      const speed = MOVE_SPEED * (droneAlt / 500); // faster at higher altitude
+
+      if (keys.has('w')) { lat += Math.cos(hdgRad) * speed; lon += Math.sin(hdgRad) * speed; }
+      if (keys.has('s')) { lat -= Math.cos(hdgRad) * speed; lon -= Math.sin(hdgRad) * speed; }
+      if (keys.has('a')) { lat += Math.sin(hdgRad) * speed; lon -= Math.cos(hdgRad) * speed; }
+      if (keys.has('d')) { lat -= Math.sin(hdgRad) * speed; lon += Math.cos(hdgRad) * speed; }
+      if (keys.has('q')) { droneAlt = Math.max(50, droneAlt - ALT_SPEED); }
+      if (keys.has('e')) { droneAlt += ALT_SPEED; }
+
+      // Apply camera directly
+      try {
+        map.center = { lat, lng: lon, altitude: 0 };
+        map.range = droneAlt;
+        map.heading = heading;
+        map.tilt = tilt;
+      } catch {}
+
+      rafId = requestAnimationFrame(tick);
+    };
+
+    // Sync initial state from map
+    try {
+      lat = map.center?.lat || 20;
+      lon = map.center?.lng || 0;
+      heading = map.heading || 0;
+      tilt = map.tilt || 60;
+      droneAlt = map.range || 500;
+    } catch {}
+
+    container.addEventListener('keydown', onKeyDown, { capture: true });
+    container.addEventListener('keyup', onKeyUp, { capture: true });
+    window.addEventListener('keydown', onKeyDown, { capture: true });
+    window.addEventListener('keyup', onKeyUp, { capture: true });
+    container.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('mouseup', onMouseUp);
+    window.addEventListener('mousemove', onMouseMove);
+
+    // Make container focusable
+    container.tabIndex = 0;
+    container.focus();
+
+    rafId = requestAnimationFrame(tick);
+
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      container.removeEventListener('keydown', onKeyDown, { capture: true });
+      container.removeEventListener('keyup', onKeyUp, { capture: true });
+      window.removeEventListener('keydown', onKeyDown, { capture: true });
+      window.removeEventListener('keyup', onKeyUp, { capture: true });
+      container.removeEventListener('mousedown', onMouseDown);
+      window.removeEventListener('mouseup', onMouseUp);
+      window.removeEventListener('mousemove', onMouseMove);
+    };
+  }, [droneMode]);
+
+  // ── Twitter OSINT Geo Markers ──
+  const twitterMarkersRef = useRef<any[]>([]);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+
+    // Clear old markers
+    twitterMarkersRef.current.forEach(m => { try { m.remove(); } catch {} });
+    twitterMarkersRef.current = [];
+
+    if (twitterGeoMarkers.length === 0) return;
+
+    (async () => {
+      try {
+        const { Marker3DElement } = await (google.maps as any).importLibrary('maps3d');
+        for (const post of twitterGeoMarkers) {
+          const truncText = post.text.length > 40 ? post.text.substring(0, 40) + '…' : post.text;
+          const svg = twitterPostSvg(post.account, truncText);
+          const marker = new Marker3DElement({
+            position: { lat: post.lat, lng: post.lon, altitude: 100 },
+            altitudeMode: 'RELATIVE_TO_GROUND',
+            extruded: true,
+          });
+          marker.append(svg);
+          marker.addEventListener('gmp-click', () => {
+            window.open(post.url, '_blank');
+          });
+          map.append(marker);
+          twitterMarkersRef.current.push(marker);
+        }
+      } catch (err) {
+        console.warn('Twitter markers fail:', err);
+      }
+    })();
+  }, [twitterGeoMarkers, mapReady]);
+
   return (
     <div ref={containerRef} className="w-full h-full bg-background relative">
       <div className="map-host w-full h-full" />
+      {/* Drone mode HUD overlay */}
+      {droneMode && (
+        <div className="absolute inset-0 z-20 pointer-events-none">
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded border border-primary/30 bg-background/80 backdrop-blur-sm">
+            <span className="text-[10px] font-display tracking-[0.2em] text-primary">🛩 DRONE FLY MODE</span>
+            <span className="text-[8px] font-data text-muted-foreground ml-3">W/A/S/D move · Q/E altitude · Mouse look</span>
+          </div>
+          {/* Crosshair */}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+            <svg width="40" height="40" viewBox="0 0 40 40">
+              <line x1="20" y1="4" x2="20" y2="16" stroke="hsl(150,100%,50%)" strokeWidth="1" opacity="0.5"/>
+              <line x1="20" y1="24" x2="20" y2="36" stroke="hsl(150,100%,50%)" strokeWidth="1" opacity="0.5"/>
+              <line x1="4" y1="20" x2="16" y2="20" stroke="hsl(150,100%,50%)" strokeWidth="1" opacity="0.5"/>
+              <line x1="24" y1="20" x2="36" y2="20" stroke="hsl(150,100%,50%)" strokeWidth="1" opacity="0.5"/>
+              <circle cx="20" cy="20" r="2" fill="none" stroke="hsl(150,100%,50%)" strokeWidth="1" opacity="0.6"/>
+            </svg>
+          </div>
+        </div>
+      )}
       {!mapReady && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/95 backdrop-blur-sm animate-fade-in">
           <div className="text-center">

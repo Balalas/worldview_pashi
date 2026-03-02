@@ -28,6 +28,7 @@ import { fetchAllCountries } from '@/services/countryService';
 import { fetchAllCameras } from '@/services/cameraService';
 import { fetchConflictIntel } from '@/services/conflictIntelService';
 import { fetchOsintData } from '@/services/osintService';
+import { fetchTwitterOsint } from '@/services/twitterOsintService';
 import { CONFLICT_ZONES } from '@/data/conflictZones';
 
 const Google3DGlobe = lazy(() => import('@/components/map/Google3DGlobe'));
@@ -152,7 +153,7 @@ const CctvPip = memo(() => {
 CctvPip.displayName = 'CctvPip';
 
 const Index = () => {
-  const { setAircraft, setSatellites, setEarthquakes, setNews, setLastRefresh, setNewsLoading, setWeatherAlerts, setVolcanoes, setVessels, setProtests, setOutages, setFires, setLiveCameras, toggleLayer, closeDetailPanel, mapMode, setFollowTarget, visualStyle, setVisualStyle, filterParams, bottomPanelCollapsed, bottomPanelExpanded, setMapCenter, isScreensaver, setScreensaver, immersiveMode, circularViewport, hudLayout, warMode, setGeoEvents, layerSubFilters, setConflictIntel, setMissileArcs, manualRefresh } = useWorldViewStore();
+  const { setAircraft, setSatellites, setEarthquakes, setNews, setLastRefresh, setNewsLoading, setWeatherAlerts, setVolcanoes, setVessels, setProtests, setOutages, setFires, setLiveCameras, toggleLayer, closeDetailPanel, mapMode, setFollowTarget, visualStyle, setVisualStyle, filterParams, bottomPanelCollapsed, bottomPanelExpanded, setMapCenter, isScreensaver, setScreensaver, immersiveMode, circularViewport, hudLayout, warMode, setGeoEvents, layerSubFilters, setConflictIntel, setMissileArcs, manualRefresh, setTwitterGeoMarkers } = useWorldViewStore();
   const earthquakeTimeWindow = layerSubFilters.earthquakeTimeWindow || '24H';
   const styleConfig = computeStyleConfig(visualStyle, filterParams);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -344,6 +345,34 @@ const Index = () => {
     const interval = setInterval(fetchIntel, 120_000); // every 2 min
     return () => { clearTimeout(timer); clearInterval(interval); };
   }, [setConflictIntel, setMissileArcs]);
+
+  // ── Twitter/X OSINT → geo markers on map ──
+  useEffect(() => {
+    const fetchTwitter = async () => {
+      try {
+        const data = await fetchTwitterOsint();
+        if (data?.geolocated && data.geolocated.length > 0) {
+          const markers = data.geolocated.map(p => ({
+            id: p.id,
+            lat: p.geo!.lat,
+            lon: p.geo!.lon,
+            place: p.geo!.place,
+            text: p.text,
+            account: p.account,
+            url: p.url,
+            createdAt: p.createdAt,
+          }));
+          setTwitterGeoMarkers(markers);
+          console.log(`[X/OSINT] ${markers.length} geolocated posts plotted on map`);
+        }
+      } catch (e) {
+        console.warn('Twitter OSINT fetch error:', e);
+      }
+    };
+    const timer = setTimeout(fetchTwitter, 8000); // after initial load
+    const interval = setInterval(fetchTwitter, 120_000); // every 2 min
+    return () => { clearTimeout(timer); clearInterval(interval); };
+  }, [setTwitterGeoMarkers]);
 
   // Manual refresh trigger
   useEffect(() => {
