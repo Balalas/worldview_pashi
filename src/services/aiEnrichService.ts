@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+// Uses direct fetch to avoid supabase SDK throwing on 402/429
 
 export interface AINewsEnrichment {
   summary: string;
@@ -25,14 +25,24 @@ export const fetchAINewsEnrichment = async (
   if (cached && Date.now() - cached.ts < CACHE_TTL) return cached.data;
 
   try {
-    const { data, error } = await supabase.functions.invoke('ai-news-enrich', {
-      body: { headlines: headlines.slice(0, 25), context, countryName },
-    });
+    const resp = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-news-enrich`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({ headlines: headlines.slice(0, 25), context, countryName }),
+      }
+    );
 
-    if (error) {
-      console.warn('AI enrich error (may be 402/429):', error);
+    if (!resp.ok) {
+      console.warn(`AI enrich HTTP ${resp.status} — using cache or skipping`);
       return cached?.data || null;
     }
+
+    const data = await resp.json();
 
     if (data?.error) {
       console.warn('AI enrich returned error:', data.error);
@@ -46,6 +56,6 @@ export const fetchAINewsEnrichment = async (
     return null;
   } catch (e) {
     console.warn('Failed to fetch AI enrichment:', e);
-    return null;
+    return cached?.data || null;
   }
 };
