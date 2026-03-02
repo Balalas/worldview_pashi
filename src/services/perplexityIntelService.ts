@@ -9,6 +9,9 @@ export interface PerplexityIntel {
   sources: string[];
   citations?: string[];
   fetchedAt: string;
+  dualSource?: boolean;
+  perplexityAvailable?: boolean;
+  aiAnalysisAvailable?: boolean;
 }
 
 const cache = new Map<string, { data: PerplexityIntel; ts: number }>();
