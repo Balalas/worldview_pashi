@@ -18,7 +18,7 @@ const MapContainer = memo(() => {
   const layersRef = useRef<Record<string, L.LayerGroup>>({});
   const geoLayerRef = useRef<L.GeoJSON | null>(null);
 
-  const { layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, fires, liveCameras, setDetailPanel, setActiveLivestream, mapCenter, twitterGeoMarkers, news, setMapCenter, newsHotspots, epsteinMode, internetOutages } = useWorldViewStore();
+  const { layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, fires, liveCameras, setDetailPanel, setActiveLivestream, mapCenter, twitterGeoMarkers, news, setMapCenter, newsHotspots, epsteinMode, internetOutages, missileArcs } = useWorldViewStore();
 
   // Initialize map
   useEffect(() => {
@@ -38,7 +38,7 @@ const MapContainer = memo(() => {
     L.control.zoom({ position: 'bottomright' }).addTo(map);
     mapInstanceRef.current = map;
 
-    ['aircraft', 'satellites', 'earthquakes', 'conflicts', 'cables', 'weather', 'volcanoes', 'nuclear', 'vessels', 'protests', 'outages', 'cameras', 'fires', 'twitterOsint', 'newsMarkers', 'newsHotspots', 'epstein', 'iodaOutages', 'militaryBases', 'spaceports', 'chokepoints'].forEach((key) => {
+    ['aircraft', 'satellites', 'earthquakes', 'conflicts', 'cables', 'weather', 'volcanoes', 'nuclear', 'vessels', 'protests', 'outages', 'cameras', 'fires', 'twitterOsint', 'newsMarkers', 'newsHotspots', 'epstein', 'iodaOutages', 'militaryBases', 'spaceports', 'chokepoints', 'missileArcs'].forEach((key) => {
       layersRef.current[key] = L.layerGroup().addTo(map);
     });
 
@@ -1212,6 +1212,105 @@ const MapContainer = memo(() => {
       group.addLayer(marker);
     });
   }, [epsteinMode]);
+
+  // Render missile arcs on 2D map
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    const group = layersRef.current['missileArcs'];
+    if (!group || !map) return;
+    group.clearLayers();
+    if (!layers.conflicts || missileArcs.length === 0) return;
+
+    missileArcs.forEach((arc) => {
+      const from: [number, number] = [arc.fromLat, arc.fromLon];
+      const to: [number, number] = [arc.toLat, arc.toLon];
+
+      // Color by type
+      const colors: Record<string, string> = {
+        ballistic: '#ff0044', cruise: '#ff6b35', drone: '#ffb000', rocket: '#ff4488',
+      };
+      const color = colors[arc.type] || '#ff4488';
+
+      // Generate curved arc points (parabolic)
+      const points: [number, number][] = [];
+      const steps = 40;
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        const lat = from[0] + (to[0] - from[0]) * t;
+        const lon = from[1] + (to[1] - from[1]) * t;
+        points.push([lat, lon]);
+      }
+
+      // Animated dashed polyline for the arc trail
+      const trail = L.polyline(points, {
+        color,
+        weight: 2,
+        opacity: 0.6,
+        dashArray: '8,6',
+        className: 'missile-arc-trail',
+      });
+      group.addLayer(trail);
+
+      // Glow line underneath
+      const glow = L.polyline(points, {
+        color,
+        weight: 5,
+        opacity: 0.15,
+      });
+      group.addLayer(glow);
+
+      // Origin marker — pulsing circle
+      const originSize = 14;
+      const originIcon = L.divIcon({
+        className: '',
+        html: `<div style="position:relative;width:${originSize}px;height:${originSize}px;">
+          <div style="position:absolute;inset:0;border:2px solid ${color};border-radius:50%;animation:ping-ring 2s ease-out infinite;opacity:0.6;"></div>
+          <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:5px;height:5px;background:${color};border-radius:50%;box-shadow:0 0 8px ${color};"></div>
+        </div>`,
+        iconSize: [originSize, originSize],
+        iconAnchor: [originSize / 2, originSize / 2],
+      });
+      group.addLayer(L.marker(from, { icon: originIcon, interactive: false }));
+
+      // Impact marker — explosion effect at target
+      const impactSize = 22;
+      const statusEmoji = arc.status === 'intercepted' ? '🛡' : arc.status === 'hit' ? '💥' : '🚀';
+      const impactIcon = L.divIcon({
+        className: '',
+        html: `<div style="position:relative;width:${impactSize}px;height:${impactSize}px;">
+          <svg viewBox="0 0 60 60" width="${impactSize}" height="${impactSize}">
+            <circle cx="30" cy="30" r="6" fill="${color}" opacity="0.8">
+              <animate attributeName="r" values="4;12;4" dur="1.5s" repeatCount="indefinite"/>
+              <animate attributeName="opacity" values="0.8;0.3;0.8" dur="1.5s" repeatCount="indefinite"/>
+            </circle>
+            <circle cx="30" cy="30" r="10" fill="none" stroke="${color}" stroke-width="1.5" opacity="0.5">
+              <animate attributeName="r" values="10;28" dur="2s" repeatCount="indefinite"/>
+              <animate attributeName="opacity" values="0.5;0" dur="2s" repeatCount="indefinite"/>
+            </circle>
+          </svg>
+          <div style="position:absolute;top:-14px;left:50%;transform:translateX(-50%);white-space:nowrap;font-family:'JetBrains Mono',monospace;font-size:8px;color:${color};background:hsla(210,60%,4%,0.85);padding:1px 4px;border-radius:2px;border:1px solid ${color}40;">
+            ${statusEmoji} ${arc.type.toUpperCase()} ${arc.from}→${arc.to}
+          </div>
+        </div>`,
+        iconSize: [impactSize, impactSize + 16],
+        iconAnchor: [impactSize / 2, impactSize / 2],
+      });
+      const impactMarker = L.marker(to, { icon: impactIcon, interactive: true });
+      impactMarker.bindTooltip(`${statusEmoji} ${arc.type.toUpperCase()} | ${arc.from} → ${arc.to} | ${arc.status}`, { direction: 'top', offset: [0, -impactSize / 2 - 8] });
+      group.addLayer(impactMarker);
+
+      // Moving warhead dot along the arc
+      const headIdx = Math.floor(steps * 0.7); // show head at ~70% of path
+      const headPos = points[headIdx] || to;
+      const headIcon = L.divIcon({
+        className: '',
+        html: `<div style="width:8px;height:8px;background:${color};border-radius:50%;box-shadow:0 0 12px ${color}, 0 0 24px ${color}80;"></div>`,
+        iconSize: [8, 8],
+        iconAnchor: [4, 4],
+      });
+      group.addLayer(L.marker(headPos, { icon: headIcon, interactive: false }));
+    });
+  }, [missileArcs, layers.conflicts]);
 
   return <div ref={mapRef} className="w-full h-full" />;
 });
