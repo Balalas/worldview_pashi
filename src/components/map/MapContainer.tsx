@@ -128,17 +128,18 @@ const MapContainer = memo(() => {
     }
   }, [mapCenter]);
 
-  // Render cameras — curated + live API cameras with FOV cones
+  // Render cameras — curated + live API cameras (viewport-culled, no FOV cones for API cams)
   useEffect(() => {
+    const map = mapInstanceRef.current;
     const group = layersRef.current['cameras'];
-    if (!group) return;
+    if (!group || !map) return;
     group.clearLayers();
     if (!layers.cameras) return;
 
-    // FOV cone helper
+    // FOV cone helper — only used for curated cameras
     const addFovCone = (lat: number, lon: number, heading: number, color: string) => {
       const FOV_DEG = 70;
-      const FOV_RANGE_KM = 0.35; // 350m in km
+      const FOV_RANGE_KM = 0.35;
       const halfFov = FOV_DEG / 2;
       const steps = 12;
       const points: [number, number][] = [[lat, lon]];
@@ -154,7 +155,7 @@ const MapContainer = memo(() => {
       group.addLayer(polygon);
     };
 
-    // Curated cameras (YouTube embeds)
+    // Curated cameras (YouTube embeds) — always visible
     PUBLIC_CAMERAS.forEach(cam => {
       const icon = L.divIcon({
         className: '',
@@ -176,29 +177,54 @@ const MapContainer = memo(() => {
       if (cam.heading != null) addFovCone(cam.lat, cam.lon, cam.heading, '#fbbf24');
     });
 
-    // Live API cameras from aggregator
-    liveCameras.forEach(cam => {
-      const color = getCameraSourceColor(cam.source);
-      const label = getCameraSourceLabel(cam.source);
-      const icon = L.divIcon({
-        className: '',
-        html: `<div style="position:relative;width:14px;height:14px;">
-          <div style="position:absolute;inset:0;border:1.5px solid ${color};border-radius:50%;background:${color}20;"></div>
-          <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:4px;height:4px;background:${color};border-radius:50%;"></div>
-          <div style="position:absolute;top:-7px;right:-10px;font-size:5px;background:${color};color:#000;padding:0 2px;border-radius:2px;font-weight:bold;font-family:monospace;">${label}</div>
-        </div>`,
-        iconSize: [14, 14],
-        iconAnchor: [7, 7],
-      });
-      const marker = L.marker([cam.lat, cam.lon], { icon })
-        .on('click', () => {
-          setDetailPanel({ type: 'camera', data: { ...cam, feedType: 'snapshot', snapshotUrl: cam.imageUrl, name: cam.name, city: cam.region || cam.country } });
-          setActiveLivestream(cam.imageUrl);
+    // Viewport-culled rendering for API cameras
+    const renderVisibleCameras = () => {
+      // Remove only API camera markers (keep curated + their FOV cones)
+      const curatedCount = PUBLIC_CAMERAS.length * 2; // marker + fov cone each
+      const allLayers = group.getLayers();
+      const apiLayers = allLayers.slice(curatedCount);
+      apiLayers.forEach(l => group.removeLayer(l));
+
+      const bounds = map.getBounds();
+      const zoom = map.getZoom();
+      
+      // At low zoom, show cluster dots instead of individual markers
+      const maxVisible = zoom < 5 ? 200 : zoom < 8 ? 500 : 2000;
+      
+      const visible = liveCameras.filter(cam => bounds.contains([cam.lat, cam.lon]));
+      const toRender = visible.slice(0, maxVisible);
+
+      toRender.forEach(cam => {
+        const color = getCameraSourceColor(cam.source);
+        const label = getCameraSourceLabel(cam.source);
+        const icon = L.divIcon({
+          className: '',
+          html: `<div style="position:relative;width:14px;height:14px;">
+            <div style="position:absolute;inset:0;border:1.5px solid ${color};border-radius:50%;background:${color}20;"></div>
+            <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:4px;height:4px;background:${color};border-radius:50%;"></div>
+            <div style="position:absolute;top:-7px;right:-10px;font-size:5px;background:${color};color:#000;padding:0 2px;border-radius:2px;font-weight:bold;font-family:monospace;">${label}</div>
+          </div>`,
+          iconSize: [14, 14],
+          iconAnchor: [7, 7],
         });
-      marker.bindTooltip(`📷 ${cam.name} | ${label}`, { direction: 'top', offset: [0, -10] });
-      group.addLayer(marker);
-      if (cam.heading != null) addFovCone(cam.lat, cam.lon, cam.heading, color);
-    });
+        const marker = L.marker([cam.lat, cam.lon], { icon })
+          .on('click', () => {
+            setDetailPanel({ type: 'camera', data: { ...cam, feedType: 'snapshot', snapshotUrl: cam.imageUrl, name: cam.name, city: cam.region || cam.country } });
+            setActiveLivestream(cam.imageUrl);
+          });
+        marker.bindTooltip(`📷 ${cam.name} | ${label}`, { direction: 'top', offset: [0, -10] });
+        group.addLayer(marker);
+      });
+    };
+
+    renderVisibleCameras();
+    map.on('moveend', renderVisibleCameras);
+    map.on('zoomend', renderVisibleCameras);
+
+    return () => {
+      map.off('moveend', renderVisibleCameras);
+      map.off('zoomend', renderVisibleCameras);
+    };
   }, [layers.cameras, liveCameras, setDetailPanel, setActiveLivestream]);
 
   // Render fires
