@@ -149,16 +149,23 @@ const XOsintCard = memo(() => {
                       </div>
                     </div>
                     <p className="text-[9px] font-data text-foreground/80 leading-tight line-clamp-3">{post.text}</p>
-                    {post.metrics && (
-                      <div className="flex items-center gap-2 mt-1">
-                        {post.metrics.retweet_count !== undefined && post.metrics.retweet_count > 0 && (
-                          <span className="text-[7px] font-data text-muted-foreground/40">🔁 {post.metrics.retweet_count}</span>
-                        )}
-                        {post.metrics.like_count !== undefined && post.metrics.like_count > 0 && (
-                          <span className="text-[7px] font-data text-muted-foreground/40">♥ {post.metrics.like_count}</span>
-                        )}
-                      </div>
-                    )}
+                    <div className="flex items-center gap-2 mt-1">
+                      {post.metrics?.retweet_count !== undefined && post.metrics.retweet_count > 0 && (
+                        <span className="text-[7px] font-data text-muted-foreground/40">🔁 {post.metrics.retweet_count}</span>
+                      )}
+                      {post.metrics?.like_count !== undefined && post.metrics.like_count > 0 && (
+                        <span className="text-[7px] font-data text-muted-foreground/40">♥ {post.metrics.like_count}</span>
+                      )}
+                      <a
+                        href={post.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="ml-auto text-[7px] font-data tracking-wider text-primary/50 hover:text-primary border border-primary/20 hover:border-primary/40 px-1.5 py-0.5 rounded transition-colors"
+                      >
+                        🔗 SOURCE
+                      </a>
+                    </div>
                   </div>
                 );
               })}
