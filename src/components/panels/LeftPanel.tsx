@@ -19,6 +19,9 @@ const LAYER_CONFIG: { key: LayerType; label: string; shortcut: string; colorClas
   { key: 'nuclearSites', label: 'NUCLEAR', shortcut: 'N', colorClass: 'bg-signal-nuclear' },
   { key: 'fires', label: 'FIRES', shortcut: 'F', colorClass: 'bg-signal-fire' },
   { key: 'cameras', label: 'CAMERAS', shortcut: 'C', colorClass: 'bg-signal-camera' },
+  { key: 'militaryBases', label: 'BASES', shortcut: 'B', colorClass: 'bg-signal-military' },
+  { key: 'spaceports', label: 'SPACEPORTS', shortcut: '', colorClass: 'bg-signal-satellite' },
+  { key: 'chokepoints', label: 'CHOKEPOINTS', shortcut: '', colorClass: 'bg-alert-high' },
 ];
 
 type SubToggle = { key: keyof LayerSubFilters; label: string };
