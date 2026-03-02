@@ -27,10 +27,19 @@ const BOOT_MESSAGES = [
   { text: '[OK]  WORLDVIEW ready. Welcome, operator.', delay: 3800 },
 ];
 
+const CREDENTIALS = [
+  { label: 'OPERATOR', value: 'SIERRA-7X', mask: false },
+  { label: 'CLEARANCE', value: 'TS//SCI//NOFORN', mask: false },
+  { label: 'AUTH TOKEN', value: 'a9f3c1d8-7e2b-4f0a-b6c5-3d8e1f2a4b7c', mask: true },
+  { label: 'SESSION', value: 'WV-2026-0302-1947Z', mask: false },
+];
+
 const BootScreen = memo(({ onComplete }: BootScreenProps) => {
   const [visibleLines, setVisibleLines] = useState<number>(0);
   const [progress, setProgress] = useState(0);
   const [fadeOut, setFadeOut] = useState(false);
+  const [credPhase, setCredPhase] = useState(0); // 0=hidden, 1-4=typing each cred, 5=done
+  const [typedChars, setTypedChars] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -47,23 +56,49 @@ const BootScreen = memo(({ onComplete }: BootScreenProps) => {
       setTimeout(() => setVisibleLines(i + 1), msg.delay);
     });
 
-    // Fade out and complete
-    const completeTimeout = setTimeout(() => setFadeOut(true), 4200);
-    const doneTimeout = setTimeout(onComplete, 4800);
+    // Start credential typing after boot messages
+    const credStart = setTimeout(() => setCredPhase(1), 4000);
 
     return () => {
       clearInterval(progressInterval);
-      clearTimeout(completeTimeout);
-      clearTimeout(doneTimeout);
+      clearTimeout(credStart);
     };
   }, [onComplete]);
+
+  // Credential typing effect
+  useEffect(() => {
+    if (credPhase < 1 || credPhase > CREDENTIALS.length) return;
+    const cred = CREDENTIALS[credPhase - 1];
+    const target = cred.value.length;
+    if (typedChars < target) {
+      const speed = cred.mask ? 15 : 30 + Math.random() * 40;
+      const t = setTimeout(() => setTypedChars(prev => prev + 1), speed);
+      return () => clearTimeout(t);
+    } else {
+      // Move to next credential
+      const t = setTimeout(() => {
+        setCredPhase(prev => prev + 1);
+        setTypedChars(0);
+      }, 300);
+      return () => clearTimeout(t);
+    }
+  }, [credPhase, typedChars]);
+
+  // When all credentials done, fade out
+  useEffect(() => {
+    if (credPhase > CREDENTIALS.length) {
+      const t1 = setTimeout(() => setFadeOut(true), 600);
+      const t2 = setTimeout(onComplete, 1200);
+      return () => { clearTimeout(t1); clearTimeout(t2); };
+    }
+  }, [credPhase, onComplete]);
 
   // Auto-scroll
   useEffect(() => {
     if (containerRef.current) {
       containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }
-  }, [visibleLines]);
+  }, [visibleLines, credPhase, typedChars]);
 
   return (
     <div className={`fixed inset-0 z-[9999] bg-background flex flex-col items-center justify-center transition-opacity duration-500 ${fadeOut ? 'opacity-0' : 'opacity-100'}`}>
@@ -111,8 +146,39 @@ const BootScreen = memo(({ onComplete }: BootScreenProps) => {
             </div>
           );
         })}
-        {visibleLines < BOOT_MESSAGES.length && (
+        {visibleLines < BOOT_MESSAGES.length && credPhase === 0 && (
           <span className="text-primary animate-pulse-dot">█</span>
+        )}
+        {/* Credential typing */}
+        {credPhase >= 1 && (
+          <div className="mt-2 border-t border-border/30 pt-2 space-y-1">
+            <div className="text-accent text-[8px] tracking-widest mb-1">[AUTH] CREDENTIAL VERIFICATION</div>
+            {CREDENTIALS.map((cred, i) => {
+              const idx = i + 1;
+              if (credPhase < idx) return null;
+              const isCurrent = credPhase === idx;
+              const displayVal = isCurrent
+                ? (cred.mask
+                    ? '•'.repeat(typedChars)
+                    : cred.value.slice(0, typedChars))
+                : (cred.mask
+                    ? '•'.repeat(cred.value.length)
+                    : cred.value);
+              return (
+                <div key={i} className="flex gap-2 items-center">
+                  <span className="text-muted-foreground w-20 text-right">{cred.label}:</span>
+                  <span className={`${credPhase > idx ? 'text-primary' : 'text-foreground'}`}>
+                    {displayVal}
+                    {isCurrent && <span className="text-primary animate-pulse-dot">█</span>}
+                  </span>
+                  {credPhase > idx && <span className="text-primary text-[7px]">✓</span>}
+                </div>
+              );
+            })}
+            {credPhase > CREDENTIALS.length && (
+              <div className="text-primary mt-1 animate-fade-in">[OK] Authentication successful. Access granted.</div>
+            )}
+          </div>
         )}
       </div>
 
