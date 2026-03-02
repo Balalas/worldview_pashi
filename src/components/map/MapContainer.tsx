@@ -36,6 +36,11 @@ const MapContainer = memo(() => {
     }).addTo(map);
 
     L.control.zoom({ position: 'bottomright' }).addTo(map);
+    
+    // Create custom panes for proper z-ordering (cables above country borders)
+    map.createPane('cablesPane');
+    map.getPane('cablesPane')!.style.zIndex = '450';
+    
     mapInstanceRef.current = map;
 
     ['aircraft', 'satellites', 'earthquakes', 'conflicts', 'cables', 'weather', 'volcanoes', 'nuclear', 'vessels', 'protests', 'outages', 'cameras', 'fires', 'twitterOsint', 'newsMarkers', 'newsHotspots', 'epstein', 'iodaOutages', 'militaryBases', 'spaceports', 'chokepoints', 'missileArcs'].forEach((key) => {
@@ -262,7 +267,7 @@ const MapContainer = memo(() => {
     if (!layers.underseaCables) return;
     SUBMARINE_CABLES.forEach((cable) => {
       const latlngs = cable.coordinates.map(([lat, lon]) => [lat, lon] as [number, number]);
-      const polyline = L.polyline(latlngs, { color: cable.color, weight: 1.5, opacity: 0.6, dashArray: '6,4' });
+      const polyline = L.polyline(latlngs, { color: cable.color, weight: 1.5, opacity: 0.6, dashArray: '6,4', pane: 'cablesPane' });
       polyline.bindTooltip(`🔌 ${cable.name} | ${cable.capacity} | ${cable.length}`, { sticky: true });
       polyline.on('click', () => setDetailPanel({ type: 'cable', data: cable }));
       group.addLayer(polyline);
