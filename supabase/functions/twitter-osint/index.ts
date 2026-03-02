@@ -9,14 +9,7 @@ const TWITTER_API = "https://api.x.com/2";
 
 // Split into batches to stay under Twitter's 512 char query limit
 const ACCOUNT_BATCHES = [
-  // Batch 1 — Core OSINT + Conflict
-  ["sentdefender", "IntelCrab", "OSINTdefender", "Osinttechnical",
-   "RALee85", "Faytuks", "WarMonitor3", "AuroraIntel", "Liveuamap",
-   "ELINTNews", "TheIntelLab", "UAControlMap"],
-  // Batch 2 — Geopolitics + Cyber
-  ["WarInUkraine04", "NotWoofers", "TpyxaNews", "JulianRoepcke",
-   "Nrg8000", "IntelDoge", "MarQs__", "GeoConfirmed", "john_marquee",
-   "MiddleEastEye", "DarkReading", "TheHackersNews", "BNONews"],
+  ["conflict_radar", "sentdefender", "Polymarket", "Osinttechnical", "osintwarfare"],
 ];
 
 // Extract location from tweet text
