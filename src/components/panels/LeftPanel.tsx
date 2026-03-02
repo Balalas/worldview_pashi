@@ -1,5 +1,5 @@
 import { memo, useState } from 'react';
-import { useWorldViewStore, LayerType, INSTABILITY_DATA, REGION_PRESETS, LANDMARK_PRESETS, LayerSubFilters } from '@/store/worldview';
+import { useWorldViewStore, LayerType, INSTABILITY_DATA, REGION_PRESETS, LANDMARK_PRESETS, LayerSubFilters, TwitterOsintPost } from '@/store/worldview';
 import { SUBMARINE_CABLES } from '@/data/submarineCables';
 import { Slider } from '@/components/ui/slider';
 
@@ -108,9 +108,9 @@ const LandmarksDropdown = memo(() => {
 LandmarksDropdown.displayName = 'LandmarksDropdown';
 
 const LeftPanel = memo(() => {
-  const { layers, toggleLayer, leftPanelOpen, activeRegion, setActiveRegion, setMapCenter, satellites, aircraft, earthquakes, vessels, protests, outages, layerSubFilters, setSubFilter, toggleSubFilter } = useWorldViewStore();
+  const { layers, toggleLayer, leftPanelOpen, activeRegion, setActiveRegion, setMapCenter, satellites, aircraft, earthquakes, vessels, protests, outages, layerSubFilters, setSubFilter, toggleSubFilter, twitterPosts } = useWorldViewStore();
   const [expandedLayer, setExpandedLayer] = useState<LayerType | null>(null);
-  const [activeSection, setActiveSection] = useState<'layers' | 'intel'>('layers');
+  const [activeSection, setActiveSection] = useState<'layers' | 'xosint'>('layers');
 
   if (!leftPanelOpen) return null;
 
@@ -141,9 +141,12 @@ const LeftPanel = memo(() => {
           <button onClick={() => setActiveSection('layers')}
             className={`flex-1 py-1.5 text-[8px] font-display tracking-[0.2em] transition-colors ${activeSection === 'layers' ? 'text-primary bg-primary/5 border-b border-primary/40' : 'text-muted-foreground hover:text-foreground'}`}
           >DATA LAYERS</button>
-          <button onClick={() => setActiveSection('intel')}
-            className={`flex-1 py-1.5 text-[8px] font-display tracking-[0.2em] transition-colors ${activeSection === 'intel' ? 'text-primary bg-primary/5 border-b border-primary/40' : 'text-muted-foreground hover:text-foreground'}`}
-          >INTEL</button>
+          <button onClick={() => setActiveSection('xosint')}
+            className={`flex-1 py-1.5 text-[8px] font-display tracking-[0.2em] transition-colors flex items-center justify-center gap-1.5 ${activeSection === 'xosint' ? 'text-primary bg-primary/5 border-b border-primary/40' : 'text-muted-foreground hover:text-foreground'}`}
+          >
+            <span>𝕏 OSINT</span>
+            {twitterPosts.length > 0 && <span className="w-1 h-1 rounded-full bg-alert-critical animate-pulse" />}
+          </button>
         </div>
 
         <div className="overflow-y-auto flex-1" style={{ maxHeight: 'calc(100vh - 110px)' }}>
@@ -262,39 +265,29 @@ const LeftPanel = memo(() => {
             </>
           ) : (
             <>
-              {/* Live Stats */}
+              {/* X OSINT Live Feed */}
               <div className="p-2">
-                <div className="grid grid-cols-2 gap-1">
-                  <StatBox label="AIRCRAFT" value={aircraft.length} color="text-signal-aircraft" />
-                  <StatBox label="MIL FLIGHTS" value={aircraft.filter(a => a.isMilitary).length} color="text-signal-military" />
-                  <StatBox label="SATELLITES" value={satellites.length} color="text-signal-satellite" />
-                  <StatBox label="MIL SATS" value={milSats} color="text-signal-military" />
-                  <StatBox label="VESSELS" value={vessels.length} color="text-signal-vessel" />
-                  <StatBox label="QUAKES 24H" value={earthquakes.length} color="text-signal-earthquake" />
-                  <StatBox label="PROTESTS" value={protests.length} color="text-signal-protest" />
-                  <StatBox label="CYBER/OUT" value={outages.length} color="text-signal-outage" />
-                  <StatBox label="CABLES" value={SUBMARINE_CABLES.length} color="text-signal-cable" />
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xs">𝕏</span>
+                  <span className="text-[9px] font-display tracking-[0.12em] text-primary">LIVE OSINT FEED</span>
+                  <span className="flex items-center gap-0.5 ml-auto">
+                    <span className="w-1.5 h-1.5 rounded-full bg-alert-critical animate-pulse" />
+                    <span className="text-[7px] font-data text-alert-critical">LIVE</span>
+                  </span>
                 </div>
-              </div>
-
-              {/* Instability Index */}
-              <div className="px-2 pb-2 border-t border-border/30 pt-2">
-                <div className="text-[8px] font-display tracking-[0.2em] text-muted-foreground/60 mb-1.5">INSTABILITY INDEX</div>
-                <div className="space-y-1">
-                  {INSTABILITY_DATA.map((item, i) => (
-                    <div key={item.country} className="flex items-center justify-between text-[10px]">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-data text-muted/40 text-[9px] w-3">{i + 1}.</span>
-                        <span>{item.flag}</span>
-                        <span className="font-display tracking-wide">{item.country}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <span className={`font-data text-[10px] font-bold ${item.level === 'critical' ? 'text-alert-critical' : item.level === 'high' ? 'text-alert-high' : item.level === 'medium' ? 'text-alert-medium' : 'text-alert-info'}`}>{item.score}</span>
-                        <span className="text-[8px]">{item.trend === 'up' ? '▲' : item.trend === 'down' ? '▼' : '─'}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <div className="text-[7px] font-data text-muted-foreground/50 mb-2">{twitterPosts.length} posts from OSINT accounts</div>
+                {twitterPosts.length === 0 ? (
+                  <div className="text-center py-6">
+                    <div className="text-xl mb-1 opacity-20">𝕏</div>
+                    <div className="text-[9px] font-data text-muted-foreground/40">Loading OSINT feed...</div>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5 max-h-[calc(100vh-200px)] overflow-y-auto">
+                    {twitterPosts.slice(0, 30).map(post => (
+                      <XPostCard key={post.id} post={post} />
+                    ))}
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -310,6 +303,44 @@ const StatBox = ({ label, value, color }: { label: string; value: number; color:
     <div className="text-[7px] font-display tracking-wider text-muted-foreground/50">{label}</div>
   </div>
 );
+
+const XPostCard = memo(({ post }: { post: TwitterOsintPost }) => {
+  const isConflict = /\b(strike|missile|attack|killed|bomb|explosion|war|troops|drone)\b/i.test(post.text);
+  const timeAgo = () => {
+    const diff = Date.now() - new Date(post.createdAt).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'NOW';
+    if (mins < 60) return `${mins}m`;
+    return `${Math.floor(mins / 60)}h`;
+  };
+
+  return (
+    <div
+      className={`rounded border px-2 py-1.5 cursor-pointer transition-colors hover:border-primary/30 ${
+        isConflict ? 'border-alert-critical/20 bg-alert-critical/5' : 'border-border/20 bg-card-bg/20'
+      }`}
+      onClick={() => window.open(post.url, '_blank', 'noopener')}
+    >
+      <div className="flex items-center justify-between mb-0.5">
+        <span className="text-[8px] font-data text-primary/80">@{post.account}</span>
+        <div className="flex items-center gap-1">
+          {post.geo && (
+            <span className="text-[6px] font-data text-primary/50 bg-primary/10 px-1 rounded">📍</span>
+          )}
+          <span className="text-[7px] font-data text-muted-foreground/40">{timeAgo()}</span>
+        </div>
+      </div>
+      <p className="text-[9px] font-data text-foreground/70 leading-relaxed line-clamp-3">{post.text}</p>
+      {post.metrics && (post.metrics.retweet_count || 0) > 0 && (
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className="text-[6px] font-data text-muted-foreground/30">🔁 {post.metrics.retweet_count}</span>
+          {(post.metrics.like_count || 0) > 0 && <span className="text-[6px] font-data text-muted-foreground/30">♥ {post.metrics.like_count}</span>}
+        </div>
+      )}
+    </div>
+  );
+});
+XPostCard.displayName = 'XPostCard';
 
 LeftPanel.displayName = 'LeftPanel';
 export default LeftPanel;
