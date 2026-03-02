@@ -334,7 +334,7 @@ export const DEFAULT_SUB_FILTERS: LayerSubFilters = {
   showClouds: true,
   showRadar: false,
   cloudOpacity: 50,
-  showWildfires: true,
+  showWildfires: false,
   showStorms: true,
   showWeapons: true,
   showPower: true,
