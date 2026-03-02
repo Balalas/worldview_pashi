@@ -8,9 +8,17 @@ const corsHeaders = {
 const TWITTER_API = "https://api.x.com/2";
 
 const DEFAULT_ACCOUNTS = [
-  "sentdefender", "IntelCrab", "OSINTdefender",
-  "Faytuks", "RALee85", "Osinttechnical", "WarMonitor3",
-  "AuroraIntel", "Liveuamap",
+  // Tier 1 — Core OSINT
+  "sentdefender", "IntelCrab", "OSINTdefender", "Osinttechnical",
+  "RALee85", "Faytuks", "WarMonitor3", "AuroraIntel", "Liveuamap",
+  // Tier 2 — Conflict & Military
+  "ELINTNews", "TheIntelLab", "UAControlMap", "WarInUkraine04",
+  "NotWoofers", "claborDeDefworwornet", "TpyxaNews",
+  // Tier 3 — Geopolitics & Regions
+  "JulianRoepcke", "Nrg8000", "IntelDoge", "MarQs__",
+  "GeoConfirmed", "john_marquee", "MiddleEastEye",
+  // Tier 4 — Cyber & Emerging
+  "DarkReading", "TheHackersNews", "vabordeaux", "BNONews",
 ];
 
 // Extract location from tweet text
