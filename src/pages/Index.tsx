@@ -159,21 +159,7 @@ const Index = () => {
   const IDLE_TIMEOUT = 120000;
   const [booting, setBooting] = useState(true);
 
-  // Idle / Screensaver detection
-  useEffect(() => {
-    const resetIdle = () => {
-      if (isScreensaver) setScreensaver(false);
-      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-      idleTimerRef.current = setTimeout(() => setScreensaver(true), IDLE_TIMEOUT);
-    };
-    const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'];
-    events.forEach(e => window.addEventListener(e, resetIdle));
-    idleTimerRef.current = setTimeout(() => setScreensaver(true), IDLE_TIMEOUT);
-    return () => {
-      events.forEach(e => window.removeEventListener(e, resetIdle));
-      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-    };
-  }, [isScreensaver, setScreensaver]);
+  // Idle / Screensaver detection — disabled
 
   useEffect(() => {
     // Initialize satellites
