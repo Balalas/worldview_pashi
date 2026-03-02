@@ -30,8 +30,13 @@ export const fetchAINewsEnrichment = async (
     });
 
     if (error) {
-      console.warn('AI enrich error:', error);
-      return null;
+      console.warn('AI enrich error (may be 402/429):', error);
+      return cached?.data || null;
+    }
+
+    if (data?.error) {
+      console.warn('AI enrich returned error:', data.error);
+      return cached?.data || null;
     }
 
     if (data?.success && data?.data) {
