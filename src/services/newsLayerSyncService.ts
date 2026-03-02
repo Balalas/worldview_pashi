@@ -71,8 +71,24 @@ function detectLayersFromNews(news: NewsItem[]): Set<LayerType> {
   return layersToEnable;
 }
 
-// ── Generate hotspots from clustered geolocated news ──
+// ── Generate hotspots from clustered GEOINT-relevant news ──
 function generateHotspots(news: NewsItem[]): NewsHotspot[] {
+  const GEOINT_PATTERN = /\b(military|missile|strike|airstrike|bomb|drone|conflict|war|troops|deploy|nuclear|radiation|earthquake|seismic|wildfire|fire|volcano|eruption|flood|hurricane|typhoon|cyclone|tornado|storm|tsunami|explosion|terror|attack|maritime|naval|blockade|sanctions|refugee|border|invasion|occupation|ceasefire|weapon|artillery|rebel|militia|insurgent|coup|evacuation|chemical|biological|cyber.?attack|infrastructure|pipeline|blackout|outage|satellite|airspace|escalat|incursion)\b/i;
+  const validCats = ['military', 'conflict', 'earthquake', 'fire', 'nuclear', 'weather', 'maritime', 'volcano', 'cyber', 'protest', 'disaster', 'crisis'];
+
+  // 10 AM daily reset cutoff
+  const now = new Date();
+  const todayReset = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 10, 0, 0);
+  const cutoff = now >= todayReset ? todayReset : new Date(todayReset.getTime() - 86400000);
+
+  const filtered = news.filter(n => {
+    if (n.time < cutoff) return false;
+    if (n.category && validCats.includes(n.category)) return true;
+    if (GEOINT_PATTERN.test(n.title)) return true;
+    if (n.severity === 'critical') return true;
+    return false;
+  });
+
   // Country centroid lookup for news with country but no explicit coords
   const COUNTRY_COORDS: Record<string, { lat: number; lon: number }> = {
     ukraine: { lat: 48.5, lon: 37.5 }, russia: { lat: 55.75, lon: 37.62 },
@@ -113,10 +129,10 @@ function generateHotspots(news: NewsItem[]): NewsHotspot[] {
     peru: { lat: -9.19, lon: -75.02 }, cuba: { lat: 21.52, lon: -77.78 },
   };
 
-  // Group news by country/region
+  // Group filtered GEOINT news by country/region
   const clusters = new Map<string, { items: NewsItem[]; lat: number; lon: number }>();
   
-  for (const item of news) {
+  for (const item of filtered) {
     if (!item.country) continue;
     const key = item.country.toLowerCase();
     const coords = COUNTRY_COORDS[key];

@@ -729,12 +729,34 @@ const MapContainer = memo(() => {
     });
   }, [twitterGeoMarkers, setMapCenter]);
 
-  // Render news markers on countries — plot geolocated news with animated icons
+  // Render news markers on countries — GEOINT-relevant news only
   useEffect(() => {
     const group = layersRef.current['newsMarkers'];
     if (!group) return;
     group.clearLayers();
     if (news.length === 0) return;
+
+    // ── 10 AM daily reset: discard news from before today's 10:00 local time ──
+    const now = new Date();
+    const resetHour = 10;
+    const todayReset = new Date(now.getFullYear(), now.getMonth(), now.getDate(), resetHour, 0, 0);
+    const cutoff = now >= todayReset ? todayReset : new Date(todayReset.getTime() - 86400000);
+
+    // ── GEOINT filter: only show geospatially relevant intel ──
+    const GEOINT_PATTERN = /\b(military|missile|strike|airstrike|bomb|drone|conflict|war|troops|deploy|nuclear|radiation|earthquake|seismic|wildfire|fire|volcano|eruption|flood|hurricane|typhoon|cyclone|tornado|storm|tsunami|explosion|terror|attack|maritime|naval|blockade|sanctions|refugee|border|invasion|occupation|ceasefire|weapon|artillery|tank|armored|convoy|rebel|militia|insurgent|coup|martial law|evacuation|chemical|biological|cyber.?attack|hack|infrastructure|pipeline|blackout|outage|submarine|satellite|airspace|no.fly|radar|surveillance|espionage|intelligence|base|carrier|fleet|squadron|intercept|escalat|provocat|incursion|annex|checkpoint)\b/i;
+
+    const geointNews = news.filter(n => {
+      // Time filter — only show since last 10 AM reset
+      if (n.time < cutoff) return false;
+      // Category filter
+      const validCats = ['military', 'conflict', 'earthquake', 'fire', 'nuclear', 'weather', 'maritime', 'volcano', 'cyber', 'protest', 'disaster', 'crisis'];
+      if (n.category && validCats.includes(n.category)) return true;
+      // Keyword filter
+      if (GEOINT_PATTERN.test(n.title)) return true;
+      // High severity always shows
+      if (n.severity === 'critical') return true;
+      return false;
+    });
 
     // Build country coords from CONFLICT_ZONES + known centroids
     const COUNTRY_CENTROIDS: Record<string, { lat: number; lon: number }> = {
@@ -854,7 +876,7 @@ const MapContainer = memo(() => {
     // Aggregate news per country — max 1 marker per country
     const countryNews: Record<string, { items: typeof news; coords: { lat: number; lon: number; name: string; flag: string } }> = {};
 
-    news.slice(0, 200).forEach(n => {
+    geointNews.slice(0, 200).forEach(n => {
       if (n.country) {
         const key = n.country.toLowerCase();
         const coords = countryCoords[key];
@@ -883,7 +905,7 @@ const MapContainer = memo(() => {
       if (items.length === 0) return;
       const hasCritical = items.some(i => i.severity === 'critical');
       const hasHigh = items.some(i => i.severity === 'high');
-      const color = hasCritical ? '#ff0044' : hasHigh ? '#ff6b35' : '#00d4ff';
+      const color = hasCritical ? '#ff0044' : hasHigh ? '#ff6b35' : '#ffb000';
       const count = items.length;
       const dotSize = 10;
 
@@ -894,11 +916,11 @@ const MapContainer = memo(() => {
       </div>`;
 
       const icon = L.divIcon({ className: '', html: markerHtml, iconSize: [dotSize * 2, dotSize * 2], iconAnchor: [dotSize, dotSize] });
-      const marker = L.marker([coords.lat + (Math.random() - 0.5) * 0.5, coords.lon + (Math.random() - 0.5) * 0.5], { icon });
+      const marker = L.marker([coords.lat, coords.lon], { icon });
 
       // Build holographic popup with all news items, sources, and links
       const severityBadge = (sev: string) => {
-        const c = sev === 'critical' ? '#ff0044' : sev === 'high' ? '#ff6b35' : sev === 'medium' ? '#ffb000' : '#00d4ff';
+        const c = sev === 'critical' ? '#ff0044' : sev === 'high' ? '#ff6b35' : sev === 'medium' ? '#ffb000' : '#88cc44';
         return `<span style="font-family:'JetBrains Mono',monospace;font-size:8px;color:${c};background:${c}15;border:1px solid ${c}40;padding:0 4px;border-radius:2px;letter-spacing:0.08em;">${sev.toUpperCase()}</span>`;
       };
 
