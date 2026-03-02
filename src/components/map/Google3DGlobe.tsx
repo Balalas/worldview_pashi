@@ -1537,13 +1537,8 @@ const Google3DGlobe = memo(() => {
     return () => { clearTimeout(flushTimer); };
   }, [layers, aircraft, satellites, earthquakes, weatherAlerts, volcanoes, vessels, protests, outages, fires, geoEvents, news, missileArcs, setDetailPanel, setActiveLivestream, flyToCamera, setFollowTarget, stopFollow, layerSubFilters]);
 
-  // ── Auto-orbit idle camera ──
-  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const orbitIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const orbitIdxRef = useRef(0);
+  // Map ready state for loading indicator
   const [mapReady, setMapReady] = useState(false);
-
-  // Mark map ready once initMap succeeds
   useEffect(() => {
     if (mapRef.current) setMapReady(true);
     const check = setInterval(() => {
@@ -1551,75 +1546,6 @@ const Google3DGlobe = memo(() => {
     }, 500);
     return () => clearInterval(check);
   }, []);
-
-  // Auto-orbit: after 25s idle, start flying between landmarks
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapReady) return;
-
-    const ORBIT_LOCATIONS = LANDMARK_PRESETS.filter(l =>
-      ['NEW YORK', 'TOKYO', 'DUBAI', 'PARIS', 'SYDNEY', 'PYRAMIDS', 'GRAND CANYON', 'SINGAPORE', 'LONDON', 'SAN FRANCISCO', 'HONG KONG', 'ROME', 'MT FUJI', 'ISTANBUL'].includes(l.label)
-    );
-
-    const startOrbit = () => {
-      if (followTarget || orbitIntervalRef.current) return;
-      const flyNext = () => {
-        const loc = ORBIT_LOCATIONS[orbitIdxRef.current % ORBIT_LOCATIONS.length];
-        orbitIdxRef.current++;
-        if (typeof map.flyCameraAround === 'function') {
-          map.flyCameraAround({
-            camera: {
-              center: { lat: loc.lat, lng: loc.lon, altitude: 0 },
-              range: Math.max(2000, Math.pow(2, 22 - loc.zoom) * 2),
-              tilt: 60,
-              heading: Math.random() * 360,
-            },
-            durationMillis: 18000,
-            rounds: 0.4,
-          });
-        } else if (typeof map.flyCameraTo === 'function') {
-          map.flyCameraTo({
-            endCamera: {
-              center: { lat: loc.lat, lng: loc.lon, altitude: 0 },
-              range: Math.max(2000, Math.pow(2, 22 - loc.zoom) * 2),
-              tilt: 60,
-              heading: Math.random() * 360,
-            },
-            durationMillis: 5000,
-          });
-        }
-      };
-      flyNext();
-      orbitIntervalRef.current = setInterval(flyNext, 20000);
-    };
-
-    const stopOrbit = () => {
-      if (orbitIntervalRef.current) {
-        clearInterval(orbitIntervalRef.current);
-        orbitIntervalRef.current = null;
-      }
-    };
-
-    const resetIdle = () => {
-      stopOrbit();
-      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-      idleTimerRef.current = setTimeout(startOrbit, 25000);
-    };
-
-    // Listen for user interaction
-    const events = ['click', 'mousedown', 'wheel', 'touchstart', 'keydown'];
-    const container = containerRef.current;
-    events.forEach(e => container?.addEventListener(e, resetIdle, { passive: true }));
-
-    // Start idle timer initially
-    idleTimerRef.current = setTimeout(startOrbit, 25000);
-
-    return () => {
-      stopOrbit();
-      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-      events.forEach(e => container?.removeEventListener(e, resetIdle));
-    };
-  }, [mapReady, followTarget]);
 
   return (
     <div ref={containerRef} className="w-full h-full bg-background relative">
