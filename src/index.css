@@ -277,6 +277,25 @@
   text-transform: uppercase;
 }
 
+/* OSINT popup — strip Leaflet chrome */
+.osint-popup .leaflet-popup-content-wrapper {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+}
+.osint-popup .leaflet-popup-content {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+.osint-popup .leaflet-popup-tip-container {
+  display: none !important;
+}
+.osint-popup .leaflet-popup-close-button {
+  display: none !important;
+}
+
 /* Smooth transitions for all interactive elements */
 button, a, [role="button"] {
   transition: all 0.15s ease;

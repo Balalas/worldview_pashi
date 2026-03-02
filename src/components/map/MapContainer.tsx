@@ -550,10 +550,70 @@ const MapContainer = memo(() => {
       });
 
       const marker = L.marker([m.lat, m.lon], { icon });
-      marker.bindTooltip(`𝕏 @${m.account} — ${m.text.substring(0, 80)}…`, { direction: 'top', offset: [0, -12] });
+
+      // Holographic popup with full tweet
+      const timeAgo = (() => {
+        const diff = Date.now() - new Date(m.createdAt).getTime();
+        const mins = Math.floor(diff / 60000);
+        if (mins < 1) return 'NOW';
+        if (mins < 60) return `${mins}m ago`;
+        return `${Math.floor(mins / 60)}h ago`;
+      })();
+
+      const popupHtml = `<div style="
+        background: linear-gradient(135deg, hsla(210,60%,4%,0.95), hsla(210,50%,8%,0.9));
+        border: 1px solid ${isConflict ? 'hsla(345,100%,50%,0.4)' : 'hsla(150,100%,50%,0.25)'};
+        border-radius: 6px;
+        padding: 12px 14px;
+        min-width: 260px;
+        max-width: 320px;
+        box-shadow: 0 0 24px ${isConflict ? 'hsla(345,100%,50%,0.15)' : 'hsla(150,100%,50%,0.1)'}, 0 8px 32px rgba(0,0,0,0.6);
+        backdrop-filter: blur(16px);
+        font-family: 'Barlow Condensed', sans-serif;
+        position: relative;
+        overflow: hidden;
+      ">
+        <!-- Scanlines -->
+        <div style="position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,transparent,transparent 2px,hsla(150,100%,50%,0.015) 2px,hsla(150,100%,50%,0.015) 4px);border-radius:6px;"></div>
+        <!-- Corner brackets -->
+        <div style="position:absolute;top:0;left:0;width:8px;height:8px;border-top:2px solid ${isConflict ? 'hsla(345,100%,50%,0.5)' : 'hsla(150,100%,50%,0.4)'};border-left:2px solid ${isConflict ? 'hsla(345,100%,50%,0.5)' : 'hsla(150,100%,50%,0.4)'};border-radius:3px 0 0 0;"></div>
+        <div style="position:absolute;top:0;right:0;width:8px;height:8px;border-top:2px solid ${isConflict ? 'hsla(345,100%,50%,0.5)' : 'hsla(150,100%,50%,0.4)'};border-right:2px solid ${isConflict ? 'hsla(345,100%,50%,0.5)' : 'hsla(150,100%,50%,0.4)'};border-radius:0 3px 0 0;"></div>
+        <div style="position:absolute;bottom:0;left:0;width:8px;height:8px;border-bottom:2px solid ${isConflict ? 'hsla(345,100%,50%,0.5)' : 'hsla(150,100%,50%,0.4)'};border-left:2px solid ${isConflict ? 'hsla(345,100%,50%,0.5)' : 'hsla(150,100%,50%,0.4)'};border-radius:0 0 0 3px;"></div>
+        <div style="position:absolute;bottom:0;right:0;width:8px;height:8px;border-bottom:2px solid ${isConflict ? 'hsla(345,100%,50%,0.5)' : 'hsla(150,100%,50%,0.4)'};border-right:2px solid ${isConflict ? 'hsla(345,100%,50%,0.5)' : 'hsla(150,100%,50%,0.4)'};border-radius:0 0 3px 0;"></div>
+        <!-- Header -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:13px;">𝕏</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:${isConflict ? '#ff0044' : '#00ff88'};letter-spacing:0.08em;">@${m.account}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:4px;">
+            <div style="width:5px;height:5px;border-radius:50%;background:${isConflict ? '#ff0044' : '#00ff88'};animation:pulse-dot 1.5s ease-in-out infinite;"></div>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:8px;color:${isConflict ? '#ff0044' : '#00ff88'};letter-spacing:0.1em;">${isConflict ? 'CONFLICT' : 'OSINT'}</span>
+          </div>
+        </div>
+        ${isConflict ? '<div style="height:1px;background:linear-gradient(90deg,transparent,hsla(345,100%,50%,0.3),transparent);margin-bottom:8px;"></div>' : '<div style="height:1px;background:linear-gradient(90deg,transparent,hsla(150,100%,50%,0.2),transparent);margin-bottom:8px;"></div>'}
+        <!-- Tweet body -->
+        <p style="font-size:12px;color:hsla(200,50%,88%,0.9);line-height:1.5;margin:0 0 8px 0;word-wrap:break-word;">${m.text}</p>
+        <!-- Footer -->
+        <div style="display:flex;align-items:center;justify-content:space-between;padding-top:6px;border-top:1px solid hsla(150,100%,50%,0.08);">
+          <div style="display:flex;align-items:center;gap:4px;">
+            <span style="font-family:'JetBrains Mono',monospace;font-size:8px;color:hsla(200,50%,88%,0.4);">📍 ${m.place || 'GEO'}</span>
+          </div>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:8px;color:hsla(200,50%,88%,0.3);">${timeAgo}</span>
+        </div>
+        <a href="${m.url}" target="_blank" rel="noopener" style="display:block;margin-top:6px;font-family:'JetBrains Mono',monospace;font-size:8px;color:hsla(150,100%,50%,0.5);text-decoration:none;letter-spacing:0.1em;text-align:center;">🔗 OPEN ON 𝕏</a>
+      </div>`;
+
+      marker.bindPopup(popupHtml, {
+        className: 'osint-popup',
+        maxWidth: 340,
+        minWidth: 260,
+        closeButton: false,
+        autoPan: true,
+      });
+
       marker.on('click', () => {
         setMapCenter({ lat: m.lat, lon: m.lon, zoom: 8 });
-        window.open(m.url, '_blank');
       });
       group.addLayer(marker);
     });
