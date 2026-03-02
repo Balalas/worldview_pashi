@@ -316,12 +316,32 @@ const CountryDossier = memo(() => {
               ) : activeTab === 'tv' ? (
                 <CountryTVPanel channels={countryTVChannels} />
               ) : activeTab === 'xosint' ? (
-                <XOsintFeed posts={countryXPosts} />
+                <XOsintFeed posts={countryXPosts} countryName={country.name} />
               ) : activeTab === 'perplexity' ? (
                 <PerplexityIntelPanel countryName={country.name} />
               ) : (
                 <>
+                  <CheckNewsButton countryName={country.name} />
                   <CountryAIBanner news={filteredNews} countryName={country.name} />
+                  {countryXPosts.length > 0 && (
+                    <div className="mb-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-[9px]">𝕏</span>
+                        <span className="text-[8px] font-display tracking-[0.15em] text-primary/70">LATEST X/OSINT</span>
+                        <span className="text-[7px] font-data text-muted-foreground">{countryXPosts.length} posts</span>
+                      </div>
+                      {countryXPosts.slice(0, 3).map(post => (
+                        <div key={post.id} className="rounded border border-border/20 bg-card-bg/20 px-2.5 py-1.5 mb-1 cursor-pointer hover:border-primary/30 transition-colors"
+                          onClick={() => window.open(post.url, '_blank', 'noopener')}>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[8px] font-data text-primary/70">@{post.account}</span>
+                            <span className="text-[7px] font-data text-muted-foreground/40 ml-auto">{new Date(post.createdAt).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' })}</span>
+                          </div>
+                          <p className="text-[9px] font-data text-foreground/70 leading-relaxed mt-0.5 line-clamp-2">{post.text}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <NewsFeed news={filteredNews} onNewsClick={handleNewsClick} />
                 </>
               )}
@@ -412,7 +432,60 @@ const StatRow = ({ label, value }: { label: string; value: string }) => (
   </div>
 );
 
-const XOsintFeed = memo(({ posts }: { posts: TwitterOsintPost[] }) => {
+// Check News Now button — uses Perplexity to fetch fresh news
+const CheckNewsButton = memo(({ countryName }: { countryName: string }) => {
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<PerplexityIntel | null>(null);
+
+  const handleCheck = useCallback(async () => {
+    setLoading(true);
+    const intel = await fetchPerplexityCountryIntel(countryName);
+    if (intel) setResult(intel);
+    setLoading(false);
+  }, [countryName]);
+
+  const threatColor = result?.threatLevel === 'CRITICAL' ? 'text-alert-critical' :
+    result?.threatLevel === 'HIGH' ? 'text-alert-high' :
+    result?.threatLevel === 'MEDIUM' ? 'text-alert-medium' : 'text-primary';
+
+  return (
+    <div className="mb-3">
+      <button
+        onClick={handleCheck}
+        disabled={loading}
+        className="flex items-center gap-2 px-3 py-2 rounded border border-primary/30 bg-primary/5 hover:bg-primary/10 transition-colors text-primary disabled:opacity-50 w-full"
+      >
+        {loading ? (
+          <span className="w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        ) : (
+          <span className="text-sm">🔍</span>
+        )}
+        <span className="text-[10px] font-display tracking-[0.12em]">
+          {loading ? 'FETCHING LIVE INTEL...' : 'CHECK NEWS NOW'}
+        </span>
+        <span className="text-[7px] font-data text-primary/50 ml-auto">PERPLEXITY AI</span>
+      </button>
+      {result && (
+        <div className={`mt-2 rounded border border-border/30 bg-card-bg/30 px-3 py-2`}>
+          <div className="flex items-center gap-2 mb-1">
+            <span className={`text-[8px] font-data font-bold tracking-wider ${threatColor}`}>● {result.threatLevel}</span>
+            <span className="text-[7px] font-data text-muted-foreground/50">{result.fetchedAt ? new Date(result.fetchedAt).toLocaleTimeString('en-US', { hour12: false }) : ''}</span>
+          </div>
+          <p className="text-[10px] font-data text-foreground/80 leading-relaxed mb-1.5">{result.briefing}</p>
+          {result.developments?.slice(0, 3).map((d, i) => (
+            <div key={i} className="flex items-start gap-1.5 text-[9px] mb-0.5">
+              <span className="text-primary/60 flex-shrink-0 mt-0.5">▸</span>
+              <span className="font-data text-foreground/70">{d}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+});
+CheckNewsButton.displayName = 'CheckNewsButton';
+
+const XOsintFeed = memo(({ posts, countryName }: { posts: TwitterOsintPost[]; countryName?: string }) => {
   if (posts.length === 0) {
     return (
       <div className="flex items-center justify-center h-full">
