@@ -321,7 +321,7 @@ export const DEFAULT_SUB_FILTERS: LayerSubFilters = {
   showCivilian: true,
   showMilitaryAC: true,
   showHelicopters: true,
-  maxAircraft: 50,
+  maxAircraft: 25,
   showYachts: true,
   showCargo: true,
   showTankers: true,
@@ -525,8 +525,8 @@ export interface TwitterOsintPost {
 
 export const useWorldViewStore = create<WorldViewState>((set) => ({
   layers: {
-    aircraft: true,
-    satellites: true,
+    aircraft: false,
+    satellites: false,
     cameras: false,
     militaryFlights: true,
     vessels: false,
