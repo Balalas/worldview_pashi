@@ -66,7 +66,19 @@ export const fetchConflictIntel = async (
     });
 
     if (error) {
-      console.warn('Conflict intel error:', error);
+      // Gracefully handle 402/429 — don't treat as fatal
+      const errMsg = typeof error === 'object' && error?.message ? error.message : String(error);
+      if (errMsg.includes('402') || errMsg.includes('Payment') || errMsg.includes('429') || errMsg.includes('Rate')) {
+        console.warn('AI credits exhausted or rate limited, using cached data');
+      } else {
+        console.warn('Conflict intel error:', error);
+      }
+      return cache.data;
+    }
+
+    // Also check if the response body itself contains an error
+    if (data?.error) {
+      console.warn('Conflict intel returned error:', data.error);
       return cache.data;
     }
 

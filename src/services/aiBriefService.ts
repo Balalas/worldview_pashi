@@ -31,7 +31,12 @@ export const fetchAIWorldBrief = async (
     });
 
     if (error) {
-      console.warn('AI brief error:', error);
+      console.warn('AI brief error (may be 402/429):', error);
+      return null;
+    }
+
+    if (data?.error) {
+      console.warn('AI brief returned error:', data.error);
       return null;
     }
 
