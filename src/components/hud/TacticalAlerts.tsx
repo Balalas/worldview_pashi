@@ -187,14 +187,14 @@ const TacticalAlerts = memo(() => {
           >
             <div className="flex items-center gap-1.5">
               <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot} ${alert.persistent ? 'animate-ping' : 'animate-pulse-dot'} flex-shrink-0`} />
-              <span className={`text-[8px] font-data tracking-[0.12em] ${cfg.text} font-bold truncate`}>
+              <span className={`text-[10px] font-data tracking-[0.12em] ${cfg.text} font-bold truncate`}>
                 {TYPE_ICONS[alert.type]} {alert.type === 'war' ? 'WAR' : alert.type === 'conflict' ? 'CONFLICT' : alert.severity.toUpperCase()}
               </span>
-              <span className="text-[7px] font-data text-muted-foreground ml-auto flex-shrink-0">
+              <span className="text-[9px] font-data text-muted-foreground ml-auto flex-shrink-0">
                 {alert.timestamp.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' })}
               </span>
             </div>
-            <p className="text-[9px] font-display tracking-wider text-foreground mt-0.5 leading-tight truncate">{alert.title}</p>
+            <p className="text-[11px] font-display tracking-wider text-foreground mt-0.5 leading-tight truncate">{alert.title}</p>
           </div>
         );
       })}
@@ -206,10 +206,10 @@ const TacticalAlerts = memo(() => {
           className="glass-panel border border-border px-2.5 py-1.5 rounded text-left hover:bg-card-hover transition-colors"
         >
           <div className="flex items-center gap-2">
-            <span className="text-[9px] font-data text-primary">+{hiddenCount} MORE ALERTS</span>
-            {critCount > 0 && <span className="text-[7px] font-data text-alert-critical">●{critCount} CRIT</span>}
-            {highCount > 0 && <span className="text-[7px] font-data text-alert-high">●{highCount} HIGH</span>}
-            <span className="text-[7px] font-data text-muted-foreground ml-auto">TAP TO EXPAND</span>
+            <span className="text-[11px] font-data text-primary">+{hiddenCount} MORE ALERTS</span>
+            {critCount > 0 && <span className="text-[9px] font-data text-alert-critical">●{critCount} CRIT</span>}
+            {highCount > 0 && <span className="text-[9px] font-data text-alert-high">●{highCount} HIGH</span>}
+            <span className="text-[9px] font-data text-muted-foreground ml-auto">TAP TO EXPAND</span>
           </div>
         </button>
       )}
@@ -217,8 +217,8 @@ const TacticalAlerts = memo(() => {
       {/* Collapse + dismiss controls when expanded */}
       {expanded && alerts.length > MAX_VISIBLE && (
         <div className="flex items-center gap-2 px-1">
-          <button onClick={() => setExpanded(false)} className="text-[7px] font-data text-primary/60 hover:text-primary">▲ COLLAPSE</button>
-          <button onClick={dismissAll} className="text-[7px] font-data text-alert-medium/60 hover:text-alert-medium ml-auto">✕ DISMISS ALL</button>
+          <button onClick={() => setExpanded(false)} className="text-[9px] font-data text-primary/60 hover:text-primary">▲ COLLAPSE</button>
+          <button onClick={dismissAll} className="text-[9px] font-data text-alert-medium/60 hover:text-alert-medium ml-auto">✕ DISMISS ALL</button>
         </div>
       )}
     </div>

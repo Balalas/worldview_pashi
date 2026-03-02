@@ -32,10 +32,10 @@ const RightPanel = memo(() => {
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-1.5">
               <span className="text-xs">{typeIcons[detailPanel.type] || '📍'}</span>
-              <span className="text-[9px] font-display tracking-[0.15em] text-foreground">{typeLabels[detailPanel.type] || 'DETAIL'}</span>
+              <span className="text-[11px] font-display tracking-[0.15em] text-foreground">{typeLabels[detailPanel.type] || 'DETAIL'}</span>
               <span className="flex items-center gap-0.5 ml-1">
                 <span className="w-1 h-1 rounded-full bg-alert-critical animate-pulse-dot" />
-                <span className="text-[7px] font-data text-alert-critical">LIVE</span>
+                <span className="text-[9px] font-data text-alert-critical">LIVE</span>
               </span>
             </div>
             <button onClick={closeDetailPanel} className="text-muted-foreground hover:text-foreground text-[10px] p-0.5">✕</button>
@@ -71,7 +71,7 @@ const DataRow = ({ label, value, sub }: { label: string; value: string; sub?: st
 );
 
 const ActionButton = ({ label, onClick }: { label: string; onClick?: () => void }) => (
-  <button onClick={onClick} className="flex-1 text-[8px] font-display tracking-wider py-1 rounded border border-border bg-card-bg text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors">{label}</button>
+  <button onClick={onClick} className="flex-1 text-[10px] font-display tracking-wider py-1 rounded border border-border bg-card-bg text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors">{label}</button>
 );
 
 const getCardinal = (deg: number): string => {

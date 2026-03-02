@@ -108,9 +108,9 @@ const CollapsibleRow = ({ title, icon, defaultOpen = true, children }: { title: 
         onClick={() => setOpen(!open)}
         className="w-full flex items-center gap-2 px-3 py-1.5 bg-card-bg/30 hover:bg-card-bg/60 transition-colors text-left"
       >
-        <span className="text-[10px]">{icon}</span>
-        <span className="text-[9px] font-display tracking-[0.2em] text-muted-foreground flex-1">{title}</span>
-        <span className="text-[9px] font-data text-primary/50">{open ? '▼' : '▶'}</span>
+        <span className="text-[12px]">{icon}</span>
+        <span className="text-[11px] font-display tracking-[0.2em] text-muted-foreground flex-1">{title}</span>
+        <span className="text-[11px] font-data text-primary/50">{open ? '▼' : '▶'}</span>
       </button>
       {open && <div>{children}</div>}
     </div>
