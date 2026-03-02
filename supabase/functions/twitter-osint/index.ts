@@ -9,7 +9,9 @@ const TWITTER_API = "https://api.x.com/2";
 
 // Split into batches to stay under Twitter's 512 char query limit
 const ACCOUNT_BATCHES = [
-  ["conflict_radar", "sentdefender", "Polymarket", "Osinttechnical", "osintwarfare"],
+  ["conflict_radar", "sentdefender", "Osinttechnical", "osintwarfare", "MonitorWarfare"],
+  ["CyberScoopNews", "TheHackersNews", "vaborondon", "AuroraIntel", "IntelCrab"],
+  ["BNONews", "Faytuks", "GeoConfirmed", "PolymarketIntel", "DarkReading"],
 ];
 
 // Extract location from tweet text
@@ -46,6 +48,19 @@ function extractGeoFromText(text: string): { lat: number; lon: number; place: st
     "bakhmut": { lat: 48.5953, lon: 38.0008 }, "kursk": { lat: 51.7373, lon: 36.1874 },
     "sevastopol": { lat: 44.6166, lon: 33.5254 }, "dnipro": { lat: 48.4647, lon: 35.0462 },
     "lviv": { lat: 49.8397, lon: 24.0297 }, "istanbul": { lat: 41.0082, lon: 28.9784 },
+    "cyprus": { lat: 35.1264, lon: 33.4299 }, "nicosia": { lat: 35.1856, lon: 33.3823 },
+    "limassol": { lat: 34.6823, lon: 33.0464 }, "larnaca": { lat: 34.9229, lon: 33.6233 },
+    "paphos": { lat: 34.7720, lon: 32.4297 }, "famagusta": { lat: 35.1246, lon: 33.9417 },
+    "mogadishu": { lat: 2.0469, lon: 45.3182 }, "tripoli": { lat: 32.9022, lon: 13.1802 },
+    "sanaa": { lat: 15.3694, lon: 44.1910 }, "aden": { lat: 12.7855, lon: 45.0187 },
+    "riyadh": { lat: 24.7136, lon: 46.6753 }, "jeddah": { lat: 21.4858, lon: 39.1925 },
+    "dubai": { lat: 25.2048, lon: 55.2708 }, "abu dhabi": { lat: 24.4539, lon: 54.3773 },
+    "mumbai": { lat: 19.0760, lon: 72.8777 }, "delhi": { lat: 28.7041, lon: 77.1025 },
+    "nairobi": { lat: -1.2921, lon: 36.8219 }, "addis ababa": { lat: 9.0222, lon: 38.7468 },
+    "kinshasa": { lat: -4.3217, lon: 15.3126 }, "lagos": { lat: 6.5244, lon: 3.3792 },
+    "caracas": { lat: 10.4806, lon: -66.9036 }, "bogota": { lat: 4.7110, lon: -74.0721 },
+    "mexico city": { lat: 19.4326, lon: -99.1332 }, "havana": { lat: 23.1136, lon: -82.3666 },
+    "minsk": { lat: 53.9006, lon: 27.5590 }, "tbilisi": { lat: 41.7151, lon: 44.8271 },
   };
 
   const lower = text.toLowerCase();

@@ -327,7 +327,7 @@ const MapContainer = memo(() => {
     });
   }, [protests, layers.protests, setDetailPanel]);
 
-  // Render outages
+  // Render outages — full news popup with source link
   useEffect(() => {
     const group = layersRef.current['outages'];
     if (!group) return;
@@ -343,13 +343,40 @@ const MapContainer = memo(() => {
         html: `<div style="position:relative;width:18px;height:18px;">
           <div style="position:absolute;inset:0;background:${color}20;border:1px solid ${color}60;border-radius:4px;"></div>
           <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:11px;">${typeIcons[o.type] || '⚠'}</div>
+          <div style="position:absolute;inset:-3px;border:1.5px solid ${color};border-radius:50%;animation:ping-ring 2.5s ease-out infinite;opacity:0.4;"></div>
         </div>`,
         iconSize: [18, 18],
         iconAnchor: [9, 9],
       });
 
-      const marker = L.marker([o.lat, o.lon], { icon })
-        .on('click', () => setDetailPanel({ type: 'outage', data: o }));
+      const timeLabel = o.time ? new Date(o.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+      const sourceLink = o.link ? `<a href="${o.link}" target="_blank" rel="noopener" style="display:block;margin-top:8px;font-family:'JetBrains Mono',monospace;font-size:9px;color:hsla(150,100%,50%,0.6);text-decoration:none;letter-spacing:0.1em;text-align:center;border:1px solid hsla(150,100%,50%,0.2);padding:4px 8px;border-radius:4px;">🔗 VIEW SOURCE</a>` : '';
+
+      const popupHtml = `<div style="
+        background: linear-gradient(135deg, hsla(210,60%,4%,0.95), hsla(210,50%,8%,0.9));
+        border: 1px solid ${color}40;
+        border-radius: 6px;
+        padding: 12px 14px;
+        min-width: 240px;
+        max-width: 320px;
+        box-shadow: 0 0 24px ${color}15, 0 8px 32px rgba(0,0,0,0.6);
+        backdrop-filter: blur(16px);
+        font-family: 'Barlow Condensed', sans-serif;
+      ">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+          <span style="font-size:16px;">${typeIcons[o.type] || '⚠'}</span>
+          <span style="font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:600;color:${color};letter-spacing:0.1em;text-transform:uppercase;">${o.type} — ${o.severity}</span>
+          <span style="margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:8px;color:hsla(200,50%,88%,0.4);">${timeLabel}</span>
+        </div>
+        <div style="height:1px;background:linear-gradient(90deg,transparent,${color}40,transparent);margin-bottom:8px;"></div>
+        <p style="font-size:12px;color:hsla(200,50%,88%,0.9);line-height:1.5;margin:0;">${o.title}</p>
+        ${o.affected ? `<div style="margin-top:6px;font-family:'JetBrains Mono',monospace;font-size:9px;color:hsla(200,50%,88%,0.5);">AFFECTED: ${o.affected}</div>` : ''}
+        <div style="margin-top:4px;font-family:'JetBrains Mono',monospace;font-size:8px;color:hsla(200,50%,88%,0.3);">SRC: ${o.source}</div>
+        ${sourceLink}
+      </div>`;
+
+      const marker = L.marker([o.lat, o.lon], { icon });
+      marker.bindPopup(popupHtml, { className: 'osint-popup', maxWidth: 340, minWidth: 240, closeButton: false, autoPan: true });
       marker.bindTooltip(`${typeIcons[o.type] || '⚠'} ${o.type.toUpperCase()} | ${o.severity} | ${o.title.slice(0, 60)}...`, { direction: 'top' });
       group.addLayer(marker);
     });
@@ -750,6 +777,67 @@ const MapContainer = memo(() => {
       'saudi arabia': { lat: 23.9, lon: 45.1 }, 'sa': { lat: 23.9, lon: 45.1 },
       'mozambique': { lat: -18.7, lon: 35.5 }, 'mz': { lat: -18.7, lon: 35.5 },
       'burkina faso': { lat: 12.3, lon: -1.5 }, 'bf': { lat: 12.3, lon: -1.5 },
+      'cyprus': { lat: 35.13, lon: 33.43 }, 'cy': { lat: 35.13, lon: 33.43 },
+      'greece': { lat: 39.07, lon: 21.82 }, 'gr': { lat: 39.07, lon: 21.82 },
+      'poland': { lat: 51.92, lon: 19.15 }, 'pl': { lat: 51.92, lon: 19.15 },
+      'romania': { lat: 45.94, lon: 24.97 }, 'ro': { lat: 45.94, lon: 24.97 },
+      'hungary': { lat: 47.16, lon: 19.50 }, 'hu': { lat: 47.16, lon: 19.50 },
+      'italy': { lat: 41.87, lon: 12.57 }, 'it': { lat: 41.87, lon: 12.57 },
+      'spain': { lat: 40.46, lon: -3.75 }, 'es': { lat: 40.46, lon: -3.75 },
+      'portugal': { lat: 39.40, lon: -8.22 }, 'pt': { lat: 39.40, lon: -8.22 },
+      'netherlands': { lat: 52.13, lon: 5.29 }, 'nl': { lat: 52.13, lon: 5.29 },
+      'belgium': { lat: 50.50, lon: 4.47 }, 'be': { lat: 50.50, lon: 4.47 },
+      'sweden': { lat: 60.13, lon: 18.64 }, 'se': { lat: 60.13, lon: 18.64 },
+      'norway': { lat: 60.47, lon: 8.47 }, 'no': { lat: 60.47, lon: 8.47 },
+      'finland': { lat: 61.92, lon: 25.75 }, 'fi': { lat: 61.92, lon: 25.75 },
+      'denmark': { lat: 56.26, lon: 9.50 }, 'dk': { lat: 56.26, lon: 9.50 },
+      'austria': { lat: 47.52, lon: 14.55 }, 'at': { lat: 47.52, lon: 14.55 },
+      'switzerland': { lat: 46.82, lon: 8.23 }, 'ch': { lat: 46.82, lon: 8.23 },
+      'czech republic': { lat: 49.82, lon: 15.47 }, 'cz': { lat: 49.82, lon: 15.47 },
+      'uae': { lat: 23.42, lon: 53.85 }, 'ae': { lat: 23.42, lon: 53.85 },
+      'qatar': { lat: 25.35, lon: 51.18 }, 'qa': { lat: 25.35, lon: 51.18 },
+      'kuwait': { lat: 29.31, lon: 47.48 }, 'kw': { lat: 29.31, lon: 47.48 },
+      'bahrain': { lat: 26.07, lon: 50.56 }, 'bh': { lat: 26.07, lon: 50.56 },
+      'oman': { lat: 21.51, lon: 55.92 }, 'om': { lat: 21.51, lon: 55.92 },
+      'jordan': { lat: 30.59, lon: 36.24 }, 'jo': { lat: 30.59, lon: 36.24 },
+      'tunisia': { lat: 33.89, lon: 9.54 }, 'tn': { lat: 33.89, lon: 9.54 },
+      'algeria': { lat: 28.03, lon: 1.66 }, 'dz': { lat: 28.03, lon: 1.66 },
+      'morocco': { lat: 31.79, lon: -7.09 }, 'ma': { lat: 31.79, lon: -7.09 },
+      'kenya': { lat: -0.02, lon: 37.91 }, 'ke': { lat: -0.02, lon: 37.91 },
+      'ghana': { lat: 7.95, lon: -1.02 }, 'gh': { lat: 7.95, lon: -1.02 },
+      'senegal': { lat: 14.50, lon: -14.45 }, 'sn': { lat: 14.50, lon: -14.45 },
+      'argentina': { lat: -38.42, lon: -63.62 }, 'ar': { lat: -38.42, lon: -63.62 },
+      'chile': { lat: -35.68, lon: -71.54 }, 'cl': { lat: -35.68, lon: -71.54 },
+      'peru': { lat: -9.19, lon: -75.02 }, 'pe': { lat: -9.19, lon: -75.02 },
+      'philippines': { lat: 12.88, lon: 121.77 }, 'ph': { lat: 12.88, lon: 121.77 },
+      'indonesia': { lat: -0.79, lon: 113.92 }, 'id': { lat: -0.79, lon: 113.92 },
+      'malaysia': { lat: 4.21, lon: 101.97 }, 'my': { lat: 4.21, lon: 101.97 },
+      'thailand': { lat: 15.87, lon: 100.99 }, 'th': { lat: 15.87, lon: 100.99 },
+      'vietnam': { lat: 14.06, lon: 108.28 }, 'vn': { lat: 14.06, lon: 108.28 },
+      'singapore': { lat: 1.35, lon: 103.82 }, 'sg': { lat: 1.35, lon: 103.82 },
+      'new zealand': { lat: -40.90, lon: 174.89 }, 'nz': { lat: -40.90, lon: 174.89 },
+      'bangladesh': { lat: 23.68, lon: 90.36 }, 'bd': { lat: 23.68, lon: 90.36 },
+      'sri lanka': { lat: 7.87, lon: 80.77 }, 'lk': { lat: 7.87, lon: 80.77 },
+      'nepal': { lat: 28.39, lon: 84.12 }, 'np': { lat: 28.39, lon: 84.12 },
+      'afghanistan': { lat: 33.94, lon: 67.71 }, 'af': { lat: 33.94, lon: 67.71 },
+      'uzbekistan': { lat: 41.38, lon: 64.59 }, 'uz': { lat: 41.38, lon: 64.59 },
+      'kazakhstan': { lat: 48.02, lon: 66.92 }, 'kz': { lat: 48.02, lon: 66.92 },
+      'georgia': { lat: 42.32, lon: 43.36 }, 'ge': { lat: 42.32, lon: 43.36 },
+      'armenia': { lat: 40.07, lon: 45.04 }, 'am': { lat: 40.07, lon: 45.04 },
+      'azerbaijan': { lat: 40.14, lon: 47.58 }, 'az': { lat: 40.14, lon: 47.58 },
+      'belarus': { lat: 53.71, lon: 27.95 }, 'by': { lat: 53.71, lon: 27.95 },
+      'moldova': { lat: 47.41, lon: 28.37 }, 'md': { lat: 47.41, lon: 28.37 },
+      'serbia': { lat: 44.02, lon: 21.01 }, 'rs': { lat: 44.02, lon: 21.01 },
+      'kosovo': { lat: 42.60, lon: 20.90 }, 'xk': { lat: 42.60, lon: 20.90 },
+      'bosnia': { lat: 43.92, lon: 17.68 }, 'ba': { lat: 43.92, lon: 17.68 },
+      'croatia': { lat: 45.10, lon: 15.20 }, 'hr': { lat: 45.10, lon: 15.20 },
+      'bulgaria': { lat: 42.73, lon: 25.49 }, 'bg': { lat: 42.73, lon: 25.49 },
+      'cuba': { lat: 21.52, lon: -77.78 }, 'cu': { lat: 21.52, lon: -77.78 },
+      'nicaragua': { lat: 12.87, lon: -85.21 }, 'ni': { lat: 12.87, lon: -85.21 },
+      'honduras': { lat: 15.20, lon: -86.24 }, 'hn': { lat: 15.20, lon: -86.24 },
+      'el salvador': { lat: 13.79, lon: -88.90 }, 'sv': { lat: 13.79, lon: -88.90 },
+      'guatemala': { lat: 15.78, lon: -90.23 }, 'gt': { lat: 15.78, lon: -90.23 },
+      'hong kong': { lat: 22.40, lon: 114.11 }, 'hk': { lat: 22.40, lon: 114.11 },
     };
 
     // Also add COUNTRY_META entries matched to centroids

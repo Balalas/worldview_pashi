@@ -94,6 +94,23 @@ function generateHotspots(news: NewsItem[]): NewsHotspot[] {
     ethiopia: { lat: 9.01, lon: 38.75 }, nigeria: { lat: 9.08, lon: 7.49 },
     venezuela: { lat: 10.49, lon: -66.88 }, colombia: { lat: 4.71, lon: -74.07 },
     mexico: { lat: 19.43, lon: -99.13 }, brazil: { lat: -15.79, lon: -47.88 },
+    cyprus: { lat: 35.13, lon: 33.43 }, greece: { lat: 39.07, lon: 21.82 },
+    poland: { lat: 51.92, lon: 19.15 }, romania: { lat: 45.94, lon: 24.97 },
+    italy: { lat: 41.87, lon: 12.57 }, spain: { lat: 40.46, lon: -3.75 },
+    canada: { lat: 56.13, lon: -106.35 }, australia: { lat: -25.27, lon: 133.78 },
+    'south africa': { lat: -30.56, lon: 22.94 }, kenya: { lat: -0.02, lon: 37.91 },
+    morocco: { lat: 31.79, lon: -7.09 }, algeria: { lat: 28.03, lon: 1.66 },
+    tunisia: { lat: 33.89, lon: 9.54 }, jordan: { lat: 30.59, lon: 36.24 },
+    kuwait: { lat: 29.31, lon: 47.48 }, qatar: { lat: 25.35, lon: 51.18 },
+    bahrain: { lat: 26.07, lon: 50.56 }, oman: { lat: 21.51, lon: 55.92 },
+    georgia: { lat: 42.32, lon: 43.36 }, armenia: { lat: 40.07, lon: 45.04 },
+    azerbaijan: { lat: 40.14, lon: 47.58 }, belarus: { lat: 53.71, lon: 27.95 },
+    serbia: { lat: 44.02, lon: 21.01 }, kosovo: { lat: 42.60, lon: 20.90 },
+    philippines: { lat: 12.88, lon: 121.77 }, indonesia: { lat: -0.79, lon: 113.92 },
+    thailand: { lat: 15.87, lon: 100.99 }, vietnam: { lat: 14.06, lon: 108.28 },
+    singapore: { lat: 1.35, lon: 103.82 }, malaysia: { lat: 4.21, lon: 101.97 },
+    argentina: { lat: -38.42, lon: -63.62 }, chile: { lat: -35.68, lon: -71.54 },
+    peru: { lat: -9.19, lon: -75.02 }, cuba: { lat: 21.52, lon: -77.78 },
   };
 
   // Group news by country/region
