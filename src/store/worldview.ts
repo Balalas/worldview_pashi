@@ -478,6 +478,10 @@ export interface WorldViewState {
   droneMode: boolean;
   toggleDroneMode: () => void;
 
+  // Epstein mode
+  epsteinMode: boolean;
+  toggleEpsteinMode: () => void;
+
   // Twitter OSINT geo markers
   twitterGeoMarkers: TwitterGeoMarker[];
   setTwitterGeoMarkers: (markers: TwitterGeoMarker[]) => void;
@@ -730,6 +734,9 @@ export const useWorldViewStore = create<WorldViewState>((set) => ({
   droneMode: false,
   toggleDroneMode: () => set((s) => ({ droneMode: !s.droneMode })),
 
+  epsteinMode: false,
+  toggleEpsteinMode: () => set((s) => ({ epsteinMode: !s.epsteinMode })),
+
   twitterGeoMarkers: [],
   setTwitterGeoMarkers: (twitterGeoMarkers) => set({ twitterGeoMarkers }),
 
@@ -817,4 +824,38 @@ export const NUCLEAR_SITES = [
   { name: 'Bushehr', lat: 28.83, lon: 50.89, country: 'Iran', type: 'power' },
   { name: 'Barakah', lat: 23.96, lon: 52.26, country: 'UAE', type: 'power' },
   { name: 'Kudankulam', lat: 8.17, lon: 77.71, country: 'India', type: 'power' },
+];
+
+// Epstein network — known locations, properties, and flight destinations
+export interface EpsteinLocation {
+  name: string;
+  lat: number;
+  lon: number;
+  type: 'property' | 'flight_dest' | 'associate' | 'island';
+  description: string;
+  icon: string;
+}
+
+export const EPSTEIN_LOCATIONS: EpsteinLocation[] = [
+  // Properties
+  { name: 'Little St. James Island', lat: 18.300, lon: -64.825, type: 'island', description: 'Private island ("Pedophile Island"), US Virgin Islands', icon: '🏝️' },
+  { name: 'Great St. James Island', lat: 18.319, lon: -64.854, type: 'property', description: 'Second private island, USVI', icon: '🏝️' },
+  { name: 'Manhattan Townhouse', lat: 40.7691, lon: -73.9653, type: 'property', description: '9 E 71st St, New York — primary residence', icon: '🏠' },
+  { name: 'Palm Beach Estate', lat: 26.6975, lon: -80.0356, type: 'property', description: '358 El Brillo Way, Palm Beach, FL', icon: '🏠' },
+  { name: 'Zorro Ranch', lat: 35.05, lon: -105.95, type: 'property', description: '10,000-acre ranch near Stanley, New Mexico', icon: '🏠' },
+  { name: 'Paris Apartment', lat: 48.8616, lon: 2.3052, type: 'property', description: 'Avenue Foch apartment, Paris, France', icon: '🏠' },
+  // Known flight destinations (Lolita Express routes)
+  { name: 'Teterboro Airport', lat: 40.8501, lon: -74.0608, type: 'flight_dest', description: 'Private jet hub, NJ — frequent departure point', icon: '✈️' },
+  { name: 'Cyril E. King Airport (STT)', lat: 18.3373, lon: -64.9734, type: 'flight_dest', description: 'St. Thomas, USVI — transfer to island', icon: '✈️' },
+  { name: 'Columbus Airport (CMH)', lat: 39.998, lon: -82.892, type: 'flight_dest', description: 'Columbus, OH — Les Wexner connection', icon: '✈️' },
+  { name: 'Santa Fe Airport', lat: 35.617, lon: -106.089, type: 'flight_dest', description: 'Near Zorro Ranch, NM', icon: '✈️' },
+  { name: 'Palm Beach Intl (PBI)', lat: 26.683, lon: -80.096, type: 'flight_dest', description: 'Near Palm Beach estate', icon: '✈️' },
+  { name: 'Ben Gurion Airport', lat: 32.011, lon: 34.887, type: 'flight_dest', description: 'Tel Aviv, Israel — documented flights', icon: '✈️' },
+  { name: 'Narita / Tokyo', lat: 35.764, lon: 140.386, type: 'flight_dest', description: 'Tokyo, Japan — flight logs', icon: '✈️' },
+  { name: 'London Stansted', lat: 51.885, lon: 0.235, type: 'flight_dest', description: 'UK — Ghislaine Maxwell connections', icon: '✈️' },
+  { name: 'Rabat-Salé Airport', lat: 34.051, lon: -6.751, type: 'flight_dest', description: 'Morocco — documented visits', icon: '✈️' },
+  // Key associate locations
+  { name: 'Ghislaine Maxwell — London', lat: 51.509, lon: -0.118, type: 'associate', description: 'Ghislaine Maxwell primary residence area', icon: '👤' },
+  { name: 'Les Wexner — New Albany, OH', lat: 40.079, lon: -82.789, type: 'associate', description: 'Les Wexner estate, New Albany', icon: '👤' },
+  { name: 'MCC New York', lat: 40.7168, lon: -74.0012, type: 'associate', description: 'Metropolitan Correctional Center — death location', icon: '⚫' },
 ];

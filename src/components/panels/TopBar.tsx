@@ -2,7 +2,7 @@ import { memo, useEffect, useState } from 'react';
 import { useWorldViewStore, MapMode, DashboardMode, DetectionMode } from '@/store/worldview';
 
 const TopBar = memo(() => {
-  const { aircraft, satellites, earthquakes, vessels, toggleLeftPanel, mapMode, setMapMode, detectionMode, toggleDetectionMode, visualStyle, circularViewport, toggleCircularViewport, panopticEnabled, togglePanoptic, hudLayout, immersiveMode, warMode, toggleWarMode, triggerManualRefresh, newsLoading, droneMode, toggleDroneMode } = useWorldViewStore();
+  const { aircraft, satellites, earthquakes, vessels, toggleLeftPanel, mapMode, setMapMode, detectionMode, toggleDetectionMode, visualStyle, circularViewport, toggleCircularViewport, panopticEnabled, togglePanoptic, hudLayout, immersiveMode, warMode, toggleWarMode, triggerManualRefresh, newsLoading, droneMode, toggleDroneMode, epsteinMode, toggleEpsteinMode, setMapCenter } = useWorldViewStore();
   const militaryCount = aircraft.filter(a => a.isMilitary).length;
   const [utc, setUtc] = useState('');
   const [refreshFlash, setRefreshFlash] = useState(false);
@@ -54,6 +54,18 @@ const TopBar = memo(() => {
 
         {/* WAR MODE BUTTON */}
         <WarModeButton active={warMode} onClick={toggleWarMode} />
+
+        {/* EPSTEIN MODE */}
+        <button
+          onClick={() => { toggleEpsteinMode(); if (!epsteinMode) setMapCenter({ lat: 18.3, lon: -64.83, zoom: 8 }); }}
+          className={`px-2 py-0.5 text-[8px] font-display tracking-[0.15em] rounded border transition-all ${
+            epsteinMode
+              ? 'bg-pink-500/20 text-pink-400 border-pink-500/40 shadow-[0_0_8px_hsla(330,100%,50%,0.2)]'
+              : 'text-muted-foreground border-transparent hover:border-pink-500/20 hover:text-pink-400/70'
+          }`}
+        >
+          {epsteinMode ? '👁 EPSTEIN' : '👁 EPSTEIN'}
+        </button>
 
         <span className="text-primary/20 mx-1">│</span>
 
