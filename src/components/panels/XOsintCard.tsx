@@ -121,7 +121,7 @@ const XOsintCard = memo(() => {
 
             {/* Posts */}
             <div className="overflow-y-auto max-h-[400px] divide-y divide-border/20">
-              {filtered.slice(0, 30).map(post => {
+              {filtered.map(post => {
                 const severity = classifyTweet(post.text);
                 return (
                   <div
