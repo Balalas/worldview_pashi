@@ -513,8 +513,11 @@ const MapContainer = memo(() => {
       const isWar = cz.type === 'war' || cz.intensity >= 8;
       const isHot = cz.intensity >= 6;
 
-      // Outer blast radius
-      group.addLayer(L.circleMarker([cz.lat, cz.lon], { radius: radius * 2, color, fillColor: color, fillOpacity: 0.08, weight: 0.5, interactive: false }));
+      // Outer blast radius — clickable
+      const outer = L.circleMarker([cz.lat, cz.lon], { radius: radius * 2, color, fillColor: color, fillOpacity: 0.08, weight: 0.5, interactive: true });
+      outer.bindTooltip(`🎯 ${cz.name} [${cz.intensity}/10]`, { direction: 'top', offset: [0, -10] });
+      outer.on('click', () => setDetailPanel({ type: 'conflict', data: cz }));
+      group.addLayer(outer);
 
       // Inner marker
       const inner = L.circleMarker([cz.lat, cz.lon], { radius, color, fillColor: color, fillOpacity: 0.25, weight: 1.5 });
@@ -522,15 +525,15 @@ const MapContainer = memo(() => {
       inner.on('click', () => setDetailPanel({ type: 'conflict', data: cz }));
       group.addLayer(inner);
 
-      // Pulsing ring
-      const pulseIcon = L.divIcon({ className: '', html: `<div style="width:${radius * 4}px;height:${radius * 4}px;border:1.5px solid ${color};border-radius:50%;animation:ping-ring 3s ease-out infinite;opacity:0.4;"></div>`, iconSize: [radius * 4, radius * 4], iconAnchor: [radius * 2, radius * 2] });
+      // Pulsing ring — pointer-events:none so clicks pass through
+      const pulseIcon = L.divIcon({ className: '', html: `<div style="width:${radius * 4}px;height:${radius * 4}px;border:1.5px solid ${color};border-radius:50%;animation:ping-ring 3s ease-out infinite;opacity:0.4;pointer-events:none;"></div>`, iconSize: [radius * 4, radius * 4], iconAnchor: [radius * 2, radius * 2] });
       group.addLayer(L.marker([cz.lat, cz.lon], { icon: pulseIcon, interactive: false }));
 
-      // Explosion/missile-hit SVG animation for war zones
+      // Explosion/missile-hit SVG animation for war zones — pointer-events:none so clicks pass through
       if (isWar || isHot) {
         const explosionSize = isWar ? 48 : 32;
-        const explosionHtml = `<div style="width:${explosionSize}px;height:${explosionSize}px;position:relative;">
-          <svg viewBox="0 0 100 100" width="${explosionSize}" height="${explosionSize}" style="position:absolute;inset:0;">
+        const explosionHtml = `<div style="width:${explosionSize}px;height:${explosionSize}px;position:relative;pointer-events:none;">
+          <svg viewBox="0 0 100 100" width="${explosionSize}" height="${explosionSize}" style="position:absolute;inset:0;pointer-events:none;">
             <!-- Shockwave rings -->
             <circle cx="50" cy="50" r="8" fill="none" stroke="${color}" stroke-width="1.5" opacity="0.6">
               <animate attributeName="r" values="8;45" dur="2.5s" repeatCount="indefinite"/>
