@@ -43,6 +43,7 @@ function classifySeverity(title: string): string {
 // ── Category classification ──
 function classifyCategory(title: string): string {
   const t = title.toLowerCase();
+  if (/epstein|ghislaine|maxwell|lolita express|little st.? james/.test(t)) return 'epstein';
   if (/militar|army|navy|troops|deploy|weapon|defense|pentagon|airforce|base|fleet/.test(t)) return 'military';
   if (/war|conflict|invasion|attack|killed|dead|casualties|strike|bomb|shell|offensive|frontline/.test(t)) return 'conflict';
   if (/protest|demonstrat|rally|riot|unrest|uprising|march|dissent/.test(t)) return 'protest';
@@ -107,6 +108,11 @@ const COUNTRY_MAP: Record<string, { lat: number; lon: number }> = {
   'red sea': { lat: 20.0, lon: 38.0 }, 'strait of hormuz': { lat: 26.57, lon: 56.25 },
   'south china sea': { lat: 15.0, lon: 115.0 }, 'taiwan strait': { lat: 24.5, lon: 119.5 },
   'djibouti': { lat: 11.55, lon: 43.15 }, 'eritrea': { lat: 15.34, lon: 38.93 },
+  // Epstein-linked locations
+  'epstein': { lat: 18.30, lon: -64.83 }, 'little st james': { lat: 18.30, lon: -64.83 },
+  'epstein island': { lat: 18.30, lon: -64.83 }, 'ghislaine': { lat: 40.76, lon: -73.98 },
+  'maxwell': { lat: 40.76, lon: -73.98 }, 'lolita express': { lat: 18.30, lon: -64.83 },
+  'palm beach': { lat: 26.71, lon: -80.04 }, 'virgin islands': { lat: 18.34, lon: -64.93 },
 };
 
 function extractLocation(title: string): { country: string; lat: number; lon: number } | null {
@@ -135,6 +141,7 @@ const QUERY_TOPICS = [
   { category: 'disaster', query: 'earthquake OR hurricane OR flood OR wildfire' },
   { category: 'economic', query: 'economic crisis OR inflation OR recession' },
   { category: 'intelligence', query: 'intelligence OR espionage OR surveillance' },
+  { category: 'epstein', query: 'Epstein OR "Jeffrey Epstein" OR "Epstein files" OR "Epstein island" OR "Epstein list" OR "Ghislaine Maxwell"' },
 ];
 
 interface GdeltArticle {
@@ -280,7 +287,7 @@ serve(async (req) => {
     try {
       console.log('[GDELT] Trying GDELT API...');
       const params = new URLSearchParams({
-        query: '(conflict OR military OR attack OR protest OR crisis) sourcelang:english',
+        query: '(conflict OR military OR attack OR protest OR crisis OR Epstein) sourcelang:english',
         mode: 'artlist',
         maxrecords: String(Math.min(maxRecords, 250)),
         format: 'json',

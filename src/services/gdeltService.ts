@@ -122,6 +122,7 @@ function mapToNewsCategory(cat: string): NewsItem['category'] {
     case 'military': case 'intelligence': case 'maritime': case 'nuclear': return 'military';
     case 'protest': return 'protest';
     case 'cyber': return 'cyber';
+    case 'epstein': return 'general'; // Epstein news flows through general category
     default: return 'general';
   }
 }
